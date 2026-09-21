@@ -10,7 +10,9 @@ import { doctorCheck } from "./commands/doctor.js";
 import { installLocal } from "./commands/install.js";
 import { configDir } from "./config/store.js";
 
-const pkg = { version: "1.0.0" };
+import { VERSION } from "./tui/copy.js";
+
+const pkg = { version: VERSION };
 
 export function buildProgram(): Command {
   const program = new Command();

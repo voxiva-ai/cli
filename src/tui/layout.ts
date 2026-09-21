@@ -170,19 +170,23 @@ export type HeaderInfo = {
   planId: PlanId;
   model?: string;
   authKeys: string[];
+  noModelLabel?: string;
+  notConnectedLabel?: string;
 };
 
-/** Status header — title + one status line, no command hints. */
+/** Status header — title + one status line, no icons. */
 export function renderHeader(info: HeaderInfo, cols: number): string[] {
   const t = c();
   const w = fullWidth(cols);
   const inner = w - 4;
 
-  const modelVal = info.model ? t.muted(info.model) : t.dim("no model");
+  const noModel = info.noModelLabel ?? "no model";
+  const notConnected = info.notConnectedLabel ?? "not connected";
+  const modelVal = info.model ? t.text(info.model) : t.dim(noModel);
   const planVal = chalk.hex(PLAN_COLORS[info.planId])(info.plan);
   const authVal = info.authKeys.length
     ? t.muted(info.authKeys.join(", "))
-    : t.dim("not connected");
+    : t.dim(notConnected);
 
   const rows = [
     `${t.accent(">")} ${t.text("Voxiva CLI")} ${t.dim(`(v${info.version})`)}`,
@@ -208,6 +212,8 @@ export type StatusFooterParts = {
   cwd: string;
   busy?: boolean;
   queued?: number;
+  workingLabel?: string;
+  queuedLabel?: string;
 };
 
 /** Footer — workspace path only. */
@@ -216,8 +222,8 @@ export function statusFooter(parts: StatusFooterParts, width: number): string {
   const left = t.dim(truncate(parts.cwd, width - 16));
   const right = parts.busy
     ? parts.queued
-      ? t.accent(`queued ${parts.queued}`)
-      : t.accent("working…")
+      ? t.accent(parts.queuedLabel ?? `queued ${parts.queued}`)
+      : t.accent(parts.workingLabel ?? "working…")
     : "";
   const gap = width - stringWidth(left) - stringWidth(right);
   return left + " ".repeat(Math.max(1, gap)) + right;

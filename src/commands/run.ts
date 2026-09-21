@@ -1,8 +1,9 @@
 import ora from "ora";
 import { c, promptGlyph } from "../brand/index.js";
 import { loadAuth, loadConfig, type ModelRef } from "../config/store.js";
-import { getPlan } from "../plans/index.js";
+import { getPlan, planSystem } from "../plans/index.js";
 import { streamChat } from "../providers/chat.js";
+import type { LocaleId } from "../i18n/index.js";
 
 export type RunOptions = {
   model?: string;
@@ -16,10 +17,11 @@ export async function runPrompt(prompt: string, opts: RunOptions = {}): Promise<
   const model = opts.model ?? config.defaultModel;
   const planId = (opts.plan ?? config.plan) as typeof config.plan;
   const plan = getPlan(planId);
+  const locale = (config.locale ?? "en") as LocaleId;
 
   if (!model) {
     console.error(c.danger("No model selected."));
-    console.log(c.muted("Run:"), c.brand("voxiva auth login"), c.muted("then"), c.brand("voxiva models use openai/gpt-4.1-mini"));
+    console.log(c.muted("Run:"), c.brand("voxiva"), c.muted("then"), c.brand("/connect"), c.muted("and"), c.brand("/models"));
     process.exitCode = 1;
     return;
   }
@@ -33,7 +35,7 @@ export async function runPrompt(prompt: string, opts: RunOptions = {}): Promise<
 
   let started = false;
   const messages = [
-    { role: "system" as const, content: plan.system },
+    { role: "system" as const, content: planSystem(planId, locale) },
     { role: "user" as const, content: prompt },
   ];
 

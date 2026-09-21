@@ -4,7 +4,7 @@ import { execSync, spawnSync } from "node:child_process";
 import chalk from "chalk";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getPlan, PLANS } from "../plans/index.js";
+import { getPlan, planSystem, PLANS } from "../plans/index.js";
 import { listCatalog, modelRef, parseModelRef, type ChatMessage } from "../providers/chat.js";
 import { streamChat } from "../providers/chat.js";
 import {
@@ -13,6 +13,7 @@ import {
   saveSession,
   type SessionRecord,
 } from "../sessions/store.js";
+import { LOCALES, t as ui, type LocaleId } from "../i18n/index.js";
 import {
   assistantBubble,
   clearScreen,
@@ -43,7 +44,7 @@ import { PLAN_COLORS, THEMES } from "./themes.js";
 import type { ThemeId } from "../config/store.js";
 import { paletteItems, resolveSlash, slashSuggestions, matchesPaletteFilter, type SlashResult } from "./slash.js";
 import type { SlashContext } from "./slash.js";
-import { PLACEHOLDER, TIP_NEED_CONNECT, TIP_NEED_MODEL, TIP_QUEUE_BUSY, TIP_VOICE_LISTEN, TIP_VOICE_READY, VERSION } from "./copy.js";
+import { VERSION } from "./copy.js";
 import { setVoiceListening, setVoiceSink } from "../voice/bridge.js";
 
 const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
@@ -65,6 +66,7 @@ type AppState = {
   model?: ModelRef;
   pendingModel?: ModelRef;
   theme: ThemeId;
+  locale: LocaleId;
   authKeys: ProviderId[];
   overlay: import("./slash.js").OverlayMode | null;
   overlayIndex: number;
@@ -141,6 +143,7 @@ export async function runTui(): Promise<void> {
   const auth = await loadAuth();
   const savedSessions = await listSessions();
   const themeId = config.theme ?? "voxiva";
+  const localeId = (config.locale ?? "en") as LocaleId;
   setActiveTheme(themeId);
   const connectedProviders = Object.entries(auth)
     .filter(([, value]) => value?.apiKey)
@@ -150,10 +153,11 @@ export async function runTui(): Promise<void> {
     input: "",
     cursor: 0,
     messages: [],
-    history: [{ role: "system", content: getPlan(config.plan).system }],
+    history: [{ role: "system", content: planSystem(config.plan, localeId) }],
     plan: config.plan,
     model: config.defaultModel,
     theme: themeId,
+    locale: localeId,
     authKeys: connectedProviders,
     overlay:
       snapshot && process.env.VOXIVA_TUI_VIEW
@@ -198,9 +202,10 @@ export async function runTui(): Promise<void> {
     plan: state.plan,
     model: state.model,
     theme: state.theme,
+    locale: state.locale,
     setPlan: async (id) => {
       state.plan = id;
-      state.history[0] = { role: "system", content: getPlan(id).system };
+      state.history[0] = { role: "system", content: planSystem(id, state.locale) };
       await patchConfig({ plan: id });
     },
     setModel: async (ref) => {
@@ -212,18 +217,32 @@ export async function runTui(): Promise<void> {
       setActiveTheme(id);
       await patchConfig({ theme: id });
     },
+    setLocale: async (id) => {
+      state.locale = id;
+      state.history[0] = { role: "system", content: planSystem(state.plan, id) };
+      await patchConfig({ locale: id });
+    },
     refresh: async () => {
       const fresh = await loadConfig();
       const freshAuth = await loadAuth();
       state.model = fresh.defaultModel;
       state.plan = fresh.plan;
       state.theme = fresh.theme ?? "voxiva";
+      state.locale = (fresh.locale ?? "en") as LocaleId;
       setActiveTheme(state.theme);
       state.authKeys = Object.entries(freshAuth)
         .filter(([, v]) => v?.apiKey)
         .map(([k]) => k as ProviderId);
+      ctx.locale = state.locale;
+      ctx.plan = state.plan;
+      ctx.model = state.model;
+      ctx.theme = state.theme;
     },
   };
+
+  function strings() {
+    return ui(state.locale);
+  }
 
   function toast(text: string, tone: "ok" | "error" | "info" = "info") {
     state.toast = { text, tone };
@@ -375,6 +394,19 @@ export async function runTui(): Promise<void> {
         out.push("");
         out.push(t.dim("  enter · apply  ·  esc · back"));
         break;
+      case "languages":
+        out.push(t.muted("Language"));
+        out.push("");
+        LOCALES.forEach((locale, i) => {
+          const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
+          const active = state.locale === locale.id ? t.accent2(" *") : "";
+          out.push(
+            `${mark}${t.text(locale.id.padEnd(4))}${active}${t.dim(`  ${locale.native} · ${locale.label}`)}`,
+          );
+        });
+        out.push("");
+        out.push(t.dim("  enter · apply  ·  esc · back"));
+        break;
       case "sessions":
         out.push(t.muted("Sessions"));
         out.push("");
@@ -461,6 +493,7 @@ export async function runTui(): Promise<void> {
     const pinned: string[] = [];
     let cursorInBox = { inputRow: 0, inputCol: 0 };
     const t = tc();
+    const s = strings();
     const header = renderHeader(
       {
         version: VERSION,
@@ -468,6 +501,8 @@ export async function runTui(): Promise<void> {
         planId: state.plan,
         model: state.model ? modelShort(state.model) : undefined,
         authKeys: state.authKeys,
+        noModelLabel: s.noModel,
+        notConnectedLabel: s.notConnected,
       },
       cols,
     );
@@ -530,7 +565,7 @@ export async function runTui(): Promise<void> {
         pinned.push(...suggestBlock);
         pinned.push("");
       }
-      const box = inputBar(cols, state.input, state.cursor, PLACEHOLDER, {
+      const box = inputBar(cols, state.input, state.cursor, strings().placeholder, {
         blink: state.caretBlink,
         mode: state.voice === "listen" ? "listen" : "type",
         ghost: ghostForInput(),
@@ -547,6 +582,8 @@ export async function runTui(): Promise<void> {
           cwd: shortCwd(state.cwd),
           busy: state.busy,
           queued: state.promptQueue.length,
+          workingLabel: s.working,
+          queuedLabel: state.promptQueue.length ? s.queued(state.promptQueue.length) : undefined,
         },
         cols,
       ),
@@ -611,7 +648,7 @@ export async function runTui(): Promise<void> {
         const summary = `Earlier context compacted (${nonSystem.length - kept.length} messages).`;
         const systemMsg = state.history.find((message) => message.role === "system");
         state.history = [
-          systemMsg ?? { role: "system", content: getPlan(state.plan).system },
+          systemMsg ?? { role: "system", content: planSystem(state.plan, state.locale) },
           { role: "user", content: summary },
           ...kept,
         ];
@@ -704,7 +741,7 @@ export async function runTui(): Promise<void> {
       case "clear":
         await persistSession();
         state.messages = [];
-        state.history = [{ role: "system", content: getPlan(state.plan).system }];
+        state.history = [{ role: "system", content: planSystem(state.plan, state.locale) }];
         state.sessionId = undefined;
         state.redoStack = [];
         state.scrollOffset = 0;
@@ -754,7 +791,7 @@ export async function runTui(): Promise<void> {
 
     if (state.busy && !line.startsWith("/") && !line.startsWith("!")) {
       state.promptQueue.push(line);
-      toast(`${TIP_QUEUE_BUSY} (${state.promptQueue.length})`, "info");
+      toast(`${strings().queueBusy} (${state.promptQueue.length})`, "info");
       queueRender();
       return;
     }
@@ -812,7 +849,7 @@ export async function runTui(): Promise<void> {
 
     if (!state.model) {
       toast(
-        state.authKeys.length === 0 ? TIP_NEED_CONNECT : TIP_NEED_MODEL,
+        state.authKeys.length === 0 ? strings().needConnect : strings().needModel,
         "info",
       );
       return;
@@ -969,6 +1006,15 @@ export async function runTui(): Promise<void> {
         }
         break;
       }
+      case "languages": {
+        const locale = LOCALES[state.overlayIndex];
+        if (locale) {
+          await ctx.setLocale(locale.id);
+          state.overlay = null;
+          toast(strings().langSet(locale.native), "ok");
+        }
+        break;
+      }
       case "sessions": {
         const selected = state.savedSessions[state.overlayIndex];
         if (!selected) break;
@@ -1009,6 +1055,8 @@ export async function runTui(): Promise<void> {
         return PLANS.length;
       case "themes":
         return THEMES.length;
+      case "languages":
+        return LOCALES.length;
       case "sessions":
         return Math.min(10, state.savedSessions.length);
       case "palette": {
@@ -1057,7 +1105,7 @@ export async function runTui(): Promise<void> {
       state.voice = "off";
       state.voiceDraft = "";
       setVoiceListening(false);
-      toast(state.input.trim() ? "Voice session ended." : TIP_VOICE_READY, "ok");
+      toast(state.input.trim() ? "Voice session ended." : strings().voiceReady, "ok");
       queueRender(true);
       return;
     }
@@ -1065,7 +1113,7 @@ export async function runTui(): Promise<void> {
     state.voiceDraft = "";
     state.overlay = null;
     setVoiceListening(true);
-    toast(TIP_VOICE_LISTEN, "info");
+    toast(strings().voiceListen, "info");
     queueRender(true);
   }
 

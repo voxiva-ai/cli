@@ -59,6 +59,7 @@ voxiva
 | Commands | `/` then ↑↓ · Tab · Enter |
 | Palette | `Ctrl+P` |
 | Voice | `Ctrl+R` |
+| Lang | `/lang` |
 | Provider | `/connect` |
 | Model | `/models` or `/model openai/gpt-4.1-mini` |
 | Plans | `/plans` or Tab |

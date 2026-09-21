@@ -1,6 +1,6 @@
 {
   "name": "@voxiva/cli",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Voxiva CLI — models, plans, and chat in the terminal",
   "type": "module",
   "bin": {

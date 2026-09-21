@@ -8,6 +8,8 @@ export type PlanId = "build" | "ship" | "check" | "explore";
 
 export type ThemeId = "voxiva" | "slate" | "midnight" | "arctic";
 
+export type LocaleId = import("../i18n/index.js").LocaleId;
+
 export type ModelRef = `${ProviderId}/${string}`;
 
 export type VoxivaConfig = {
@@ -15,6 +17,7 @@ export type VoxivaConfig = {
   defaultModel?: ModelRef;
   plan: PlanId;
   theme?: ThemeId;
+  locale?: LocaleId;
   cwd?: string;
 };
 
@@ -28,6 +31,7 @@ const DEFAULT_CONFIG: VoxivaConfig = {
   version: 1,
   plan: "build",
   theme: "voxiva",
+  locale: "en",
 };
 
 export async function ensureDir(): Promise<void> {

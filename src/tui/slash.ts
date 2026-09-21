@@ -1,6 +1,7 @@
-import type { PlanId } from "../config/store.js";
+import type { LocaleId, PlanId } from "../config/store.js";
 import { PLANS } from "../plans/index.js";
 import { parseModelRef } from "../providers/chat.js";
+import { getLocale, localeIds } from "../i18n/index.js";
 
 export type SlashHandler = (args: string, ctx: SlashContext) => Promise<SlashResult>;
 
@@ -34,16 +35,19 @@ export type OverlayMode =
   | "providers"
   | "themes"
   | "sessions"
-  | "connect-key";
+  | "connect-key"
+  | "languages";
 
 export type SlashContext = {
   cwd: string;
   plan: PlanId;
   model?: string;
   theme: import("../config/store.js").ThemeId;
+  locale: LocaleId;
   setPlan: (id: PlanId) => Promise<void>;
   setModel: (ref: string) => Promise<void>;
   setTheme: (id: import("../config/store.js").ThemeId) => Promise<void>;
+  setLocale: (id: LocaleId) => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -101,6 +105,26 @@ export const SLASH_COMMANDS: SlashCommand[] = [
       await ctx.setPlan(id);
       await ctx.refresh();
       return { type: "toast", message: `Plan → ${id}`, tone: "ok" };
+    },
+  },
+  {
+    name: "lang",
+    aliases: ["language", "locale"],
+    description: "UI + reply language",
+    handler: async (args, ctx) => {
+      const id = args.trim().toLowerCase() as LocaleId;
+      if (!id) return { type: "overlay", mode: "languages" };
+      if (!localeIds().includes(id)) {
+        return {
+          type: "toast",
+          message: `Unknown language. Try: ${localeIds().join(", ")}`,
+          tone: "error",
+        };
+      }
+      await ctx.setLocale(id);
+      await ctx.refresh();
+      const locale = getLocale(id);
+      return { type: "toast", message: `Language → ${locale.native}`, tone: "ok" };
     },
   },
   {
