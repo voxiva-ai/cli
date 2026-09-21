@@ -1,0 +1,65 @@
+{
+  "name": "@voxiva/cli",
+  "version": "1.0.0",
+  "description": "Voxiva CLI — models, plans, and chat in the terminal",
+  "type": "module",
+  "bin": {
+    "voxiva": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "scripts",
+    "brand",
+    "LICENSE",
+    "README.md",
+    "SECURITY.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/voxiva-ai/cli.git"
+  },
+  "homepage": "https://github.com/voxiva-ai/cli#readme",
+  "bugs": {
+    "url": "https://github.com/voxiva-ai/cli/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "dev": "node dist/index.js",
+    "watch": "tsc --watch",
+    "start": "node dist/index.js",
+    "try": "node dist/index.js chat",
+    "install:local": "node scripts/run-install.mjs",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": [
+    "voxiva",
+    "voxily",
+    "cli",
+    "ai",
+    "terminal",
+    "agent"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@clack/prompts": "^0.10.1",
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "openai": "^4.89.0",
+    "ora": "^8.2.0",
+    "slice-ansi": "^9.0.0",
+    "string-width": "^7.2.0",
+    "wrap-ansi": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "~5.8.3"
+  }
+}

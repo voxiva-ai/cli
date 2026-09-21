@@ -1,0 +1,29 @@
+<svg width="256" height="256" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Voxiva mark</title>
+  <defs>
+    <linearGradient id="voxiva-ring" x1="86" y1="78" x2="426" y2="434" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6BE3FF"/>
+      <stop offset="1" stop-color="#2D5BFF"/>
+    </linearGradient>
+    <linearGradient id="voxiva-voice" x1="143" y1="134" x2="255" y2="374" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFE995"/>
+      <stop offset="0.52" stop-color="#F0C14B"/>
+      <stop offset="1" stop-color="#F49A32"/>
+    </linearGradient>
+    <linearGradient id="voxiva-action" x1="369" y1="134" x2="257" y2="374" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#79E5FF"/>
+      <stop offset="0.48" stop-color="#4D9DFF"/>
+      <stop offset="1" stop-color="#2D5BFF"/>
+    </linearGradient>
+    <filter id="voxiva-glow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+  <circle cx="256" cy="256" r="220" fill="#05070D"/>
+  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#voxiva-ring)" stroke-width="18" opacity="0.78"/>
+  <path d="M150 145C166 145 180 154 187 168L256 310L226 382L124 189C114 169 128 145 150 145Z" fill="url(#voxiva-voice)" opacity="0.34" filter="url(#voxiva-glow)"/>
+  <path d="M362 145C346 145 332 154 325 168L256 310L286 382L388 189C398 169 384 145 362 145Z" fill="url(#voxiva-action)" opacity="0.34" filter="url(#voxiva-glow)"/>
+  <path d="M150 145C166 145 180 154 187 168L256 310L325 168C332 154 346 145 362 145C384 145 398 169 388 189L286 382C280 394 268 402 256 402C244 402 232 394 226 382L124 189C114 169 128 145 150 145Z" fill="#0B1020"/>
+  <path d="M150 145C166 145 180 154 187 168L256 310L226 382L124 189C114 169 128 145 150 145Z" fill="url(#voxiva-voice)"/>
+  <path d="M362 145C346 145 332 154 325 168L256 310L286 382L388 189C398 169 384 145 362 145Z" fill="url(#voxiva-action)"/>
+</svg>

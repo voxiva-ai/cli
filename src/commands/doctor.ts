@@ -1,0 +1,53 @@
+import { execSync } from "node:child_process";
+import { c, vMark } from "../brand/index.js";
+import { configDir, loadAuth, loadConfig } from "../config/store.js";
+
+function hasCommand(name: string): boolean {
+  try {
+    if (process.platform === "win32") {
+      execSync(`where ${name}`, { stdio: "ignore" });
+    } else {
+      execSync(`command -v ${name}`, { stdio: "ignore" });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function doctorCheck(): Promise<number> {
+  console.log(vMark(true));
+  console.log("");
+
+  let ok = true;
+  const nodeMajor = Number(process.versions.node.split(".")[0]);
+  const nodeOk = nodeMajor >= 20;
+  console.log(`${nodeOk ? c.ok("✓") : c.danger("✗")} Node.js ${process.versions.node}${nodeOk ? "" : " (need 20+)"}`);
+  if (!nodeOk) ok = false;
+
+  const cliOk = hasCommand("voxiva");
+  console.log(`${cliOk ? c.ok("✓") : c.danger("✗")} voxiva on PATH`);
+  if (!cliOk) ok = false;
+
+  const config = await loadConfig();
+  const auth = await loadAuth();
+  const providers = Object.keys(auth).filter((k) => auth[k as keyof typeof auth]?.apiKey);
+
+  console.log(`${config.defaultModel ? c.ok("✓") : c.muted("·")} Model ${config.defaultModel ?? "(not set)"}`);
+  console.log(`${providers.length ? c.ok("✓") : c.muted("·")} Providers ${providers.length ? providers.join(", ") : "(none)"}`);
+  console.log(`${c.muted("·")} Config ${configDir()}`);
+  console.log(`${c.muted("·")} Plan ${config.plan}`);
+
+  console.log("");
+  if (!ok) {
+    console.log(c.danger("Fix install:"), c.brand("npm run install:local"));
+    return 1;
+  }
+
+  if (!config.defaultModel) {
+    console.log(c.muted("Ready. Connect a model:"), c.brand("voxiva auth login"));
+  } else {
+    console.log(c.ok("Ready."), c.brand("voxiva chat"));
+  }
+  return 0;
+}
