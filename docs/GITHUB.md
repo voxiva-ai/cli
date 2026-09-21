@@ -1,49 +1,25 @@
-# Voxi.ly / Voxiva on GitHub
+# GitHub
 
-## What exists today
+Org: [voxiva-ai](https://github.com/voxiva-ai)  
+Repo: `voxiva-ai/cli`
 
-| Login | Type | URL |
-|-------|------|-----|
-| **voxiva-ai** | Organization | https://github.com/voxiva-ai |
-| **voxily** | User (not an org) | https://github.com/voxily |
+## Logo for the org avatar
 
-GitHub org URLs can’t contain a dot (`Voxi.ly`). Use **display name** `Voxi.ly` on the org profile, slug **`voxiva-ai`**.
+Use the real Voxiva mark:
 
-Recommended home for this CLI: **`voxiva-ai/cli`**.
+`D:\voxiva.ai\Voxiva CLI\brand\voxiva-mark.svg`
 
-## Avatar
+Upload: https://github.com/organizations/voxiva-ai/settings/profile  
+(GitHub may ask for PNG — open the SVG in a browser, screenshot/export 512×512 if needed.)
 
-File in this repo: [`brand/org-avatar.png`](../brand/org-avatar.png)
-
-After you’re an org owner:
-
-1. Open https://github.com/organizations/voxiva-ai/settings/profile  
-2. Set **Display name** → `Voxi.ly`  
-3. Upload **Profile picture** → `brand/org-avatar.png`  
-4. Add short bio: `Voxiva — CLI, Space, Voice, Web`
-
-## Auth + publish (once)
-
-```powershell
-& "C:\Program Files\GitHub CLI\gh.exe" auth login -h github.com -p https -w
-```
-
-Then from this folder:
+## First push (after you create the empty public repo)
 
 ```powershell
 cd "D:\voxiva.ai\Voxiva CLI"
 git add .
-git commit -m "Initial public Voxiva CLI"
+git commit -m "Initial Voxiva CLI"
 git branch -M main
-& "C:\Program Files\GitHub CLI\gh.exe" repo create voxiva-ai/cli --public --source=. --remote=origin --push
+git remote remove origin 2>$null
+git remote add origin https://github.com/voxiva-ai/cli.git
+git push -u origin main
 ```
-
-## Safe install for others
-
-```powershell
-git clone https://github.com/voxiva-ai/cli.git
-cd cli
-.\scripts\install.ps1
-```
-
-Keys stay in `~/.voxiva/`. See [SECURITY.md](../SECURITY.md).
