@@ -3,11 +3,12 @@ import { c, vMark } from "../brand/index.js";
 import { loadAuth, saveAuth, type ProviderId } from "../config/store.js";
 
 const PROVIDERS: { id: ProviderId; label: string; hint: string }[] = [
+  { id: "openrouter", label: "OpenRouter (free models)", hint: "openrouter.ai/keys — free tier $0" },
   { id: "openai", label: "OpenAI", hint: "platform.openai.com/api-keys" },
   { id: "anthropic", label: "Anthropic", hint: "console.anthropic.com" },
-  { id: "openrouter", label: "OpenRouter", hint: "openrouter.ai/keys" },
-  { id: "groq", label: "Groq", hint: "console.groq.com" },
   { id: "google", label: "Google AI", hint: "aistudio.google.com/apikey" },
+  { id: "deepseek", label: "DeepSeek", hint: "platform.deepseek.com/api_keys" },
+  { id: "groq", label: "Groq", hint: "console.groq.com" },
 ];
 
 export async function authLogin(): Promise<void> {

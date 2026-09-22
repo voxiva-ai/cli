@@ -2,7 +2,7 @@
 
 Terminal coding agent from [Voxiva](https://github.com/voxiva-ai).
 
-Connect OpenAI, Anthropic, OpenRouter, Groq, or Google. Switch plans, themes, and languages. Chat in the terminal.
+Connect OpenAI, Anthropic, OpenRouter, Google, DeepSeek, or Groq. Switch plans, themes, languages, workspaces, and models. Chat in the terminal.
 
 **Beta `v0.1.0`**
 
@@ -92,8 +92,10 @@ voxiva
 | Language | `/lang` |
 | Theme | `/themes` |
 | Provider | `/connect` |
-| Model | `/models` or `/model openai/gpt-4.1-mini` |
+| Model | `/models` or `/model deepseek/deepseek-chat` |
 | Plans | `/plans` |
+| Sessions | `/sessions` · `/continue` · Ctrl+X O |
+| Workspaces | `/workspaces` · Ctrl+X W |
 | Files | `/files` · Ctrl+X F |
 | Context | `/context` |
 | Memory | `/memory note` |
@@ -108,7 +110,19 @@ voxiva
 | Diff | `/diff` — git status summary |
 | Init | `/init` — create `AGENTS.md` (loaded into prompts) |
 
-Keys: `~/.voxiva/auth.json` or env `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`.
+Keys: `~/.voxiva/auth.json` or env `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`.
+
+Sessions and workspaces are stored on disk under `~/.voxiva/` (`sessions.json`, `workspaces.json`, `config.json`).
+
+## Built-in models
+
+**Free first** (like OpenCode Zen free picks) — $0 usage via OpenRouter:
+
+1. `/connect` → **OpenRouter** (free key at [openrouter.ai/keys](https://openrouter.ai/keys))
+2. `/models` → pick any model marked **free** (Free Models Router, Qwen, Gemma, GLM, Nemotron, …)
+
+Paid / BYOK also in `/models`: OpenAI, Anthropic, Gemini, DeepSeek, Groq.
+Any `provider/model` works via `/model`.
 
 ## Plans
 

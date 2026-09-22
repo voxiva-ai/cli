@@ -2,7 +2,22 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-export type ProviderId = "openai" | "anthropic" | "openrouter" | "groq" | "google";
+export type ProviderId =
+  | "openai"
+  | "anthropic"
+  | "openrouter"
+  | "groq"
+  | "google"
+  | "deepseek";
+
+export const PROVIDER_IDS: ProviderId[] = [
+  "openai",
+  "anthropic",
+  "openrouter",
+  "google",
+  "groq",
+  "deepseek",
+];
 
 export type PlanId = "build" | "ship" | "check" | "explore";
 
@@ -19,6 +34,8 @@ export type VoxivaConfig = {
   theme?: ThemeId;
   locale?: LocaleId;
   cwd?: string;
+  /** Last session id for /continue */
+  lastSessionId?: string;
 };
 
 export type AuthStore = Partial<Record<ProviderId, { apiKey: string }>>;
@@ -66,6 +83,7 @@ export async function loadAuth(): Promise<AuthStore> {
     openrouter: process.env.OPENROUTER_API_KEY,
     groq: process.env.GROQ_API_KEY,
     google: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,
+    deepseek: process.env.DEEPSEEK_API_KEY,
   };
 
   for (const [provider, apiKey] of Object.entries(environment)) {

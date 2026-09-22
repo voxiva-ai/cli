@@ -38,7 +38,8 @@ export type SlashResult =
         | "fix"
         | "memory-add"
         | "memory-clear"
-        | "queue-clear";
+        | "queue-clear"
+        | "continue";
       args?: string;
     };
 
@@ -60,7 +61,8 @@ export type OverlayMode =
   | "history"
   | "branch"
   | "queue"
-  | "memory";
+  | "memory"
+  | "workspaces";
 
 export type SlashContext = {
   cwd: string;
@@ -217,6 +219,20 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     description: "Resume a saved session",
     keybind: "ctrl+x l",
     handler: async () => ({ type: "overlay", mode: "sessions" }),
+  },
+  {
+    name: "continue",
+    aliases: ["last", "restore"],
+    description: "Continue last session in this workspace",
+    keybind: "ctrl+x o",
+    handler: async () => ({ type: "action", action: "continue" }),
+  },
+  {
+    name: "workspaces",
+    aliases: ["projects", "ws", "cd"],
+    description: "Switch recent project folders",
+    keybind: "ctrl+x w",
+    handler: async () => ({ type: "overlay", mode: "workspaces" }),
   },
   {
     name: "compact",

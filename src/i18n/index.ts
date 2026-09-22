@@ -66,8 +66,8 @@ type Dict = {
 const DICTS: Record<LocaleId, Dict> = {
   en: {
     placeholder: "Ask anything, or / for commands",
-    needConnect: "Connect a provider with /connect.",
-    needModel: "Pick a model with /models.",
+    needConnect: "Connect OpenRouter with /connect for free models (or another provider).",
+    needModel: "Pick a model with /models — free ones are at the top.",
     queueBusy: "Queued — runs after this reply.",
     voiceListen: "Listening… Ctrl+R again to stop",
     voiceReady: "Ctrl+R for voice",
@@ -80,8 +80,8 @@ const DICTS: Record<LocaleId, Dict> = {
   },
   ru: {
     placeholder: "Спроси что угодно или / для команд",
-    needConnect: "Подключи провайдера: /connect",
-    needModel: "Выбери модель: /models",
+    needConnect: "Подключи OpenRouter через /connect для бесплатных моделей.",
+    needModel: "Выбери модель: /models — бесплатные сверху.",
     queueBusy: "В очереди — отправится после ответа.",
     voiceListen: "Слушаю… Ctrl+R ещё раз — стоп",
     voiceReady: "Ctrl+R — голос",

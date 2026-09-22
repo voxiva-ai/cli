@@ -212,6 +212,31 @@ test("memory and review actions return action results", async () => {
   assert.deepEqual(filesResult, { type: "overlay", mode: "files" });
 });
 
+test("continue and workspaces slash commands", () => {
+  assert.equal(resolveSlash("/continue")?.cmd.name, "continue");
+  assert.equal(resolveSlash("/last")?.cmd.name, "continue");
+  assert.equal(resolveSlash("/restore")?.cmd.name, "continue");
+  assert.equal(resolveSlash("/workspaces")?.cmd.name, "workspaces");
+  assert.equal(resolveSlash("/projects")?.cmd.name, "workspaces");
+  assert.equal(resolveSlash("/ws")?.cmd.name, "workspaces");
+});
+
+test("catalog includes deepseek and gemini flash", async () => {
+  const { listCatalog, parseModelRef, listFreeCatalog, DEFAULT_FREE_MODEL, isFreeModelRef } =
+    await import("../dist/providers/chat.js");
+  const catalog = listCatalog();
+  assert.ok(catalog.some((m) => m.provider === "deepseek" && m.id === "deepseek-chat"));
+  assert.ok(catalog.some((m) => m.provider === "google" && m.id === "gemini-2.5-flash"));
+  assert.ok(parseModelRef("deepseek/deepseek-reasoner"));
+  const free = listFreeCatalog();
+  assert.ok(free.length >= 8);
+  assert.equal(free[0].id, "openrouter/free");
+  assert.ok(free.every((m) => m.free && m.provider === "openrouter"));
+  assert.equal(DEFAULT_FREE_MODEL, "openrouter/openrouter/free");
+  assert.ok(isFreeModelRef(DEFAULT_FREE_MODEL));
+  assert.equal(catalog[0].free, true);
+});
+
 test("one-line install scripts exist", () => {
   assert.ok(existsSync(join(root, "install")));
   assert.ok(existsSync(join(root, "install.ps1")));

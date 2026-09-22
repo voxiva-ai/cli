@@ -5,14 +5,17 @@ import chalk from "chalk";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getPlan, planSystemAsync, PLANS } from "../plans/index.js";
-import { listCatalog, modelRef, parseModelRef, type ChatMessage } from "../providers/chat.js";
+import { listCatalog, modelRef, parseModelRef, DEFAULT_FREE_MODEL, isFreeModelRef, type ChatMessage } from "../providers/chat.js";
 import { streamChat } from "../providers/chat.js";
 import {
   getSession,
+  getContinuableSession,
   listSessions,
+  listSessionsForCwd,
   saveSession,
   type SessionRecord,
 } from "../sessions/store.js";
+import { listWorkspaces, touchWorkspace, type WorkspaceRecord } from "../workspaces/store.js";
 import { LOCALES, t as ui, type LocaleId } from "../i18n/index.js";
 import {
   assistantBubble,
@@ -51,10 +54,15 @@ import { addMemory, clearMemory, listMemory, type MemoryNote } from "../project/
 import { readGitSnapshot } from "../project/gitinfo.js";
 
 const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
+  {
+    id: "openrouter",
+    label: "OpenRouter (free models)",
+    description: "Free tier + paid · openrouter.ai/keys · unlocks /models free list",
+  },
   { id: "openai", label: "OpenAI", description: "GPT and reasoning models · OPENAI_API_KEY" },
   { id: "anthropic", label: "Anthropic", description: "Claude models · ANTHROPIC_API_KEY" },
-  { id: "openrouter", label: "OpenRouter", description: "One key for many providers · OPENROUTER_API_KEY" },
-  { id: "google", label: "Google AI", description: "Gemini models · GEMINI_API_KEY" },
+  { id: "google", label: "Google AI", description: "Gemini Flash / Pro · GEMINI_API_KEY" },
+  { id: "deepseek", label: "DeepSeek", description: "DeepSeek V3 / R1 · DEEPSEEK_API_KEY" },
   { id: "groq", label: "Groq", description: "Fast hosted open models · GROQ_API_KEY" },
 ];
 
@@ -100,12 +108,18 @@ type AppState = {
   fileCache: string[];
   /** Cached memory notes for /memory overlay. */
   memoryNotes: MemoryNote[];
+  /** Recent project folders for /workspaces. */
+  workspaces: WorkspaceRecord[];
 };
 
 function shortCwd(cwd: string): string {
   const home = process.env.USERPROFILE || process.env.HOME || "";
   if (home && cwd.startsWith(home)) return "~" + cwd.slice(home.length).replace(/\\/g, "/");
   return cwd.replace(/\\/g, "/");
+}
+
+function normalizePath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/\/+$/, "") || path;
 }
 
 function planLabel(id: PlanId): string {
@@ -149,6 +163,7 @@ export async function runTui(): Promise<void> {
   const config = await loadConfig();
   const auth = await loadAuth();
   const savedSessions = await listSessions();
+  const workspaces = await listWorkspaces();
   const themeId = config.theme ?? "voxiva";
   const localeId = (config.locale ?? "en") as LocaleId;
   setActiveTheme(themeId);
@@ -156,7 +171,15 @@ export async function runTui(): Promise<void> {
     .filter(([, value]) => value?.apiKey)
     .map(([key]) => key as ProviderId);
 
-  const systemPrompt = await planSystemAsync(config.plan, localeId, process.cwd());
+  const cwd = process.cwd();
+  await touchWorkspace(cwd, {
+    lastModel: config.defaultModel,
+    lastPlan: config.plan,
+    lastSessionId: config.lastSessionId,
+  });
+  await patchConfig({ cwd });
+
+  const systemPrompt = await planSystemAsync(config.plan, localeId, cwd);
 
   const state: AppState = {
     input: "",
@@ -197,6 +220,7 @@ export async function runTui(): Promise<void> {
     voiceDraft: "",
     fileCache: [],
     memoryNotes: [],
+    workspaces,
   };
 
   let running = true;
@@ -228,6 +252,9 @@ export async function runTui(): Promise<void> {
     }
     if (mode === "sessions") {
       state.savedSessions = await listSessions();
+    }
+    if (mode === "workspaces") {
+      state.workspaces = await listWorkspaces();
     }
     queueRender();
   }
@@ -330,9 +357,88 @@ export async function runTui(): Promise<void> {
       title: first.replace(/\s+/g, " ").slice(0, 64),
       plan: state.plan,
       model: state.model,
+      cwd: state.cwd,
       messages: state.history,
     });
     state.savedSessions = await listSessions();
+    await touchWorkspace(state.cwd, {
+      lastSessionId: state.sessionId,
+      lastModel: state.model,
+      lastPlan: state.plan,
+    });
+    await patchConfig({
+      cwd: state.cwd,
+      lastSessionId: state.sessionId,
+      defaultModel: state.model,
+      plan: state.plan,
+    });
+    state.workspaces = await listWorkspaces();
+  }
+
+  async function applySession(session: SessionRecord, toastMsg?: string) {
+    state.sessionId = session.id;
+    state.plan = session.plan;
+    state.model = session.model;
+    state.history = session.messages;
+    state.messages = session.messages
+      .filter((message) => message.role !== "system")
+      .map((message) => ({
+        role: message.role as "user" | "assistant",
+        text: message.content,
+      }));
+    state.redoStack = [];
+    state.scrollOffset = 0;
+    usage = emptyUsage();
+    await patchConfig({
+      plan: session.plan,
+      defaultModel: session.model,
+      lastSessionId: session.id,
+      cwd: state.cwd,
+    });
+    await touchWorkspace(state.cwd, {
+      lastSessionId: session.id,
+      lastModel: session.model,
+      lastPlan: session.plan,
+    });
+    await ctx.refresh();
+    toast(toastMsg ?? `Resumed: ${session.title}`, "ok");
+  }
+
+  async function switchWorkspace(path: string) {
+    try {
+      process.chdir(path);
+    } catch {
+      toast(`Cannot open ${path}`, "error");
+      return;
+    }
+    state.cwd = process.cwd();
+    ctx.cwd = state.cwd;
+    state.sessionId = undefined;
+    state.messages = [];
+    state.history = [
+      { role: "system", content: await planSystemAsync(state.plan, state.locale, state.cwd) },
+    ];
+    state.redoStack = [];
+    state.scrollOffset = 0;
+    state.fileCache = [];
+    usage = emptyUsage();
+    const ws = await touchWorkspace(state.cwd);
+    await patchConfig({ cwd: state.cwd });
+    state.workspaces = await listWorkspaces();
+    state.savedSessions = await listSessions();
+    if (ws.lastSessionId) {
+      const session = await getSession(ws.lastSessionId);
+      if (session) {
+        await applySession(session, `Workspace → ${ws.title} · resumed`);
+        return;
+      }
+    }
+    const local = await getContinuableSession(state.cwd);
+    if (local) {
+      await applySession(local, `Workspace → ${ws.title} · continued`);
+      return;
+    }
+    toast(`Workspace → ${ws.title}`, "ok");
   }
 
   function queueRender(force = false) {
@@ -401,7 +507,7 @@ export async function runTui(): Promise<void> {
       }
       case "connect":
         out.push(t.text("Connect a provider"));
-        out.push(t.dim("Choose where Voxiva should send model requests."));
+        out.push(t.dim("Tip: OpenRouter unlocks free models (like OpenCode) — $0 usage."));
         out.push("");
         PROVIDERS.forEach((p, i) => {
           const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
@@ -410,12 +516,18 @@ export async function runTui(): Promise<void> {
           out.push(`     ${t.dim(p.description)}`);
         });
         out.push("");
-        out.push(t.dim("  ↑↓/jk navigate · 1-5 select · enter connect · esc back"));
+        out.push(t.dim("  ↑↓/jk navigate · enter connect · esc back"));
         break;
       case "connect-key": {
         const provider = state.connectingProvider;
         out.push(t.text(`API key for ${provider ?? "provider"}`));
-        out.push(t.dim("Stored locally in ~/.voxiva/auth.json"));
+        out.push(
+          t.dim(
+            provider === "openrouter"
+              ? "Free account at openrouter.ai/keys · free models cost $0"
+              : "Stored locally in ~/.voxiva/auth.json",
+          ),
+        );
         out.push("");
         const masked = state.authKeyInput.length
           ? t.muted("•".repeat(Math.min(state.authKeyInput.length, 48)))
@@ -427,18 +539,19 @@ export async function runTui(): Promise<void> {
       }
       case "models": {
         out.push(t.text("Select a model"));
-        out.push(t.dim("Models marked “auth” need a connected provider."));
+        out.push(t.dim("free = $0 via OpenRouter · auth = needs that provider key"));
         out.push("");
         const models = listCatalog();
-        const start = Math.max(0, Math.min(state.overlayIndex - 3, models.length - 6));
-        models.slice(start, start + 6).forEach((m, visibleIndex) => {
+        const start = Math.max(0, Math.min(state.overlayIndex - 4, models.length - 8));
+        models.slice(start, start + 8).forEach((m, visibleIndex) => {
           const i = start + visibleIndex;
           const ref = modelRef(m);
           const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
           const active = state.model === ref ? t.accent2(" *") : "";
+          const free = m.free ? t.ok(" free") : "";
           const ready = state.authKeys.includes(m.provider) ? "" : t.dim(" (auth)");
-          out.push(`${mark}${t.text(ref)}${active}${ready}`);
-          out.push(`     ${t.dim(m.label)}`);
+          out.push(`${mark}${t.text(m.label)}${free}${active}${ready}`);
+          out.push(`     ${t.dim(ref)}`);
         });
         out.push("");
         out.push(t.dim("  ↑↓/jk navigate · enter select · esc back"));
@@ -481,21 +594,42 @@ export async function runTui(): Promise<void> {
         break;
       case "sessions":
         out.push(t.muted("Sessions"));
+        out.push(t.dim("Saved on this PC · /continue resumes last in this folder"));
         out.push("");
         if (!state.savedSessions.length) {
           out.push(t.dim("  No saved sessions yet."));
         } else {
-          state.savedSessions.slice(0, 10).forEach((session, index) => {
+          state.savedSessions.slice(0, 12).forEach((session, index) => {
             const mark = index === state.overlayIndex ? t.accent("› ") : "  ";
-            const date = new Date(session.updatedAt).toLocaleDateString();
-            const meta = `${session.plan}${session.model ? ` · ${modelShort(session.model)}` : ""}`;
-            out.push(
-              `${mark}${truncate(session.title, inner - 28)}${t.dim(`  ${meta}  ${date}`)}`,
-            );
+            const date = new Date(session.updatedAt).toLocaleString();
+            const folder = session.cwd ? shortCwd(session.cwd) : "—";
+            const meta = `${session.plan}${session.model ? ` · ${modelShort(session.model)}` : ""} · ${folder}`;
+            out.push(`${mark}${truncate(session.title, inner - 4)}`);
+            out.push(`     ${t.dim(`${meta}  ${date}`)}`);
           });
         }
         out.push("");
         out.push(t.dim("  enter · resume  ·  esc · back"));
+        break;
+      case "workspaces":
+        out.push(t.muted("Workspaces"));
+        out.push(t.dim("Recent project folders on this PC"));
+        out.push("");
+        if (!state.workspaces.length) {
+          out.push(t.dim("  No workspaces yet. Open a project folder and chat."));
+        } else {
+          state.workspaces.slice(0, 12).forEach((ws, index) => {
+            const mark = index === state.overlayIndex ? t.accent("› ") : "  ";
+            const active = normalizePath(ws.path) === normalizePath(state.cwd) ? t.accent2(" *") : "";
+            const date = new Date(ws.updatedAt).toLocaleDateString();
+            out.push(`${mark}${t.text(ws.title)}${active}${t.dim(`  ${shortCwd(ws.path)}`)}`);
+            out.push(
+              `     ${t.dim(`${ws.lastPlan ?? "—"} · ${ws.lastModel ? modelShort(ws.lastModel) : "no model"} · ${date}`)}`,
+            );
+          });
+        }
+        out.push("");
+        out.push(t.dim("  enter · switch · resume last  ·  esc · back"));
         break;
       case "providers":
         out.push(t.muted("Status"));
@@ -557,6 +691,8 @@ export async function runTui(): Promise<void> {
           ["Ctrl+X F", "Files"],
           ["Ctrl+X H", "History"],
           ["Ctrl+X T", "Themes"],
+          ["Ctrl+X O", "Continue last session"],
+          ["Ctrl+X W", "Workspaces"],
           ["Ctrl+X N", "New session"],
           ["Ctrl+X L", "Sessions"],
           ["Esc", "Stop / close"],
@@ -725,6 +861,7 @@ export async function runTui(): Promise<void> {
     const detailsLine = state.details
       ? [
           state.model ?? "no model",
+          isFreeModelRef(state.model) ? "free" : "byok",
           `theme ${state.theme}`,
           `lang ${state.locale}`,
           formatUsage(usage),
@@ -735,7 +872,9 @@ export async function runTui(): Promise<void> {
         version: VERSION,
         plan: state.plan,
         planId: state.plan,
-        model: state.model ? modelShort(state.model) : undefined,
+        model: state.model
+          ? `${modelShort(state.model)}${isFreeModelRef(state.model) ? " · free" : ""}`
+          : undefined,
         authKeys: state.authKeys,
         noModelLabel: s.noModel,
         notConnectedLabel: s.notConnected,
@@ -1105,6 +1244,25 @@ export async function runTui(): Promise<void> {
         state.promptQueue = [];
         toast("Queue cleared.", "ok");
         return;
+      case "continue": {
+        const localOnly = (await listSessionsForCwd(state.cwd))[0];
+        if (localOnly) {
+          await applySession(localOnly, `Continued: ${localOnly.title}`);
+          return;
+        }
+        const byId = config.lastSessionId ? await getSession(config.lastSessionId) : undefined;
+        const any = byId ?? (await getContinuableSession());
+        if (!any) {
+          toast("No saved session to continue.", "info");
+          return;
+        }
+        if (any.cwd && normalizePath(any.cwd) !== normalizePath(state.cwd)) {
+          await switchWorkspace(any.cwd);
+          return;
+        }
+        await applySession(any, `Continued: ${any.title}`);
+        return;
+      }
       case "editor": {
         leaveAltScreen();
         showCursor();
@@ -1369,13 +1527,20 @@ export async function runTui(): Promise<void> {
     if (state.pendingModel?.startsWith(`${id}/`)) {
       await ctx.setModel(state.pendingModel);
       state.pendingModel = undefined;
+    } else if (id === "openrouter" && !state.model) {
+      await ctx.setModel(DEFAULT_FREE_MODEL);
     }
     state.connectingProvider = null;
     state.authKeyInput = "";
     state.authKeyCursor = 0;
     state.overlay = null;
     state.overlayIndex = 0;
-    toast(`${id} connected`, "ok");
+    toast(
+      id === "openrouter"
+        ? "OpenRouter connected · free models ready (/models)"
+        : `${id} connected`,
+      "ok",
+    );
     queueRender(true);
   }
 
@@ -1403,14 +1568,19 @@ export async function runTui(): Promise<void> {
             state.pendingModel = modelRef(m);
             state.overlay = "connect";
             state.overlayIndex = Math.max(0, providerIndex);
-            toast(`Connect ${m.provider} before using this model.`, "info");
+            toast(
+              m.free
+                ? "Connect OpenRouter (free account) to use free models."
+                : `Connect ${m.provider} before using this model.`,
+              "info",
+            );
             break;
           }
           const ref = modelRef(m);
           await ctx.setModel(ref);
           await ctx.refresh();
           state.overlay = null;
-          toast(`Model → ${ref}`, "ok");
+          toast(m.free ? `Free model → ${m.label}` : `Model → ${ref}`, "ok");
         }
         break;
       }
@@ -1446,24 +1616,29 @@ export async function runTui(): Promise<void> {
         const selected = state.savedSessions[state.overlayIndex];
         if (!selected) break;
         const session = await getSession(selected.id);
-        if (session) {
-          state.sessionId = session.id;
-          state.plan = session.plan;
-          state.model = session.model;
-          state.history = session.messages;
-          state.messages = session.messages
-            .filter((message) => message.role !== "system")
-            .map((message) => ({
-              role: message.role as "user" | "assistant",
-              text: message.content,
-            }));
-          state.redoStack = [];
-          state.scrollOffset = 0;
-          await patchConfig({ plan: session.plan, defaultModel: session.model });
-          await ctx.refresh();
-          state.overlay = null;
-          toast(`Resumed: ${session.title}`, "ok");
+        if (!session) break;
+        state.overlay = null;
+        if (session.cwd && normalizePath(session.cwd) !== normalizePath(state.cwd)) {
+          try {
+            process.chdir(session.cwd);
+          } catch {
+            toast(`Cannot open ${session.cwd}`, "error");
+            break;
+          }
+          state.cwd = process.cwd();
+          ctx.cwd = state.cwd;
+          await touchWorkspace(state.cwd);
+          await patchConfig({ cwd: state.cwd });
+          state.workspaces = await listWorkspaces();
         }
+        await applySession(session);
+        break;
+      }
+      case "workspaces": {
+        const ws = state.workspaces[state.overlayIndex];
+        if (!ws) break;
+        state.overlay = null;
+        await switchWorkspace(ws.path);
         break;
       }
       case "files": {
@@ -1558,7 +1733,9 @@ export async function runTui(): Promise<void> {
       case "languages":
         return LOCALES.length;
       case "sessions":
-        return Math.min(10, state.savedSessions.length);
+        return Math.min(12, state.savedSessions.length);
+      case "workspaces":
+        return Math.min(12, state.workspaces.length);
       case "palette": {
         const query = state.paletteFilter.toLowerCase();
         return paletteItems().filter((command) => matchesPaletteFilter(command, query)).length;
@@ -1820,10 +1997,12 @@ export async function runTui(): Promise<void> {
         l: "sessions",
         m: "models",
         n: "new",
+        o: "continue",
         q: "exit",
         r: "redo",
         t: "themes",
         u: "undo",
+        w: "workspaces",
         x: "export",
       };
       const commandName = commandByKey[key.toLowerCase()];
@@ -1833,7 +2012,7 @@ export async function runTui(): Promise<void> {
     }
     if (key === "\u0018") {
       leaderUntil = Date.now() + 2000;
-      toast("ctrl+x  c/e/f/h/i/m/n/q/r/t/u/x", "info");
+      toast("ctrl+x  c/e/f/h/i/l/m/n/o/q/r/t/u/w/x", "info");
       queueRender();
       return;
     }
