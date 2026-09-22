@@ -2,6 +2,7 @@ import type { PlanId } from "../config/store.js";
 import type { LocaleId } from "../i18n/index.js";
 import { languageDirective } from "../i18n/index.js";
 import { loadAgentsMarkdown, withAgentsContext } from "../project/agents.js";
+import { memoryPromptBlock } from "../project/memory.js";
 
 export type PlanDefinition = {
   id: PlanId;
@@ -63,7 +64,7 @@ export function planSystem(id: PlanId, locale: LocaleId = "en"): string {
   return `${getPlan(id).system}\n\n${languageDirective(locale)}`;
 }
 
-/** System message with AGENTS.md from cwd when present. */
+/** System message with AGENTS.md + memory from cwd when present. */
 export async function planSystemAsync(
   id: PlanId,
   locale: LocaleId = "en",
@@ -71,5 +72,8 @@ export async function planSystemAsync(
 ): Promise<string> {
   const base = planSystem(id, locale);
   const agents = await loadAgentsMarkdown(cwd);
-  return withAgentsContext(base, agents);
+  const memory = await memoryPromptBlock();
+  let out = withAgentsContext(base, agents);
+  if (memory) out = `${out}\n\n${memory}`;
+  return out;
 }

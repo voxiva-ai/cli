@@ -26,7 +26,20 @@ export type SlashResult =
         | "thinking"
         | "voice"
         | "cost"
-        | "diff";
+        | "diff"
+        | "copy"
+        | "stop"
+        | "retry"
+        | "reload"
+        | "pwd"
+        | "explain"
+        | "review"
+        | "test"
+        | "fix"
+        | "memory-add"
+        | "memory-clear"
+        | "queue-clear";
+      args?: string;
     };
 
 export type OverlayMode =
@@ -39,7 +52,15 @@ export type OverlayMode =
   | "themes"
   | "sessions"
   | "connect-key"
-  | "languages";
+  | "languages"
+  | "files"
+  | "context"
+  | "shortcuts"
+  | "settings"
+  | "history"
+  | "branch"
+  | "queue"
+  | "memory";
 
 export type SlashContext = {
   cwd: string;
@@ -131,6 +152,59 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
   {
+    name: "files",
+    aliases: ["open", "ls"],
+    description: "Browse files · insert @path",
+    keybind: "ctrl+x f",
+    handler: async () => ({ type: "overlay", mode: "files" }),
+  },
+  {
+    name: "context",
+    aliases: ["ctx"],
+    description: "What's in the model context",
+    handler: async () => ({ type: "overlay", mode: "context" }),
+  },
+  {
+    name: "shortcuts",
+    aliases: ["keys"],
+    description: "Keyboard shortcuts",
+    handler: async () => ({ type: "overlay", mode: "shortcuts" }),
+  },
+  {
+    name: "settings",
+    aliases: ["config", "prefs"],
+    description: "Toggle details / thinking / …",
+    handler: async () => ({ type: "overlay", mode: "settings" }),
+  },
+  {
+    name: "history",
+    description: "Reuse a past prompt",
+    keybind: "ctrl+x h",
+    handler: async () => ({ type: "overlay", mode: "history" }),
+  },
+  {
+    name: "branch",
+    aliases: ["git"],
+    description: "Git branch and recent commits",
+    handler: async () => ({ type: "overlay", mode: "branch" }),
+  },
+  {
+    name: "queue",
+    description: "Queued prompts while busy",
+    handler: async () => ({ type: "overlay", mode: "queue" }),
+  },
+  {
+    name: "memory",
+    aliases: ["memo", "note"],
+    description: "Persistent notes for the model",
+    handler: async (args) => {
+      const text = args.trim();
+      if (!text) return { type: "overlay", mode: "memory" };
+      if (text === "clear") return { type: "action", action: "memory-clear" };
+      return { type: "action", action: "memory-add", args: text };
+    },
+  },
+  {
     name: "new",
     aliases: ["clear"],
     description: "New session",
@@ -170,6 +244,32 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     handler: async () => ({ type: "action", action: "export" }),
   },
   {
+    name: "copy",
+    description: "Copy last reply to clipboard",
+    handler: async () => ({ type: "action", action: "copy" }),
+  },
+  {
+    name: "stop",
+    aliases: ["abort"],
+    description: "Stop generation",
+    handler: async () => ({ type: "action", action: "stop" }),
+  },
+  {
+    name: "retry",
+    description: "Retry last user message",
+    handler: async () => ({ type: "action", action: "retry" }),
+  },
+  {
+    name: "reload",
+    description: "Reload AGENTS.md + memory into prompt",
+    handler: async () => ({ type: "action", action: "reload" }),
+  },
+  {
+    name: "pwd",
+    description: "Show workspace path",
+    handler: async () => ({ type: "action", action: "pwd" }),
+  },
+  {
     name: "diff",
     description: "Show git status / diff summary",
     handler: async () => ({ type: "action", action: "diff" }),
@@ -179,6 +279,26 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     aliases: ["usage", "tokens"],
     description: "Session token estimate",
     handler: async () => ({ type: "action", action: "cost" }),
+  },
+  {
+    name: "explain",
+    description: "Ask model to explain selection / last code",
+    handler: async () => ({ type: "action", action: "explain" }),
+  },
+  {
+    name: "review",
+    description: "Switch to check plan and review the repo",
+    handler: async () => ({ type: "action", action: "review" }),
+  },
+  {
+    name: "test",
+    description: "Ask model to run / fix tests",
+    handler: async () => ({ type: "action", action: "test" }),
+  },
+  {
+    name: "fix",
+    description: "Ask model to fix the latest issue",
+    handler: async () => ({ type: "action", action: "fix" }),
   },
   {
     name: "editor",
@@ -296,5 +416,11 @@ export function slashSuggestions(input: string): SlashCommand[] {
   })
     .filter((row) => row.score >= 0)
     .sort((a, b) => b.score - a.score || a.command.name.localeCompare(b.command.name));
-  return scored.map((row) => row.command).slice(0, 6);
+  return scored.map((row) => row.command).slice(0, 8);
 }
+
+/** Overlays that close on Enter without selection. */
+export const INFO_OVERLAYS: OverlayMode[] = ["help", "providers", "context", "shortcuts", "branch"];
+
+/** Overlays that accept type-to-filter via paletteFilter. */
+export const FILTER_OVERLAYS: OverlayMode[] = ["palette", "files", "history", "memory"];

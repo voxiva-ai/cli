@@ -11,7 +11,7 @@ import {
   renderHeader,
   statusFooter,
 } from "../dist/tui/layout.js";
-import { matchesPaletteFilter, resolveSlash, slashSuggestions } from "../dist/tui/slash.js";
+import { matchesPaletteFilter, resolveSlash, slashSuggestions, paletteItems } from "../dist/tui/slash.js";
 import { themeIds, THEMES } from "../dist/tui/themes.js";
 import { planSystem, planSystemAsync } from "../dist/plans/index.js";
 import { estimateTokens, formatUsage, emptyUsage } from "../dist/usage/tokens.js";
@@ -109,7 +109,7 @@ test("slash aliases resolve and suggestions filter", () => {
   assert.equal(resolveSlash("/summarize")?.cmd.name, "compact");
   assert.equal(resolveSlash("/resume")?.cmd.name, "sessions");
   assert.equal(resolveSlash("/status")?.cmd.name, "doctor");
-  assert.equal(resolveSlash("/con")?.cmd.name, "connect");
+  assert.equal(resolveSlash("/conn")?.cmd.name, "connect");
   assert.equal(resolveSlash("/cost")?.cmd.name, "cost");
   assert.equal(resolveSlash("/diff")?.cmd.name, "diff");
   assert.equal(resolveSlash("/usage")?.cmd.name, "cost");
@@ -118,11 +118,12 @@ test("slash aliases resolve and suggestions filter", () => {
 });
 
 test("palette filter matches command aliases", () => {
-  const commands = slashSuggestions("/");
+  const commands = paletteItems();
   const connect = commands.find((command) => command.name === "connect");
   assert.ok(connect);
   assert.ok(matchesPaletteFilter(connect, "auth"));
 });
+
 
 test("themes include ember forest mono", () => {
   const ids = themeIds();
@@ -155,6 +156,60 @@ test("token usage helpers", () => {
   usage.outputTokens = 50;
   usage.turns = 2;
   assert.ok(formatUsage(usage).includes("150"));
+});
+
+test("new overlays resolve from slash", () => {
+  assert.equal(resolveSlash("/files")?.cmd.name, "files");
+  assert.equal(resolveSlash("/open")?.cmd.name, "files");
+  assert.equal(resolveSlash("/context")?.cmd.name, "context");
+  assert.equal(resolveSlash("/ctx")?.cmd.name, "context");
+  assert.equal(resolveSlash("/shortcuts")?.cmd.name, "shortcuts");
+  assert.equal(resolveSlash("/settings")?.cmd.name, "settings");
+  assert.equal(resolveSlash("/history")?.cmd.name, "history");
+  assert.equal(resolveSlash("/branch")?.cmd.name, "branch");
+  assert.equal(resolveSlash("/git")?.cmd.name, "branch");
+  assert.equal(resolveSlash("/queue")?.cmd.name, "queue");
+  assert.equal(resolveSlash("/memory")?.cmd.name, "memory");
+  assert.equal(resolveSlash("/copy")?.cmd.name, "copy");
+  assert.equal(resolveSlash("/retry")?.cmd.name, "retry");
+  assert.equal(resolveSlash("/review")?.cmd.name, "review");
+  assert.equal(resolveSlash("/explain")?.cmd.name, "explain");
+});
+
+test("memory and review actions return action results", async () => {
+  const memory = resolveSlash("/memory remember use go fmt");
+  assert.ok(memory);
+  const memoryResult = await memory.cmd.handler("remember use go fmt", {
+    cwd: root,
+    plan: "build",
+    theme: "voxiva",
+    locale: "en",
+    setPlan: async () => {},
+    setModel: async () => {},
+    setTheme: async () => {},
+    setLocale: async () => {},
+    refresh: async () => {},
+  });
+  assert.equal(memoryResult.type, "action");
+  if (memoryResult.type === "action") {
+    assert.equal(memoryResult.action, "memory-add");
+    assert.equal(memoryResult.args, "remember use go fmt");
+  }
+
+  const files = resolveSlash("/files");
+  assert.ok(files);
+  const filesResult = await files.cmd.handler("", {
+    cwd: root,
+    plan: "build",
+    theme: "voxiva",
+    locale: "en",
+    setPlan: async () => {},
+    setModel: async () => {},
+    setTheme: async () => {},
+    setLocale: async () => {},
+    refresh: async () => {},
+  });
+  assert.deepEqual(filesResult, { type: "overlay", mode: "files" });
 });
 
 test("one-line install scripts exist", () => {

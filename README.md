@@ -94,6 +94,15 @@ voxiva
 | Provider | `/connect` |
 | Model | `/models` or `/model openai/gpt-4.1-mini` |
 | Plans | `/plans` |
+| Files | `/files` · Ctrl+X F |
+| Context | `/context` |
+| Memory | `/memory note` |
+| History | `/history` · Ctrl+X H |
+| Branch | `/branch` |
+| Queue | `/queue` |
+| Settings | `/settings` |
+| Shortcuts | `/shortcuts` |
+| Actions | `/review` `/test` `/fix` `/explain` `/retry` `/copy` `/stop` |
 | Details | `/details` — full model, theme, usage |
 | Cost | `/cost` — session token estimate |
 | Diff | `/diff` — git status summary |

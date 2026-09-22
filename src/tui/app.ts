@@ -42,11 +42,13 @@ import {
 import { setActiveTheme, tc } from "./logo.js";
 import { PLAN_COLORS, THEMES } from "./themes.js";
 import type { ThemeId } from "../config/store.js";
-import { paletteItems, resolveSlash, slashSuggestions, matchesPaletteFilter, type SlashResult } from "./slash.js";
-import type { SlashContext } from "./slash.js";
+import { paletteItems, resolveSlash, slashSuggestions, matchesPaletteFilter, FILTER_OVERLAYS, INFO_OVERLAYS, type SlashResult, type SlashContext } from "./slash.js";
 import { VERSION } from "./copy.js";
 import { setVoiceListening, setVoiceSink } from "../voice/bridge.js";
 import { emptyUsage, estimateMessagesTokens, estimateTokens, formatUsage, type SessionUsage } from "../usage/tokens.js";
+import { listProjectFiles } from "../project/files.js";
+import { addMemory, clearMemory, listMemory, type MemoryNote } from "../project/memory.js";
+import { readGitSnapshot } from "../project/gitinfo.js";
 
 const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
   { id: "openai", label: "OpenAI", description: "GPT and reasoning models · OPENAI_API_KEY" },
@@ -94,6 +96,10 @@ type AppState = {
   voice: "off" | "listen";
   /** Transcript buffer while listening (lands into input on stop). */
   voiceDraft: string;
+  /** Cached file paths for /files overlay. */
+  fileCache: string[];
+  /** Cached memory notes for /memory overlay. */
+  memoryNotes: MemoryNote[];
 };
 
 function shortCwd(cwd: string): string {
@@ -189,6 +195,8 @@ export async function runTui(): Promise<void> {
     suggestIndex: 0,
     voice: "off",
     voiceDraft: "",
+    fileCache: [],
+    memoryNotes: [],
   };
 
   let running = true;
@@ -207,6 +215,59 @@ export async function runTui(): Promise<void> {
       content: await planSystemAsync(state.plan, state.locale, state.cwd),
     };
   }
+
+  async function openOverlay(mode: import("./slash.js").OverlayMode) {
+    state.overlay = mode;
+    state.overlayIndex = 0;
+    state.paletteFilter = "";
+    if (mode === "files") {
+      state.fileCache = await listProjectFiles(state.cwd);
+    }
+    if (mode === "memory") {
+      state.memoryNotes = await listMemory();
+    }
+    if (mode === "sessions") {
+      state.savedSessions = await listSessions();
+    }
+    queueRender();
+  }
+
+  function filteredFiles(): string[] {
+    const q = state.paletteFilter.toLowerCase();
+    if (!q) return state.fileCache;
+    return state.fileCache.filter((path) => path.toLowerCase().includes(q));
+  }
+
+  function promptHistory(): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (let i = state.messages.length - 1; i >= 0; i--) {
+      const msg = state.messages[i];
+      if (msg.role !== "user") continue;
+      const text = msg.text.trim();
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      out.push(text);
+      if (out.length >= 30) break;
+    }
+    const q = state.paletteFilter.toLowerCase();
+    return q ? out.filter((text) => text.toLowerCase().includes(q)) : out;
+  }
+
+  function filteredMemory(): MemoryNote[] {
+    const q = state.paletteFilter.toLowerCase();
+    if (!q) return state.memoryNotes;
+    return state.memoryNotes.filter((note) => note.text.toLowerCase().includes(q));
+  }
+
+  const SETTINGS_ITEMS = [
+    "Toggle details line",
+    "Toggle thinking status",
+    "Clear prompt queue",
+    "Reload AGENTS.md + memory",
+    "Open themes…",
+    "Open languages…",
+  ] as const;
 
   const ctx: SlashContext = {
     cwd: state.cwd,
@@ -443,10 +504,166 @@ export async function runTui(): Promise<void> {
         out.push(`  ${t.muted("Theme")}   ${state.theme}`);
         out.push(`  ${t.muted("Plan")}     ${state.plan}`);
         out.push(`  ${t.muted("Model")}    ${state.model ?? "—"}`);
+        out.push(`  ${t.muted("Lang")}     ${state.locale}`);
         out.push(`  ${t.muted("Auth")}     ${state.authKeys.length ? state.authKeys.join(", ") : "none"}`);
+        out.push(`  ${t.muted("Usage")}    ${formatUsage(usage)}`);
         out.push("");
         out.push(t.dim("  esc · back"));
         break;
+      case "files": {
+        const files = filteredFiles();
+        out.push(t.muted("Files"));
+        out.push(t.dim(state.paletteFilter ? `filter: ${state.paletteFilter}` : "type to filter · enter inserts @path"));
+        out.push("");
+        if (!files.length) {
+          out.push(t.dim("  No files found."));
+        } else {
+          const start = Math.max(0, Math.min(state.overlayIndex - 4, files.length - 10));
+          files.slice(start, start + 10).forEach((path, visible) => {
+            const i = start + visible;
+            const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
+            out.push(`${mark}${truncate(path, inner - 4)}`);
+          });
+        }
+        out.push("");
+        out.push(t.dim("  ↑↓ · enter attach  ·  esc back"));
+        break;
+      }
+      case "context": {
+        const agentsLoaded = state.history[0]?.content.includes("AGENTS.md") ?? false;
+        const memoryLoaded = state.history[0]?.content.includes("User memory") ?? false;
+        const ctxTokens = estimateMessagesTokens(state.history);
+        out.push(t.muted("Context"));
+        out.push("");
+        out.push(`  ${t.muted("Plan")}      ${state.plan}`);
+        out.push(`  ${t.muted("Model")}     ${state.model ?? "—"}`);
+        out.push(`  ${t.muted("Messages")}  ${state.history.length}`);
+        out.push(`  ${t.muted("Tokens")}    ~${ctxTokens.toLocaleString()}`);
+        out.push(`  ${t.muted("AGENTS.md")} ${agentsLoaded ? "loaded" : "none"}`);
+        out.push(`  ${t.muted("Memory")}    ${memoryLoaded ? "loaded" : "none"}`);
+        out.push(`  ${t.muted("Queue")}     ${state.promptQueue.length}`);
+        out.push(`  ${t.muted("Session")}   ${formatUsage(usage)}`);
+        out.push("");
+        out.push(t.dim("  /files · /memory · /reload   esc · back"));
+        break;
+      }
+      case "shortcuts":
+        out.push(t.muted("Shortcuts"));
+        out.push("");
+        for (const row of [
+          ["Ctrl+P", "Command palette"],
+          ["Ctrl+R", "Voice listen"],
+          ["Ctrl+X M", "Models"],
+          ["Ctrl+X F", "Files"],
+          ["Ctrl+X H", "History"],
+          ["Ctrl+X T", "Themes"],
+          ["Ctrl+X N", "New session"],
+          ["Ctrl+X L", "Sessions"],
+          ["Esc", "Stop / close"],
+          ["!", "Shell command"],
+          ["@file", "Attach file into prompt"],
+          ["Tab", "Accept slash suggestion"],
+        ] as const) {
+          out.push(`  ${t.accent(row[0].padEnd(12))}${t.dim(row[1])}`);
+        }
+        out.push("");
+        out.push(t.dim("  esc · back"));
+        break;
+      case "settings":
+        out.push(t.muted("Settings"));
+        out.push("");
+        SETTINGS_ITEMS.forEach((label, i) => {
+          const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
+          let extra = "";
+          if (i === 0) extra = state.details ? t.accent2(" on") : t.dim(" off");
+          if (i === 1) extra = state.thinking ? t.accent2(" on") : t.dim(" off");
+          if (i === 2) extra = t.dim(` (${state.promptQueue.length})`);
+          out.push(`${mark}${label}${extra}`);
+        });
+        out.push("");
+        out.push(t.dim("  enter · apply  ·  esc · back"));
+        break;
+      case "history": {
+        const items = promptHistory();
+        out.push(t.muted("Prompt history"));
+        out.push(t.dim(state.paletteFilter ? `filter: ${state.paletteFilter}` : "type to filter · enter reuses"));
+        out.push("");
+        if (!items.length) {
+          out.push(t.dim("  No prompts in this session yet."));
+        } else {
+          const start = Math.max(0, Math.min(state.overlayIndex - 3, items.length - 8));
+          items.slice(start, start + 8).forEach((text, visible) => {
+            const i = start + visible;
+            const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
+            out.push(`${mark}${truncate(text.replace(/\s+/g, " "), inner - 4)}`);
+          });
+        }
+        out.push("");
+        out.push(t.dim("  enter · reuse  ·  esc · back"));
+        break;
+      }
+      case "branch": {
+        const git = readGitSnapshot(state.cwd);
+        out.push(t.muted("Git"));
+        out.push("");
+        if (!git) {
+          out.push(t.dim("  Not a git repository."));
+        } else {
+          out.push(`  ${t.muted("Branch")}  ${git.branch}${git.dirty ? t.dim(" · dirty") : t.dim(" · clean")}`);
+          out.push("");
+          out.push(t.dim("  status"));
+          for (const line of git.status.split("\n").slice(0, 8)) {
+            out.push(`  ${truncate(line, inner - 4)}`);
+          }
+          if (git.recent.length) {
+            out.push("");
+            out.push(t.dim("  recent"));
+            for (const line of git.recent) {
+              out.push(`  ${truncate(line, inner - 4)}`);
+            }
+          }
+        }
+        out.push("");
+        out.push(t.dim("  /diff for full summary · esc · back"));
+        break;
+      }
+      case "queue":
+        out.push(t.muted("Queue"));
+        out.push("");
+        if (!state.promptQueue.length) {
+          out.push(t.dim("  Empty. While busy, new prompts queue here."));
+        } else {
+          state.promptQueue.forEach((item, i) => {
+            const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
+            out.push(`${mark}${truncate(item.replace(/\s+/g, " "), inner - 4)}`);
+          });
+          out.push("");
+          out.push(
+            `${state.overlayIndex === state.promptQueue.length ? t.accent("› ") : "  "}Clear all`,
+          );
+        }
+        out.push("");
+        out.push(t.dim("  enter · drop item / clear  ·  esc · back"));
+        break;
+      case "memory": {
+        const notes = filteredMemory();
+        out.push(t.muted("Memory"));
+        out.push(t.dim("Persists in ~/.voxiva/memory.json · /memory <note> to add"));
+        out.push("");
+        if (!notes.length) {
+          out.push(t.dim("  No notes yet."));
+        } else {
+          const start = Math.max(0, Math.min(state.overlayIndex - 3, notes.length - 8));
+          notes.slice(start, start + 8).forEach((note, visible) => {
+            const i = start + visible;
+            const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
+            out.push(`${mark}${truncate(note.text.replace(/\s+/g, " "), inner - 4)}`);
+          });
+        }
+        out.push("");
+        out.push(t.dim("  enter · insert into input  ·  esc · back"));
+        break;
+      }
     }
     return out;
   }
@@ -624,7 +841,10 @@ export async function runTui(): Promise<void> {
     }
   }
 
-  async function runAction(action: Extract<SlashResult, { type: "action" }>["action"]) {
+  async function runAction(
+    action: Extract<SlashResult, { type: "action" }>["action"],
+    args?: string,
+  ) {
     switch (action) {
       case "undo": {
         let userIndex = -1;
@@ -791,6 +1011,100 @@ export async function runTui(): Promise<void> {
       case "voice":
         toggleVoice();
         return;
+      case "copy": {
+        const last = [...state.messages].reverse().find((message) => message.role === "assistant");
+        if (!last?.text.trim()) {
+          toast("Nothing to copy.", "info");
+          return;
+        }
+        const ok = copyText(last.text);
+        toast(ok ? "Last reply copied." : "Could not reach clipboard.", ok ? "ok" : "error");
+        return;
+      }
+      case "stop":
+        if (streamAbort) {
+          streamAbort.abort();
+          toast("Stopping…", "info");
+        } else {
+          toast("Nothing running.", "info");
+        }
+        return;
+      case "retry": {
+        let userIndex = -1;
+        for (let index = state.messages.length - 1; index >= 0; index--) {
+          if (state.messages[index].role === "user") {
+            userIndex = index;
+            break;
+          }
+        }
+        if (userIndex < 0) {
+          toast("Nothing to retry.", "info");
+          return;
+        }
+        const prompt = state.messages[userIndex].text;
+        state.messages = state.messages.slice(0, userIndex);
+        state.history = state.history.slice(0, userIndex + 1);
+        state.input = prompt;
+        state.cursor = prompt.length;
+        await submitInput();
+        return;
+      }
+      case "reload":
+        await refreshSystemPrompt();
+        toast("Reloaded AGENTS.md + memory.", "ok");
+        return;
+      case "pwd":
+        toast(state.cwd, "info");
+        return;
+      case "explain":
+        state.input =
+          "Explain the current codebase focus (or the last attached @file) clearly: structure, key flows, and gotchas.";
+        state.cursor = state.input.length;
+        await submitInput();
+        return;
+      case "review":
+        await ctx.setPlan("check");
+        state.input =
+          "Review this repository for bugs, risks, and missing tests. Be specific with paths and severity.";
+        state.cursor = state.input.length;
+        await submitInput();
+        return;
+      case "test":
+        await ctx.setPlan("build");
+        state.input =
+          "Detect the test runner for this stack and tell me the exact commands to run. Then fix any failing tests you can identify.";
+        state.cursor = state.input.length;
+        await submitInput();
+        return;
+      case "fix":
+        await ctx.setPlan("build");
+        state.input =
+          "Fix the latest issue in this workspace. Prefer a small diff. Show what changed and how to verify.";
+        state.cursor = state.input.length;
+        await submitInput();
+        return;
+      case "memory-add": {
+        const text = (args ?? "").trim();
+        if (!text) {
+          toast("Usage: /memory your note", "info");
+          return;
+        }
+        await addMemory(text);
+        await refreshSystemPrompt();
+        state.memoryNotes = await listMemory();
+        toast("Memory saved.", "ok");
+        return;
+      }
+      case "memory-clear":
+        await clearMemory();
+        await refreshSystemPrompt();
+        state.memoryNotes = [];
+        toast("Memory cleared.", "ok");
+        return;
+      case "queue-clear":
+        state.promptQueue = [];
+        toast("Queue cleared.", "ok");
+        return;
       case "editor": {
         leaveAltScreen();
         showCursor();
@@ -816,6 +1130,26 @@ export async function runTui(): Promise<void> {
     }
   }
 
+  function copyText(text: string): boolean {
+    try {
+      if (process.platform === "win32") {
+        const result = spawnSync(
+          "powershell",
+          ["-NoProfile", "-Command", "[Console]::InputEncoding=[Text.UTF8Encoding]::UTF8; $input | Set-Clipboard"],
+          { input: text, encoding: "utf8" },
+        );
+        return result.status === 0;
+      }
+      if (process.platform === "darwin") {
+        return spawnSync("pbcopy", [], { input: text }).status === 0;
+      }
+      if (spawnSync("xclip", ["-selection", "clipboard"], { input: text }).status === 0) return true;
+      return spawnSync("wl-copy", [], { input: text }).status === 0;
+    } catch {
+      return false;
+    }
+  }
+
   async function applySlashResult(result: SlashResult) {
     switch (result.type) {
       case "exit":
@@ -837,15 +1171,13 @@ export async function runTui(): Promise<void> {
         toast(result.message, result.tone ?? "info");
         break;
       case "overlay":
-        state.overlay = result.mode;
-        state.overlayIndex = 0;
-        state.paletteFilter = "";
+        await openOverlay(result.mode);
         break;
       case "help":
-        state.overlay = "help";
+        await openOverlay("help");
         break;
       case "action":
-        await runAction(result.action);
+        await runAction(result.action, result.args);
         break;
       case "continue":
         break;
@@ -1134,6 +1466,79 @@ export async function runTui(): Promise<void> {
         }
         break;
       }
+      case "files": {
+        const path = filteredFiles()[state.overlayIndex];
+        if (!path) break;
+        const token = path.includes(" ") ? `@"${path}"` : `@${path}`;
+        const prefix = state.input && !state.input.endsWith(" ") ? `${state.input} ` : state.input;
+        state.input = `${prefix}${token} `;
+        state.cursor = state.input.length;
+        state.overlay = null;
+        toast(`Attached ${path}`, "ok");
+        break;
+      }
+      case "history": {
+        const text = promptHistory()[state.overlayIndex];
+        if (!text) break;
+        state.input = text;
+        state.cursor = text.length;
+        state.overlay = null;
+        toast("Prompt restored.", "ok");
+        break;
+      }
+      case "memory": {
+        const note = filteredMemory()[state.overlayIndex];
+        if (!note) break;
+        state.input = note.text;
+        state.cursor = note.text.length;
+        state.overlay = null;
+        toast("Memory note loaded into input.", "ok");
+        break;
+      }
+      case "queue": {
+        if (!state.promptQueue.length) {
+          state.overlay = null;
+          break;
+        }
+        if (state.overlayIndex >= state.promptQueue.length) {
+          state.promptQueue = [];
+          state.overlay = null;
+          toast("Queue cleared.", "ok");
+          break;
+        }
+        state.promptQueue.splice(state.overlayIndex, 1);
+        clampOverlayIndex();
+        toast("Removed from queue.", "ok");
+        break;
+      }
+      case "settings": {
+        switch (state.overlayIndex) {
+          case 0:
+            state.details = !state.details;
+            toast(`Details ${state.details ? "on" : "off"}.`, "ok");
+            break;
+          case 1:
+            state.thinking = !state.thinking;
+            toast(`Thinking ${state.thinking ? "on" : "off"}.`, "ok");
+            break;
+          case 2:
+            state.promptQueue = [];
+            toast("Queue cleared.", "ok");
+            break;
+          case 3:
+            await refreshSystemPrompt();
+            toast("Reloaded AGENTS.md + memory.", "ok");
+            break;
+          case 4:
+            await openOverlay("themes");
+            return;
+          case 5:
+            await openOverlay("languages");
+            return;
+        }
+        state.overlay = null;
+        break;
+      }
       default:
         state.overlay = null;
     }
@@ -1158,6 +1563,16 @@ export async function runTui(): Promise<void> {
         const query = state.paletteFilter.toLowerCase();
         return paletteItems().filter((command) => matchesPaletteFilter(command, query)).length;
       }
+      case "files":
+        return filteredFiles().length;
+      case "history":
+        return promptHistory().length;
+      case "memory":
+        return filteredMemory().length;
+      case "settings":
+        return SETTINGS_ITEMS.length;
+      case "queue":
+        return state.promptQueue.length ? state.promptQueue.length + 1 : 0;
       default:
         return 1;
     }
@@ -1301,7 +1716,7 @@ export async function runTui(): Promise<void> {
         queueRender();
         return;
       }
-      if (state.overlay === "help" || state.overlay === "providers") {
+      if (state.overlay && INFO_OVERLAYS.includes(state.overlay)) {
         if (key === "\r" || key === "\n") {
           state.overlay = null;
           queueRender();
@@ -1325,7 +1740,7 @@ export async function runTui(): Promise<void> {
         queueRender();
         return;
       }
-      if (/^[1-9]$/.test(key) && state.overlay !== "palette") {
+      if (/^[1-9]$/.test(key) && state.overlay !== "palette" && state.overlay !== "files") {
         const index = Number(key) - 1;
         if (index < overlayItemCount()) {
           state.overlayIndex = index;
@@ -1333,14 +1748,14 @@ export async function runTui(): Promise<void> {
         }
         return;
       }
-      if (state.overlay === "palette" && key.length === 1 && key >= " ") {
+      if (state.overlay && FILTER_OVERLAYS.includes(state.overlay) && key.length === 1 && key >= " ") {
         state.paletteFilter += key;
         state.overlayIndex = 0;
         clampOverlayIndex();
         queueRender();
         return;
       }
-      if (state.overlay === "palette" && key === "\u007f") {
+      if (state.overlay && FILTER_OVERLAYS.includes(state.overlay) && key === "\u007f") {
         state.paletteFilter = state.paletteFilter.slice(0, -1);
         clampOverlayIndex();
         queueRender();
@@ -1399,6 +1814,8 @@ export async function runTui(): Promise<void> {
       const commandByKey: Record<string, string> = {
         c: "compact",
         e: "editor",
+        f: "files",
+        h: "history",
         i: "init",
         l: "sessions",
         m: "models",
@@ -1416,7 +1833,7 @@ export async function runTui(): Promise<void> {
     }
     if (key === "\u0018") {
       leaderUntil = Date.now() + 2000;
-      toast("ctrl+x  c/e/i/m/n/q/r/t/u/x", "info");
+      toast("ctrl+x  c/e/f/h/i/m/n/q/r/t/u/x", "info");
       queueRender();
       return;
     }
