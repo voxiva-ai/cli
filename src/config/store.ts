@@ -6,7 +6,7 @@ export type ProviderId = "openai" | "anthropic" | "openrouter" | "groq" | "googl
 
 export type PlanId = "build" | "ship" | "check" | "explore";
 
-export type ThemeId = "voxiva" | "slate" | "midnight" | "arctic";
+export type ThemeId = "voxiva" | "slate" | "midnight" | "arctic" | "ember" | "forest" | "mono";
 
 export type LocaleId = import("../i18n/index.js").LocaleId;
 

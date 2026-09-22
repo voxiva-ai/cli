@@ -1,6 +1,7 @@
 import type { PlanId } from "../config/store.js";
 import type { LocaleId } from "../i18n/index.js";
 import { languageDirective } from "../i18n/index.js";
+import { loadAgentsMarkdown, withAgentsContext } from "../project/agents.js";
 
 export type PlanDefinition = {
   id: PlanId;
@@ -11,7 +12,8 @@ export type PlanDefinition = {
 
 const STACK_HINT = `Detect the project stack from the workspace (TypeScript, Go, Python, Rust, etc.).
 Use the project's own tools and conventions (go test, npm test, cargo, pytest, …).
-Prefer small diffs. Never invent APIs that are not in the repo.`;
+Prefer small diffs. Never invent APIs that are not in the repo.
+When suggesting file edits, show concrete paths and patches the user can apply.`;
 
 export const PLANS: PlanDefinition[] = [
   {
@@ -56,7 +58,18 @@ export function getPlan(id: PlanId): PlanDefinition {
   return PLANS.find((p) => p.id === id) ?? PLANS[0];
 }
 
-/** Full system message for the active plan + UI language. */
+/** Sync system message (no AGENTS.md). Prefer planSystemAsync in the TUI. */
 export function planSystem(id: PlanId, locale: LocaleId = "en"): string {
   return `${getPlan(id).system}\n\n${languageDirective(locale)}`;
+}
+
+/** System message with AGENTS.md from cwd when present. */
+export async function planSystemAsync(
+  id: PlanId,
+  locale: LocaleId = "en",
+  cwd: string = process.cwd(),
+): Promise<string> {
+  const base = planSystem(id, locale);
+  const agents = await loadAgentsMarkdown(cwd);
+  return withAgentsContext(base, agents);
 }

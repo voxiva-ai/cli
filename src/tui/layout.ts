@@ -172,9 +172,11 @@ export type HeaderInfo = {
   authKeys: string[];
   noModelLabel?: string;
   notConnectedLabel?: string;
+  /** Extra status line when /details is on. */
+  detailsLine?: string;
 };
 
-/** Status header — title + one status line, no icons. */
+/** Status header — title + status line(s), no icons. */
 export function renderHeader(info: HeaderInfo, cols: number): string[] {
   const t = c();
   const w = fullWidth(cols);
@@ -192,6 +194,9 @@ export function renderHeader(info: HeaderInfo, cols: number): string[] {
     `${t.accent(">")} ${t.text("Voxiva CLI")} ${t.dim(`(v${info.version})`)}`,
     `${planVal}${t.dim(" · ")}${modelVal}${t.dim(" · ")}${authVal}`,
   ];
+  if (info.detailsLine) {
+    rows.push(t.dim(info.detailsLine));
+  }
 
   const top = t.border("┌" + "─".repeat(w - 2) + "┐");
   const body = rows.map((line) => {

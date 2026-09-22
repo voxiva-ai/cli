@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# Voxiva CLI — one-line installer (macOS / Linux)
+#
+#   curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
+#
+# Optional:
+#   VERSION=0.1.0 curl … | bash     # pin npm package version when published
+#   VOXIVA_METHOD=github curl … | bash   # force github:voxiva-ai/cli
+
+set -euo pipefail
+
+echo ""
+echo "  voxiva"
+echo "  Installing Voxiva CLI…"
+echo ""
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "Node.js 20+ is required: https://nodejs.org/"
+  exit 1
+fi
+
+major="$(node -p "process.versions.node.split('.')[0]")"
+if [ "$major" -lt 20 ]; then
+  echo "Node.js 20+ is required (found $(node -v))."
+  exit 1
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "npm is required (comes with Node.js)."
+  exit 1
+fi
+
+METHOD="${VOXIVA_METHOD:-auto}"
+VERSION="${VERSION:-latest}"
+
+install_npm() {
+  echo "→ npm install -g @voxiva/cli@${VERSION}"
+  npm install -g "@voxiva/cli@${VERSION}"
+}
+
+install_github() {
+  echo "→ npm install -g github:voxiva-ai/cli"
+  npm install -g "github:voxiva-ai/cli"
+}
+
+case "$METHOD" in
+  npm)
+    install_npm
+    ;;
+  github)
+    install_github
+    ;;
+  auto|*)
+    if install_npm 2>/dev/null; then
+      :
+    else
+      echo "  npm registry unavailable — installing from GitHub…"
+      install_github
+    fi
+    ;;
+esac
+
+echo ""
+if command -v voxiva >/dev/null 2>&1; then
+  echo "✓ Installed"
+  echo ""
+  voxiva --version
+  echo ""
+  echo "Next:"
+  echo "  voxiva"
+  echo "  then /connect and /models"
+  echo ""
+  echo "Doctor:  voxiva doctor"
+else
+  echo "Installed, but voxiva is not on PATH."
+  echo "Add your npm global bin to PATH, then run: voxiva doctor"
+  NPM_BIN="$(npm prefix -g)/bin"
+  echo "  export PATH=\"$NPM_BIN:\$PATH\""
+  exit 1
+fi

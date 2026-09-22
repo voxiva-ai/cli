@@ -2,6 +2,7 @@ import type { LocaleId, PlanId } from "../config/store.js";
 import { PLANS } from "../plans/index.js";
 import { parseModelRef } from "../providers/chat.js";
 import { getLocale, localeIds } from "../i18n/index.js";
+import { themeIds } from "./themes.js";
 
 export type SlashHandler = (args: string, ctx: SlashContext) => Promise<SlashResult>;
 
@@ -23,7 +24,9 @@ export type SlashResult =
         | "init"
         | "details"
         | "thinking"
-        | "voice";
+        | "voice"
+        | "cost"
+        | "diff";
     };
 
 export type OverlayMode =
@@ -167,6 +170,17 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     handler: async () => ({ type: "action", action: "export" }),
   },
   {
+    name: "diff",
+    description: "Show git status / diff summary",
+    handler: async () => ({ type: "action", action: "diff" }),
+  },
+  {
+    name: "cost",
+    aliases: ["usage", "tokens"],
+    description: "Session token estimate",
+    handler: async () => ({ type: "action", action: "cost" }),
+  },
+  {
     name: "editor",
     description: "Open external editor",
     keybind: "ctrl+x e",
@@ -174,13 +188,13 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   },
   {
     name: "init",
-    description: "Create AGENTS.md",
+    description: "Create AGENTS.md (loaded into prompts)",
     keybind: "ctrl+x i",
     handler: async () => ({ type: "action", action: "init" }),
   },
   {
     name: "details",
-    description: "Toggle request details",
+    description: "Toggle model / theme / usage details",
     handler: async () => ({ type: "action", action: "details" }),
   },
   {
@@ -202,10 +216,10 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     keybind: "ctrl+x t",
     handler: async (args, ctx) => {
       const id = args.trim() as import("../config/store.js").ThemeId;
+      const known = themeIds();
       if (!id) return { type: "overlay", mode: "themes" };
-      const known = ["voxiva", "slate", "midnight", "arctic"] as const;
-      if (!known.includes(id as (typeof known)[number])) {
-        return { type: "toast", message: "Try voxiva, slate, midnight, arctic.", tone: "error" };
+      if (!known.includes(id)) {
+        return { type: "toast", message: `Try: ${known.join(", ")}`, tone: "error" };
       }
       await ctx.setTheme(id);
       await ctx.refresh();
@@ -245,7 +259,6 @@ export function resolveSlash(input: string): { cmd: SlashCommand; args: string }
   const exact = byName.get(name);
   if (exact) return { cmd: exact, args };
 
-  // Unique prefix — so `/con` + Enter runs /connect
   const prefixHits = SLASH_COMMANDS.filter((command) => {
     if (command.name.startsWith(name)) return true;
     return command.aliases?.some((alias) => alias.startsWith(name)) === true;

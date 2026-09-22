@@ -4,7 +4,7 @@ import { execSync, spawnSync } from "node:child_process";
 import chalk from "chalk";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getPlan, planSystem, PLANS } from "../plans/index.js";
+import { getPlan, planSystemAsync, PLANS } from "../plans/index.js";
 import { listCatalog, modelRef, parseModelRef, type ChatMessage } from "../providers/chat.js";
 import { streamChat } from "../providers/chat.js";
 import {
@@ -46,6 +46,7 @@ import { paletteItems, resolveSlash, slashSuggestions, matchesPaletteFilter, typ
 import type { SlashContext } from "./slash.js";
 import { VERSION } from "./copy.js";
 import { setVoiceListening, setVoiceSink } from "../voice/bridge.js";
+import { emptyUsage, estimateMessagesTokens, estimateTokens, formatUsage, type SessionUsage } from "../usage/tokens.js";
 
 const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
   { id: "openai", label: "OpenAI", description: "GPT and reasoning models · OPENAI_API_KEY" },
@@ -149,11 +150,13 @@ export async function runTui(): Promise<void> {
     .filter(([, value]) => value?.apiKey)
     .map(([key]) => key as ProviderId);
 
+  const systemPrompt = await planSystemAsync(config.plan, localeId, process.cwd());
+
   const state: AppState = {
     input: "",
     cursor: 0,
     messages: [],
-    history: [{ role: "system", content: planSystem(config.plan, localeId) }],
+    history: [{ role: "system", content: systemPrompt }],
     plan: config.plan,
     model: config.defaultModel,
     theme: themeId,
@@ -196,6 +199,14 @@ export async function runTui(): Promise<void> {
   let inPaste = false;
   const RENDER_MIN_MS = 33;
   let leaderUntil = 0;
+  let usage: SessionUsage = emptyUsage();
+
+  async function refreshSystemPrompt() {
+    state.history[0] = {
+      role: "system",
+      content: await planSystemAsync(state.plan, state.locale, state.cwd),
+    };
+  }
 
   const ctx: SlashContext = {
     cwd: state.cwd,
@@ -205,7 +216,7 @@ export async function runTui(): Promise<void> {
     locale: state.locale,
     setPlan: async (id) => {
       state.plan = id;
-      state.history[0] = { role: "system", content: planSystem(id, state.locale) };
+      await refreshSystemPrompt();
       await patchConfig({ plan: id });
     },
     setModel: async (ref) => {
@@ -219,7 +230,7 @@ export async function runTui(): Promise<void> {
     },
     setLocale: async (id) => {
       state.locale = id;
-      state.history[0] = { role: "system", content: planSystem(state.plan, id) };
+      await refreshSystemPrompt();
       await patchConfig({ locale: id });
     },
     refresh: async () => {
@@ -494,6 +505,14 @@ export async function runTui(): Promise<void> {
     let cursorInBox = { inputRow: 0, inputCol: 0 };
     const t = tc();
     const s = strings();
+    const detailsLine = state.details
+      ? [
+          state.model ?? "no model",
+          `theme ${state.theme}`,
+          `lang ${state.locale}`,
+          formatUsage(usage),
+        ].join(" · ")
+      : undefined;
     const header = renderHeader(
       {
         version: VERSION,
@@ -503,6 +522,7 @@ export async function runTui(): Promise<void> {
         authKeys: state.authKeys,
         noModelLabel: s.noModel,
         notConnectedLabel: s.notConnected,
+        detailsLine,
       },
       cols,
     );
@@ -644,12 +664,41 @@ export async function runTui(): Promise<void> {
           toast("Conversation is already compact.", "info");
           return;
         }
+        const dropped = nonSystem.slice(0, -4);
         const kept = nonSystem.slice(-4);
-        const summary = `Earlier context compacted (${nonSystem.length - kept.length} messages).`;
+        let summary = `Earlier context compacted (${dropped.length} messages).`;
+        if (state.model && state.authKeys.length) {
+          try {
+            state.busy = true;
+            queueRender();
+            const authNow = await loadAuth();
+            const digest = dropped
+              .map((message) => `${message.role}: ${message.content.slice(0, 400)}`)
+              .join("\n")
+              .slice(0, 6000);
+            summary = await streamChat(
+              authNow,
+              state.model,
+              [
+                {
+                  role: "system",
+                  content: "Summarize this chat for continuity. Max 8 short bullets. No preamble.",
+                },
+                { role: "user", content: digest },
+              ],
+              { onToken: () => {} },
+            );
+            summary = summary.trim() || summary;
+          } catch {
+            summary = `Earlier context compacted (${dropped.length} messages).`;
+          } finally {
+            state.busy = false;
+          }
+        }
         const systemMsg = state.history.find((message) => message.role === "system");
         state.history = [
-          systemMsg ?? { role: "system", content: planSystem(state.plan, state.locale) },
-          { role: "user", content: summary },
+          systemMsg ?? { role: "system", content: await planSystemAsync(state.plan, state.locale, state.cwd) },
+          { role: "user", content: `[Summary]\n${summary}` },
           ...kept,
         ];
         state.messages = [
@@ -662,6 +711,35 @@ export async function runTui(): Promise<void> {
         toast("Conversation compacted.", "ok");
         return;
       }
+      case "cost": {
+        const contextTokens = estimateMessagesTokens(state.history);
+        toast(
+          `Session: ${formatUsage(usage)} · context ~${contextTokens.toLocaleString()} tok`,
+          "info",
+        );
+        return;
+      }
+      case "diff": {
+        try {
+          const status = execSync("git status -sb", {
+            cwd: state.cwd,
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+          }).trim();
+          const stat = execSync("git diff --stat HEAD", {
+            cwd: state.cwd,
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+          }).trim();
+          const text = [status || "(clean)", stat].filter(Boolean).join("\n\n");
+          state.messages.push({ role: "system", text: text.slice(0, 4000) });
+          toast("Git status loaded.", "ok");
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          toast(msg.includes("not a git") ? "Not a git repository." : "git failed.", "error");
+        }
+        return;
+      }
       case "export": {
         const stamp = new Date().toISOString().replace(/[:.]/g, "-");
         const path = join(state.cwd, `voxiva-session-${stamp}.md`);
@@ -670,6 +748,9 @@ export async function runTui(): Promise<void> {
           "",
           `- Plan: ${state.plan}`,
           `- Model: ${state.model ?? "none"}`,
+          `- Theme: ${state.theme}`,
+          `- Locale: ${state.locale}`,
+          `- Usage: ${formatUsage(usage)}`,
           "",
           ...state.messages.flatMap((message) => [
             `## ${message.role === "user" ? "You" : message.role === "assistant" ? "Voxiva" : "System"}`,
@@ -686,14 +767,16 @@ export async function runTui(): Promise<void> {
         const path = join(state.cwd, "AGENTS.md");
         try {
           await readFile(path, "utf8");
-          toast("AGENTS.md already exists.", "info");
+          toast("AGENTS.md already exists — loaded into prompts.", "info");
+          await refreshSystemPrompt();
         } catch {
           await writeFile(
             path,
             "# AGENTS.md\n\n## Project\n\nDescribe the project here.\n\n## Commands\n\n- Build: add command\n- Test: add command\n\n## Conventions\n\n- Follow the existing code style.\n",
             "utf8",
           );
-          toast("Created AGENTS.md.", "ok");
+          await refreshSystemPrompt();
+          toast("Created AGENTS.md and loaded into prompts.", "ok");
         }
         return;
       }
@@ -741,10 +824,13 @@ export async function runTui(): Promise<void> {
       case "clear":
         await persistSession();
         state.messages = [];
-        state.history = [{ role: "system", content: planSystem(state.plan, state.locale) }];
+        state.history = [
+          { role: "system", content: await planSystemAsync(state.plan, state.locale, state.cwd) },
+        ];
         state.sessionId = undefined;
         state.redoStack = [];
         state.scrollOffset = 0;
+        usage = emptyUsage();
         toast("New session", "ok");
         break;
       case "toast":
@@ -875,6 +961,7 @@ export async function runTui(): Promise<void> {
     state.busy = true;
     queueRender();
 
+    const inputTokens = estimateMessagesTokens(state.history);
     let reply = "";
     streamAbort = new AbortController();
     try {
@@ -887,11 +974,19 @@ export async function runTui(): Promise<void> {
         },
       });
       if (streamAbort.signal.aborted) {
-        if (reply) state.history.push({ role: "assistant", content: reply });
+        if (reply) {
+          state.history.push({ role: "assistant", content: reply });
+          usage.inputTokens += inputTokens;
+          usage.outputTokens += estimateTokens(reply);
+          usage.turns += 1;
+        }
         toast("Generation stopped.", "info");
       } else {
         state.messages[responseIndex].text = reply;
         state.history.push({ role: "assistant", content: reply });
+        usage.inputTokens += inputTokens;
+        usage.outputTokens += estimateTokens(reply);
+        usage.turns += 1;
         state.redoStack = [];
         await persistSession();
       }

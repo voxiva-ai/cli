@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Voxiva CLI — macOS / Linux installer
+# Voxiva CLI — install from a local clone (dev)
 # Usage:
 #   ./scripts/install.sh
-#   ./scripts/install.sh /path/to/Voxiva\ CLI
+#   ./scripts/install.sh /path/to/cli
 
 set -euo pipefail
 
@@ -10,17 +10,17 @@ SOURCE="${1:-$(cd "$(dirname "$0")/.." && pwd)}"
 
 echo ""
 echo "  voxiva"
-echo "  Installing Voxiva CLI..."
+echo "  Installing from source…"
 echo ""
 
 if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js 20+ is required. Install from https://nodejs.org/"
+  echo "Node.js 20+ is required: https://nodejs.org/"
   exit 1
 fi
 
 major="$(node -p "process.versions.node.split('.')[0]")"
 if [ "$major" -lt 20 ]; then
-  echo "Node.js 20+ is required."
+  echo "Node.js 20+ is required (found $(node -v))."
   exit 1
 fi
 
@@ -41,11 +41,14 @@ echo "→ npm link (global voxiva command)"
 npm link
 
 echo ""
-echo "✓ Voxiva CLI installed"
+echo "✓ Voxiva CLI installed from source"
 echo ""
 voxiva --version
 echo ""
 echo "Next:"
 echo "  voxiva"
 echo "  then /connect and /models"
+echo ""
+echo "Prefer one-line install without cloning?"
+echo "  curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash"
 echo ""

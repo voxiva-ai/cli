@@ -1,7 +1,7 @@
 import ora from "ora";
 import { c, promptGlyph } from "../brand/index.js";
 import { loadAuth, loadConfig, type ModelRef } from "../config/store.js";
-import { getPlan, planSystem } from "../plans/index.js";
+import { getPlan, planSystemAsync } from "../plans/index.js";
 import { streamChat } from "../providers/chat.js";
 import type { LocaleId } from "../i18n/index.js";
 
@@ -35,7 +35,7 @@ export async function runPrompt(prompt: string, opts: RunOptions = {}): Promise<
 
   let started = false;
   const messages = [
-    { role: "system" as const, content: planSystem(planId, locale) },
+    { role: "system" as const, content: await planSystemAsync(planId, locale, process.cwd()) },
     { role: "user" as const, content: prompt },
   ];
 

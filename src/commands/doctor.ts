@@ -40,7 +40,12 @@ export async function doctorCheck(): Promise<number> {
 
   console.log("");
   if (!ok) {
-    console.log(c.danger("Fix install:"), c.brand("npm run install:local"));
+    console.log(c.danger("Fix install:"));
+    if (process.platform === "win32") {
+      console.log(c.muted("  irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex"));
+    } else {
+      console.log(c.muted("  curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash"));
+    }
     return 1;
   }
 
