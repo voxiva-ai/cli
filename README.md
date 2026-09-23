@@ -116,13 +116,18 @@ Sessions and workspaces are stored on disk under `~/.voxiva/` (`sessions.json`, 
 
 ## Built-in models
 
-**Free first** (like OpenCode Zen free picks) — $0 usage via OpenRouter:
+**Works right after install — no API key:**
 
-1. `/connect` → **OpenRouter** (free key at [openrouter.ai/keys](https://openrouter.ai/keys))
-2. `/models` → pick any model marked **free** (Free Models Router, Qwen, Gemma, GLM, Nemotron, …)
+- `Voxiva Flash Free` / `Voxiva Code Free` — built-in free models
 
-Paid / BYOK also in `/models`: OpenAI, Anthropic, Gemini, DeepSeek, Groq.
-Any `provider/model` works via `/model`.
+```bash
+voxiva
+# then type — or /models to switch
+```
+
+**More free models** (optional free OpenRouter key): Space Bunny, Nemotron, Ling, Qwen, Gemma, GLM…
+
+**Paid / BYOK:** OpenAI, Anthropic, Gemini, DeepSeek, Groq.
 
 ## Plans
 

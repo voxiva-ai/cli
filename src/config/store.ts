@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 export type ProviderId =
+  | "voxiva"
   | "openai"
   | "anthropic"
   | "openrouter"
@@ -11,6 +12,7 @@ export type ProviderId =
   | "deepseek";
 
 export const PROVIDER_IDS: ProviderId[] = [
+  "voxiva",
   "openai",
   "anthropic",
   "openrouter",
@@ -49,6 +51,7 @@ const DEFAULT_CONFIG: VoxivaConfig = {
   plan: "build",
   theme: "voxiva",
   locale: "en",
+  defaultModel: "voxiva/flash",
 };
 
 export async function ensureDir(): Promise<void> {

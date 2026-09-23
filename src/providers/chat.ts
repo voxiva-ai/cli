@@ -16,32 +16,53 @@ export type ModelInfo = {
   id: string;
   provider: ProviderId;
   label: string;
-  /** $0 via OpenRouter free tier (still needs a free OpenRouter key). */
+  /** $0 — works without a paid plan. */
   free?: boolean;
+  /** Built-in Voxiva free — no API key required. */
+  builtin?: boolean;
+  /** Upstream model id when different from catalog id (e.g. Pollinations). */
+  upstream?: string;
 };
 
-/** Default free model after connecting OpenRouter — like OpenCode Zen free picks. */
-export const DEFAULT_FREE_MODEL: ModelRef = "openrouter/openrouter/free";
+/** Default after install — works with zero keys. */
+export const DEFAULT_FREE_MODEL: ModelRef = "voxiva/flash";
+
+const POLLINATIONS_URL = "https://text.pollinations.ai/openai";
 
 /**
- * Built-in picker. Free OpenRouter models first (zero cost, free account key).
- * Any provider/id still works via /model.
+ * Built-in picker. Free models first (OpenCode-style).
+ * `voxiva/*` needs no key. OpenRouter `:free` needs a free OpenRouter key.
  */
 const CATALOG: ModelInfo[] = [
-  // ——— Free (OpenRouter, $0) ———
+  // ——— Built-in free (no key) ———
+  {
+    provider: "voxiva",
+    id: "flash",
+    label: "Voxiva Flash Free",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+  },
+  {
+    provider: "voxiva",
+    id: "code",
+    label: "Voxiva Code Free",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+  },
+  // ——— OpenRouter free ($0, free account key) ———
   { provider: "openrouter", id: "openrouter/free", label: "Free Models Router", free: true },
-  { provider: "openrouter", id: "qwen/qwen3.8-27b:free", label: "Qwen3.8 27B", free: true },
-  { provider: "openrouter", id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B", free: true },
-  { provider: "openrouter", id: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 26B", free: true },
-  { provider: "openrouter", id: "z-ai/glm-5.2:free", label: "GLM 5.2", free: true },
-  { provider: "openrouter", id: "cohere/north-mini-code:free", label: "North Mini Code", free: true },
-  { provider: "openrouter", id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super", free: true },
-  { provider: "openrouter", id: "nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra", free: true },
-  { provider: "openrouter", id: "nvidia/nemotron-3.5-lightning:free", label: "Nemotron 3.5 Lightning", free: true },
-  { provider: "openrouter", id: "poolside/laguna-s-2.1:free", label: "Laguna S 2.1", free: true },
-  { provider: "openrouter", id: "nex-agi/nex-n2.5-pro:free", label: "Nex N2.5 Pro", free: true },
-  { provider: "openrouter", id: "nex-agi/nex-n2.5-mini:free", label: "Nex N2.5 Mini", free: true },
-  { provider: "openrouter", id: "inclusionai/ling-3.0-flash-vl:free", label: "Ling 3.0 Flash", free: true },
+  { provider: "openrouter", id: "stealth/space-bunny-alpha", label: "Space Bunny Free", free: true },
+  { provider: "openrouter", id: "nvidia/nemotron-3.5-lightning:free", label: "Nemotron 3.5 Lightning Free", free: true },
+  { provider: "openrouter", id: "nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra Free", free: true },
+  { provider: "openrouter", id: "inclusionai/ling-3.0-flash-fin:free", label: "Ling 3.0 Flash Fin Free", free: true },
+  { provider: "openrouter", id: "cohere/north-mini-code:free", label: "North Mini Code Free", free: true },
+  { provider: "openrouter", id: "qwen/qwen3.8-27b:free", label: "Qwen3.8 27B Free", free: true },
+  { provider: "openrouter", id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B Free", free: true },
+  { provider: "openrouter", id: "z-ai/glm-5.2:free", label: "GLM 5.2 Free", free: true },
+  { provider: "openrouter", id: "poolside/laguna-s-2.1:free", label: "Laguna S 2.1 Free", free: true },
+  { provider: "openrouter", id: "nex-agi/nex-n2.5-pro:free", label: "Nex N2.5 Pro Free", free: true },
   // ——— Paid / BYOK ———
   { provider: "openai", id: "gpt-4.1", label: "GPT-4.1" },
   { provider: "openai", id: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
@@ -55,18 +76,10 @@ const CATALOG: ModelInfo[] = [
   { provider: "google", id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
   { provider: "google", id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
   { provider: "google", id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
-  { provider: "google", id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite" },
   { provider: "deepseek", id: "deepseek-chat", label: "DeepSeek V3" },
   { provider: "deepseek", id: "deepseek-reasoner", label: "DeepSeek R1" },
   { provider: "groq", id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B" },
   { provider: "groq", id: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
-  { provider: "groq", id: "qwen/qwen3-32b", label: "Qwen3 32B" },
-  { provider: "openrouter", id: "deepseek/deepseek-chat-v3-0324", label: "DeepSeek V3 (OR)" },
-  { provider: "openrouter", id: "deepseek/deepseek-r1", label: "DeepSeek R1 (OR)" },
-  { provider: "openrouter", id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash (OR)" },
-  { provider: "openrouter", id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro (OR)" },
-  { provider: "openrouter", id: "anthropic/claude-sonnet-4", label: "Claude Sonnet 4 (OR)" },
-  { provider: "openrouter", id: "openai/gpt-4.1-mini", label: "GPT-4.1 Mini (OR)" },
 ];
 
 export function listCatalog(): ModelInfo[] {
@@ -77,12 +90,26 @@ export function listFreeCatalog(): ModelInfo[] {
   return CATALOG.filter((model) => model.free);
 }
 
-export function isFreeModelRef(ref: string | undefined): boolean {
-  if (!ref) return false;
-  return CATALOG.some((model) => model.free && modelRef(model) === ref);
+export function findCatalog(ref: string): ModelInfo | undefined {
+  return CATALOG.find((model) => modelRef(model) === ref);
 }
 
-/** Accept any provider/id string — catalog is only a picker, not a whitelist. */
+export function isFreeModelRef(ref: string | undefined): boolean {
+  if (!ref) return false;
+  return Boolean(findCatalog(ref)?.free);
+}
+
+export function isBuiltinFree(ref: string | undefined): boolean {
+  if (!ref) return false;
+  return Boolean(findCatalog(ref)?.builtin);
+}
+
+/** Provider is ready to call (built-in free never needs a key). */
+export function providerReady(auth: AuthStore, provider: ProviderId): boolean {
+  if (provider === "voxiva") return true;
+  return Boolean(auth[provider]?.apiKey?.trim());
+}
+
 export function parseModelRef(ref: string): { provider: ProviderId; model: string } | null {
   const slash = ref.indexOf("/");
   if (slash <= 0) return null;
@@ -105,6 +132,78 @@ function requireKey(auth: AuthStore, provider: ProviderId): string {
   return key;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function streamVoxivaFree(
+  catalogId: string,
+  messages: ChatMessage[],
+  handlers: StreamHandlers,
+): Promise<string> {
+  const info = CATALOG.find((m) => m.provider === "voxiva" && m.id === catalogId);
+  const upstream = info?.upstream ?? "openai-fast";
+  const body = {
+    model: upstream,
+    messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    stream: false,
+  };
+
+  let lastError = "Free model unavailable.";
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (handlers.signal?.aborted) break;
+    if (attempt > 0) await sleep(700 * attempt);
+    try {
+      const response = await fetch(POLLINATIONS_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "user-agent": "voxiva-cli/0.1.0",
+        },
+        body: JSON.stringify(body),
+        signal: handlers.signal,
+      });
+      const raw = await response.text();
+      if (response.status === 429) {
+        lastError = "Free model is busy — retrying…";
+        continue;
+      }
+      if (!response.ok) {
+        lastError = `Free model error (${response.status}). Try again or /connect OpenRouter.`;
+        continue;
+      }
+      let parsed: { choices?: { message?: { content?: string } }[] };
+      try {
+        parsed = JSON.parse(raw) as typeof parsed;
+      } catch {
+        lastError = "Free model returned invalid JSON.";
+        continue;
+      }
+      const full = parsed.choices?.[0]?.message?.content?.trim() ?? "";
+      if (!full) {
+        lastError = raw.includes("budget")
+          ? "Free tier budget reached — wait a minute or /connect OpenRouter."
+          : "Empty free-model reply.";
+        continue;
+      }
+      // Soft-stream into the TUI so it feels live.
+      const step = Math.max(1, Math.ceil(full.length / 48));
+      for (let i = 0; i < full.length; i += step) {
+        if (handlers.signal?.aborted) break;
+        const chunk = full.slice(i, i + step);
+        handlers.onToken(chunk);
+        await sleep(8);
+      }
+      handlers.onDone?.();
+      return full;
+    } catch (err) {
+      if (handlers.signal?.aborted) break;
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+  }
+  throw new Error(lastError);
+}
+
 export async function streamChat(
   auth: AuthStore,
   modelRefStr: ModelRef,
@@ -114,6 +213,10 @@ export async function streamChat(
   const slash = modelRefStr.indexOf("/");
   const provider = modelRefStr.slice(0, slash) as ProviderId;
   const model = modelRefStr.slice(slash + 1);
+
+  if (provider === "voxiva") {
+    return streamVoxivaFree(model, messages, handlers);
+  }
 
   if (provider === "anthropic") {
     return streamAnthropic(requireKey(auth, "anthropic"), model, messages, handlers);

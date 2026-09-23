@@ -33,8 +33,10 @@ export async function doctorCheck(): Promise<number> {
   const auth = await loadAuth();
   const providers = Object.keys(auth).filter((k) => auth[k as keyof typeof auth]?.apiKey);
 
-  console.log(`${config.defaultModel ? c.ok("✓") : c.muted("·")} Model ${config.defaultModel ?? "(not set)"}`);
-  console.log(`${providers.length ? c.ok("✓") : c.muted("·")} Providers ${providers.length ? providers.join(", ") : "(none)"}`);
+  console.log(`${config.defaultModel ? c.ok("✓") : c.muted("·")} Model ${config.defaultModel ?? "voxiva/flash (default free)"}`);
+  console.log(
+    `${providers.length ? c.ok("✓") : c.ok("✓")} Providers ${providers.length ? providers.join(", ") : "voxiva free (no key)"}`,
+  );
   console.log(`${c.muted("·")} Config ${configDir()}`);
   console.log(`${c.muted("·")} Plan ${config.plan}`);
 
@@ -49,10 +51,6 @@ export async function doctorCheck(): Promise<number> {
     return 1;
   }
 
-  if (!config.defaultModel) {
-    console.log(c.muted("Ready. Connect a model:"), c.brand("voxiva auth login"));
-  } else {
-    console.log(c.ok("Ready."), c.brand("voxiva chat"));
-  }
+  console.log(c.ok("Ready."), c.brand("voxiva"), c.muted("— free model works without keys. /models to switch."));
   return 0;
 }

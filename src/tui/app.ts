@@ -2,10 +2,20 @@ import { loadAuth, patchConfig, saveAuth, type ModelRef, type PlanId, type Provi
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { execSync, spawnSync } from "node:child_process";
 import chalk from "chalk";
+import stringWidth from "string-width";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getPlan, planSystemAsync, PLANS } from "../plans/index.js";
-import { listCatalog, modelRef, parseModelRef, DEFAULT_FREE_MODEL, isFreeModelRef, type ChatMessage } from "../providers/chat.js";
+import {
+  listCatalog,
+  modelRef,
+  parseModelRef,
+  DEFAULT_FREE_MODEL,
+  isFreeModelRef,
+  isBuiltinFree,
+  findCatalog,
+  type ChatMessage,
+} from "../providers/chat.js";
 import { streamChat } from "../providers/chat.js";
 import {
   getSession,
@@ -56,8 +66,8 @@ import { readGitSnapshot } from "../project/gitinfo.js";
 const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
   {
     id: "openrouter",
-    label: "OpenRouter (free models)",
-    description: "Free tier + paid · openrouter.ai/keys · unlocks /models free list",
+    label: "OpenRouter (more free models)",
+    description: "Extra free models · openrouter.ai/keys · optional",
   },
   { id: "openai", label: "OpenAI", description: "GPT and reasoning models · OPENAI_API_KEY" },
   { id: "anthropic", label: "Anthropic", description: "Claude models · ANTHROPIC_API_KEY" },
@@ -172,8 +182,16 @@ export async function runTui(): Promise<void> {
     .map(([key]) => key as ProviderId);
 
   const cwd = process.cwd();
+  let defaultModel = config.defaultModel ?? DEFAULT_FREE_MODEL;
+  if (!defaultModel || !parseModelRef(defaultModel)) {
+    defaultModel = DEFAULT_FREE_MODEL;
+  }
+  if (!config.defaultModel || config.defaultModel !== defaultModel) {
+    await patchConfig({ defaultModel });
+  }
+
   await touchWorkspace(cwd, {
-    lastModel: config.defaultModel,
+    lastModel: defaultModel,
     lastPlan: config.plan,
     lastSessionId: config.lastSessionId,
   });
@@ -187,7 +205,7 @@ export async function runTui(): Promise<void> {
     messages: [],
     history: [{ role: "system", content: systemPrompt }],
     plan: config.plan,
-    model: config.defaultModel,
+    model: defaultModel,
     theme: themeId,
     locale: localeId,
     authKeys: connectedProviders,
@@ -285,6 +303,19 @@ export async function runTui(): Promise<void> {
     const q = state.paletteFilter.toLowerCase();
     if (!q) return state.memoryNotes;
     return state.memoryNotes.filter((note) => note.text.toLowerCase().includes(q));
+  }
+
+  function filteredModels() {
+    const q = state.paletteFilter.toLowerCase().trim();
+    const all = listCatalog();
+    if (!q) return all;
+    return all.filter(
+      (model) =>
+        model.label.toLowerCase().includes(q) ||
+        model.id.toLowerCase().includes(q) ||
+        model.provider.toLowerCase().includes(q) ||
+        (model.free && "free".includes(q)),
+    );
   }
 
   const SETTINGS_ITEMS = [
@@ -538,23 +569,39 @@ export async function runTui(): Promise<void> {
         break;
       }
       case "models": {
-        out.push(t.text("Select a model"));
-        out.push(t.dim("free = $0 via OpenRouter · auth = needs that provider key"));
+        const models = filteredModels();
+        out.push(t.text("Select model") + " ".repeat(Math.max(1, inner - 16)) + t.dim("esc"));
+        out.push(
+          t.dim("Search") +
+            t.dim(": ") +
+            (state.paletteFilter ? t.text(state.paletteFilter) : t.dim("")),
+        );
         out.push("");
-        const models = listCatalog();
-        const start = Math.max(0, Math.min(state.overlayIndex - 4, models.length - 8));
-        models.slice(start, start + 8).forEach((m, visibleIndex) => {
-          const i = start + visibleIndex;
-          const ref = modelRef(m);
-          const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
-          const active = state.model === ref ? t.accent2(" *") : "";
-          const free = m.free ? t.ok(" free") : "";
-          const ready = state.authKeys.includes(m.provider) ? "" : t.dim(" (auth)");
-          out.push(`${mark}${t.text(m.label)}${free}${active}${ready}`);
-          out.push(`     ${t.dim(ref)}`);
-        });
+        if (!models.length) {
+          out.push(t.dim("  No models match."));
+        } else {
+          const start = Math.max(0, Math.min(state.overlayIndex - 3, models.length - 10));
+          models.slice(start, start + 10).forEach((m, visibleIndex) => {
+            const i = start + visibleIndex;
+            const ref = modelRef(m);
+            const selected = i === state.overlayIndex;
+            const active = state.model === ref;
+            const status = m.free ? "Free" : state.authKeys.includes(m.provider) ? "Ready" : "Key";
+            const dot = active ? "● " : "  ";
+            const name = truncate(m.label, Math.max(16, inner - 12));
+            const gap = Math.max(1, inner - 2 - stringWidth(dot + name) - stringWidth(status));
+            const plain = `${dot}${name}${" ".repeat(gap)}${status}`;
+            if (selected) {
+              out.push(chalk.bgHex("#c45c26").hex("#fff8f0")(truncate(` ${plain}`, inner)));
+            } else {
+              const left = active ? t.text(dot + name) : t.muted(dot + name);
+              const right = m.free ? t.ok(status) : t.dim(status);
+              out.push(truncate(` ${left}${" ".repeat(gap)}${right}`, inner + 20));
+            }
+          });
+        }
         out.push("");
-        out.push(t.dim("  ↑↓/jk navigate · enter select · esc back"));
+        out.push(t.dim("  ↑↓ enter · type to search · builtin free needs no key"));
         break;
       }
       case "plans":
@@ -867,15 +914,28 @@ export async function runTui(): Promise<void> {
           formatUsage(usage),
         ].join(" · ")
       : undefined;
+    const modelLabel = state.model
+      ? (() => {
+          const info = findCatalog(state.model);
+          const short = info?.label ?? modelShort(state.model);
+          return isFreeModelRef(state.model) ? `${short}` : short;
+        })()
+      : undefined;
+    const authDisplay =
+      isBuiltinFree(state.model) || state.authKeys.length
+        ? isBuiltinFree(state.model) && !state.authKeys.length
+          ? ["free"]
+          : state.authKeys.length
+            ? state.authKeys
+            : ["free"]
+        : [];
     const header = renderHeader(
       {
         version: VERSION,
         plan: state.plan,
         planId: state.plan,
-        model: state.model
-          ? `${modelShort(state.model)}${isFreeModelRef(state.model) ? " · free" : ""}`
-          : undefined,
-        authKeys: state.authKeys,
+        model: modelLabel,
+        authKeys: authDisplay,
         noModelLabel: s.noModel,
         notConnectedLabel: s.notConnected,
         detailsLine,
@@ -1424,10 +1484,15 @@ export async function runTui(): Promise<void> {
     }
 
     if (!state.model) {
-      toast(
-        state.authKeys.length === 0 ? strings().needConnect : strings().needModel,
-        "info",
-      );
+      toast(strings().needModel, "info");
+      await openOverlay("models");
+      return;
+    }
+
+    const parsed = parseModelRef(state.model);
+    if (parsed && !isBuiltinFree(state.model) && !state.authKeys.includes(parsed.provider)) {
+      toast(strings().needConnect, "info");
+      await openOverlay("connect");
       return;
     }
 
@@ -1561,16 +1626,17 @@ export async function runTui(): Promise<void> {
         break;
       }
       case "models": {
-        const m = listCatalog()[state.overlayIndex];
+        const m = filteredModels()[state.overlayIndex];
         if (m) {
-          if (!state.authKeys.includes(m.provider)) {
+          const needsKey = !m.builtin && !state.authKeys.includes(m.provider);
+          if (needsKey) {
             const providerIndex = PROVIDERS.findIndex((provider) => provider.id === m.provider);
             state.pendingModel = modelRef(m);
             state.overlay = "connect";
             state.overlayIndex = Math.max(0, providerIndex);
             toast(
               m.free
-                ? "Connect OpenRouter (free account) to use free models."
+                ? "Optional: OpenRouter free key for more models — or pick Voxiva Flash Free (no key)."
                 : `Connect ${m.provider} before using this model.`,
               "info",
             );
@@ -1580,7 +1646,7 @@ export async function runTui(): Promise<void> {
           await ctx.setModel(ref);
           await ctx.refresh();
           state.overlay = null;
-          toast(m.free ? `Free model → ${m.label}` : `Model → ${ref}`, "ok");
+          toast(m.free ? `${m.label} · ready` : `Model → ${ref}`, "ok");
         }
         break;
       }
@@ -1725,7 +1791,7 @@ export async function runTui(): Promise<void> {
       case "connect":
         return PROVIDERS.length;
       case "models":
-        return listCatalog().length;
+        return filteredModels().length;
       case "plans":
         return PLANS.length;
       case "themes":

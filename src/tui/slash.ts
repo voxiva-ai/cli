@@ -439,4 +439,4 @@ export function slashSuggestions(input: string): SlashCommand[] {
 export const INFO_OVERLAYS: OverlayMode[] = ["help", "providers", "context", "shortcuts", "branch"];
 
 /** Overlays that accept type-to-filter via paletteFilter. */
-export const FILTER_OVERLAYS: OverlayMode[] = ["palette", "files", "history", "memory"];
+export const FILTER_OVERLAYS: OverlayMode[] = ["palette", "files", "history", "memory", "models"];

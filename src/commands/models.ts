@@ -15,7 +15,7 @@ export async function modelsList(): Promise<void> {
   let section: "none" | "free" | "paid" = "none";
   for (const info of listCatalog()) {
     if (info.free && section !== "free") {
-      console.log(c.muted("Free ($0 via OpenRouter)"));
+      console.log(c.muted("Free"));
       section = "free";
     } else if (!info.free && section !== "paid") {
       console.log("");
@@ -24,38 +24,36 @@ export async function modelsList(): Promise<void> {
     }
     const ref = modelRef(info);
     const active = config.defaultModel === ref;
-    const ready = connected.has(info.provider);
+    const ready = info.builtin || connected.has(info.provider);
     const mark = active ? c.brand("›") : " ";
-    const status = info.free
-      ? ready
-        ? c.ok("free")
-        : c.muted("free · needs OpenRouter key")
-      : ready
-        ? c.ok("ready")
-        : c.muted("needs auth");
+    const status = info.builtin
+      ? c.ok("free · no key")
+      : info.free
+        ? ready
+          ? c.ok("free")
+          : c.muted("free · OpenRouter key")
+        : ready
+          ? c.ok("ready")
+          : c.muted("needs auth");
     console.log(
-      `${mark} ${c.text(info.label.padEnd(28))} ${c.muted(ref.padEnd(46))} ${status}`,
+      `${mark} ${c.text(info.label.padEnd(32))} ${c.muted(ref.padEnd(48))} ${status}`,
     );
   }
 
+  console.log("");
+  console.log(
+    c.muted("Default:"),
+    c.brand(config.defaultModel ?? DEFAULT_FREE_MODEL),
+  );
   if (!config.defaultModel) {
-    console.log("");
-    console.log(
-      c.muted("No default. Free start:"),
-      c.brand("voxiva auth login"),
-      c.muted("→ OpenRouter, then"),
-      c.brand(`voxiva models use ${DEFAULT_FREE_MODEL}`),
-    );
-  } else {
-    console.log("");
-    console.log(c.muted("Default:"), c.brand(config.defaultModel));
+    console.log(c.muted("Tip:"), c.brand(`voxiva models use ${DEFAULT_FREE_MODEL}`));
   }
 }
 
 export async function modelsUse(ref: string): Promise<void> {
   const parsed = parseModelRef(ref);
   if (!parsed) {
-    console.error(c.danger("Use provider/model format, e.g. openrouter/openrouter/free"));
+    console.error(c.danger(`Use provider/model format, e.g. ${DEFAULT_FREE_MODEL}`));
     process.exitCode = 1;
     return;
   }
@@ -72,7 +70,5 @@ export async function modelsUse(ref: string): Promise<void> {
 
 export async function modelsCurrent(): Promise<void> {
   const config = await loadConfig();
-  if (config.defaultModel) {
-    console.log(config.defaultModel);
-  }
+  console.log(config.defaultModel ?? DEFAULT_FREE_MODEL);
 }

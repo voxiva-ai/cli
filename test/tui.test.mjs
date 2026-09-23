@@ -222,19 +222,27 @@ test("continue and workspaces slash commands", () => {
 });
 
 test("catalog includes deepseek and gemini flash", async () => {
-  const { listCatalog, parseModelRef, listFreeCatalog, DEFAULT_FREE_MODEL, isFreeModelRef } =
-    await import("../dist/providers/chat.js");
+  const {
+    listCatalog,
+    parseModelRef,
+    listFreeCatalog,
+    DEFAULT_FREE_MODEL,
+    isFreeModelRef,
+    isBuiltinFree,
+    providerReady,
+  } = await import("../dist/providers/chat.js");
   const catalog = listCatalog();
   assert.ok(catalog.some((m) => m.provider === "deepseek" && m.id === "deepseek-chat"));
   assert.ok(catalog.some((m) => m.provider === "google" && m.id === "gemini-2.5-flash"));
   assert.ok(parseModelRef("deepseek/deepseek-reasoner"));
   const free = listFreeCatalog();
-  assert.ok(free.length >= 8);
-  assert.equal(free[0].id, "openrouter/free");
-  assert.ok(free.every((m) => m.free && m.provider === "openrouter"));
-  assert.equal(DEFAULT_FREE_MODEL, "openrouter/openrouter/free");
+  assert.ok(free.length >= 5);
+  assert.equal(DEFAULT_FREE_MODEL, "voxiva/flash");
   assert.ok(isFreeModelRef(DEFAULT_FREE_MODEL));
-  assert.equal(catalog[0].free, true);
+  assert.ok(isBuiltinFree(DEFAULT_FREE_MODEL));
+  assert.equal(providerReady({}, "voxiva"), true);
+  assert.equal(catalog[0].builtin, true);
+  assert.ok(catalog.some((m) => m.label.includes("Space Bunny") || m.id.includes("space-bunny")));
 });
 
 test("one-line install scripts exist", () => {
