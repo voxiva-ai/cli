@@ -309,11 +309,11 @@ export function showCursor(): void {
 }
 
 export function userBubble(text: string): string {
-  return c().accent("› ") + c().text(text);
+  return c().text(text);
 }
 
 export function assistantBubble(text: string): string {
-  return c().dim("  ") + c().muted(text);
+  return c().muted(text);
 }
 
 export function systemNote(text: string): string {
@@ -326,6 +326,27 @@ export function errorNote(text: string): string {
 
 export function okNote(text: string): string {
   return c().ok(text);
+}
+
+/** Compact file-change card for chat. */
+export function fileChangeCard(
+  path: string,
+  kind: "create" | "update" | "pending" | "applied" | "skipped",
+  detail?: string,
+): string {
+  const t = c();
+  const tag =
+    kind === "applied"
+      ? t.ok("applied")
+      : kind === "pending"
+        ? t.accent("pending")
+        : kind === "skipped"
+          ? t.dim("skipped")
+          : kind === "create"
+            ? t.ok("create")
+            : t.tip("update");
+  const extra = detail ? t.dim(` · ${detail}`) : "";
+  return `${t.dim("┌")} ${t.text(path)} ${t.dim("·")} ${tag}${extra}`;
 }
 
 export type FrameLayout = {

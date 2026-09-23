@@ -12,7 +12,7 @@ import {
   parseModelRef,
   DEFAULT_FREE_MODEL,
   isFreeModelRef,
-  isBuiltinFree,
+  canUseWithoutKey,
   findCatalog,
   type ChatMessage,
 } from "../providers/chat.js";
@@ -51,6 +51,7 @@ import {
   truncate,
   userBubble,
   wrapText,
+  fileChangeCard,
 } from "./layout.js";
 import { setActiveTheme, tc } from "./logo.js";
 import { PLAN_COLORS, THEMES } from "./themes.js";
@@ -62,6 +63,14 @@ import { emptyUsage, estimateMessagesTokens, estimateTokens, formatUsage, type S
 import { listProjectFiles } from "../project/files.js";
 import { addMemory, clearMemory, listMemory, type MemoryNote } from "../project/memory.js";
 import { readGitSnapshot } from "../project/gitinfo.js";
+import {
+  applyEdits,
+  editSummary,
+  extractFileBlocks,
+  prepareEdits,
+  stripFileBlocks,
+  type FileEdit,
+} from "../project/edits.js";
 
 const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
   {
@@ -120,6 +129,8 @@ type AppState = {
   memoryNotes: MemoryNote[];
   /** Recent project folders for /workspaces. */
   workspaces: WorkspaceRecord[];
+  /** File edits waiting for user approval. */
+  pendingEdits: FileEdit[];
 };
 
 function shortCwd(cwd: string): string {
@@ -239,6 +250,7 @@ export async function runTui(): Promise<void> {
     fileCache: [],
     memoryNotes: [],
     workspaces,
+    pendingEdits: [],
   };
 
   let running = true;
@@ -377,6 +389,59 @@ export async function runTui(): Promise<void> {
   function toast(text: string, tone: "ok" | "error" | "info" = "info") {
     state.toast = { text, tone };
     state.toastUntil = Date.now() + 2800;
+  }
+
+  async function offerEditsFromReply(reply: string): Promise<void> {
+    const blocks = extractFileBlocks(reply);
+    if (!blocks.length) return;
+    const plan = getPlan(state.plan);
+    if (!plan.allowEdits && state.plan === "check") {
+      toast("Check plan is read-only — file blocks ignored.", "info");
+      return;
+    }
+    const edits = await prepareEdits(state.cwd, blocks);
+    if (!edits.length) return;
+    state.pendingEdits = edits;
+    state.overlay = "approve";
+    state.overlayIndex = 0;
+    toast(`Approve ${edits.length} file change${edits.length > 1 ? "s" : ""}?`, "info");
+  }
+
+  async function applyPendingEdits(): Promise<void> {
+    if (!state.pendingEdits.length) {
+      toast("No pending file changes.", "info");
+      return;
+    }
+    try {
+      const paths = await applyEdits(state.cwd, state.pendingEdits);
+      for (const path of paths) {
+        state.messages.push({
+          role: "system",
+          text: `applied · ${path}`,
+        });
+      }
+      state.pendingEdits = [];
+      state.overlay = null;
+      toast(`Applied ${paths.length} file${paths.length > 1 ? "s" : ""}.`, "ok");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast(msg, "error");
+    }
+  }
+
+  function rejectPendingEdits(): void {
+    if (!state.pendingEdits.length) {
+      toast("No pending file changes.", "info");
+      return;
+    }
+    const n = state.pendingEdits.length;
+    state.pendingEdits = [];
+    state.overlay = null;
+    state.messages.push({
+      role: "system",
+      text: `skipped · ${n} file change${n > 1 ? "s" : ""}`,
+    });
+    toast("File changes skipped.", "info");
   }
 
   async function persistSession(): Promise<void> {
@@ -586,7 +651,11 @@ export async function runTui(): Promise<void> {
             const ref = modelRef(m);
             const selected = i === state.overlayIndex;
             const active = state.model === ref;
-            const status = m.free ? "Free" : state.authKeys.includes(m.provider) ? "Ready" : "Key";
+            const status = m.free
+              ? "Free"
+              : state.authKeys.includes(m.provider)
+                ? "Ready"
+                : "Key";
             const dot = active ? "● " : "  ";
             const name = truncate(m.label, Math.max(16, inner - 12));
             const gap = Math.max(1, inner - 2 - stringWidth(dot + name) - stringWidth(status));
@@ -601,7 +670,7 @@ export async function runTui(): Promise<void> {
           });
         }
         out.push("");
-        out.push(t.dim("  ↑↓ enter · type to search · builtin free needs no key"));
+        out.push(t.dim("  ↑↓ enter · type to search · Free works with no key"));
         break;
       }
       case "plans":
@@ -847,6 +916,22 @@ export async function runTui(): Promise<void> {
         out.push(t.dim("  enter · insert into input  ·  esc · back"));
         break;
       }
+      case "approve":
+        out.push(t.text("Apply file changes?"));
+        out.push(t.dim("Review carefully — this writes to disk."));
+        out.push("");
+        if (!state.pendingEdits.length) {
+          out.push(t.dim("  Nothing pending."));
+        } else {
+          state.pendingEdits.forEach((edit, i) => {
+            const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
+            out.push(`${mark}${t.text(editSummary(edit))}`);
+            if (edit.preview) out.push(`     ${t.dim(truncate(edit.preview, inner - 6))}`);
+          });
+        }
+        out.push("");
+        out.push(t.dim("  y / enter · apply all   n · skip   esc · back"));
+        break;
     }
     return out;
   }
@@ -922,8 +1007,8 @@ export async function runTui(): Promise<void> {
         })()
       : undefined;
     const authDisplay =
-      isBuiltinFree(state.model) || state.authKeys.length
-        ? isBuiltinFree(state.model) && !state.authKeys.length
+      canUseWithoutKey(state.model) || state.authKeys.length
+        ? canUseWithoutKey(state.model) && !state.authKeys.length
           ? ["free"]
           : state.authKeys.length
             ? state.authKeys
@@ -955,30 +1040,66 @@ export async function runTui(): Promise<void> {
       const messageRows: string[] = [];
       const indent = contentIndent(cols);
       for (const msg of state.messages) {
-        const prefix = msg.role === "user" ? t.accent("› ") : t.dim("  ");
-        const wrapped = wrapText(
-          msg.text || (state.busy ? (state.thinking ? "Thinking…" : "Working…") : ""),
-          inner,
-        );
-        wrapped.forEach((line, index) => {
-          const bodyText =
-            msg.role === "user"
-              ? userBubble(line)
-              : msg.role === "assistant"
-                ? assistantBubble(line)
-                : systemNote(line);
-          messageRows.push(indent + (index === 0 ? prefix : "  ") + bodyText);
-        });
+        const display =
+          msg.role === "assistant" ? stripFileBlocks(msg.text) || msg.text : msg.text;
+        const text =
+          display || (state.busy && msg.role === "assistant" ? (state.thinking ? "…" : "…") : "");
+        if (!text && msg.role !== "assistant") continue;
+
+        if (msg.role === "user") {
+          const wrapped = wrapText(text, inner - 2);
+          wrapped.forEach((line, index) => {
+            messageRows.push(
+              indent + (index === 0 ? t.accent("› ") : "  ") + userBubble(line),
+            );
+          });
+        } else if (msg.role === "assistant") {
+          const wrapped = wrapText(text, inner - 2);
+          wrapped.forEach((line, index) => {
+            messageRows.push(
+              indent + (index === 0 ? t.dim("  ") : "  ") + assistantBubble(line),
+            );
+          });
+        } else {
+          const kind =
+            text.startsWith("applied ·")
+              ? "applied"
+              : text.startsWith("skipped ·")
+                ? "skipped"
+                : null;
+          if (kind) {
+            const path = text.replace(/^(applied|skipped) ·\s*/, "");
+            messageRows.push(indent + "  " + fileChangeCard(path, kind));
+          } else {
+            const wrapped = wrapText(text, inner - 2);
+            for (const line of wrapped) {
+              messageRows.push(indent + "  " + systemNote(line));
+            }
+          }
+        }
+        // tight spacing — one blank only between turns
         messageRows.push("");
       }
-      const maxVisible = Math.max(2, rows - 16);
+      if (state.pendingEdits.length && state.overlay !== "approve") {
+        messageRows.push(
+          indent +
+            "  " +
+            fileChangeCard(
+              `${state.pendingEdits.length} file${state.pendingEdits.length > 1 ? "s" : ""}`,
+              "pending",
+              "y apply · n skip",
+            ),
+        );
+        messageRows.push("");
+      }
+      const maxVisible = Math.max(2, rows - 14);
       const total = messageRows.length;
       const maxScroll = Math.max(0, total - maxVisible);
       state.scrollOffset = Math.min(state.scrollOffset, maxScroll);
       const start = Math.max(0, total - maxVisible - state.scrollOffset);
       body.push(...messageRows.slice(start, start + maxVisible));
       if (state.scrollOffset > 0) {
-        body.push(`  ${t.dim(`↑ ${state.scrollOffset} older messages`)}`);
+        body.push(`  ${t.dim(`↑ ${state.scrollOffset} older`)}`);
       }
     }
 
@@ -1323,6 +1444,12 @@ export async function runTui(): Promise<void> {
         await applySession(any, `Continued: ${any.title}`);
         return;
       }
+      case "apply":
+        await applyPendingEdits();
+        return;
+      case "reject":
+        rejectPendingEdits();
+        return;
       case "editor": {
         leaveAltScreen();
         showCursor();
@@ -1489,11 +1616,14 @@ export async function runTui(): Promise<void> {
       return;
     }
 
-    const parsed = parseModelRef(state.model);
-    if (parsed && !isBuiltinFree(state.model) && !state.authKeys.includes(parsed.provider)) {
-      toast(strings().needConnect, "info");
-      await openOverlay("connect");
-      return;
+    // Free models never require /connect.
+    if (!canUseWithoutKey(state.model)) {
+      const parsed = parseModelRef(state.model);
+      if (parsed && !state.authKeys.includes(parsed.provider)) {
+        toast(strings().needConnect, "info");
+        await openOverlay("connect");
+        return;
+      }
     }
 
     state.messages.push({ role: "user", text: line });
@@ -1537,13 +1667,15 @@ export async function runTui(): Promise<void> {
         }
         toast("Generation stopped.", "info");
       } else {
-        state.messages[responseIndex].text = reply;
+        const clean = stripFileBlocks(reply);
+        state.messages[responseIndex].text = clean || reply;
         state.history.push({ role: "assistant", content: reply });
         usage.inputTokens += inputTokens;
         usage.outputTokens += estimateTokens(reply);
         usage.turns += 1;
         state.redoStack = [];
         await persistSession();
+        await offerEditsFromReply(reply);
       }
     } catch (err) {
       if (streamAbort.signal.aborted) {
@@ -1627,27 +1759,28 @@ export async function runTui(): Promise<void> {
       }
       case "models": {
         const m = filteredModels()[state.overlayIndex];
-        if (m) {
-          const needsKey = !m.builtin && !state.authKeys.includes(m.provider);
-          if (needsKey) {
-            const providerIndex = PROVIDERS.findIndex((provider) => provider.id === m.provider);
-            state.pendingModel = modelRef(m);
-            state.overlay = "connect";
-            state.overlayIndex = Math.max(0, providerIndex);
-            toast(
-              m.free
-                ? "Optional: OpenRouter free key for more models — or pick Voxiva Flash Free (no key)."
-                : `Connect ${m.provider} before using this model.`,
-              "info",
-            );
-            break;
-          }
-          const ref = modelRef(m);
+        if (!m) break;
+        const ref = modelRef(m);
+        // Free models never bounce to /connect — they work immediately.
+        if (m.free || m.builtin) {
           await ctx.setModel(ref);
           await ctx.refresh();
           state.overlay = null;
-          toast(m.free ? `${m.label} · ready` : `Model → ${ref}`, "ok");
+          toast(`${m.label} · ready`, "ok");
+          break;
         }
+        if (!state.authKeys.includes(m.provider)) {
+          const providerIndex = PROVIDERS.findIndex((provider) => provider.id === m.provider);
+          state.pendingModel = ref;
+          state.overlay = "connect";
+          state.overlayIndex = Math.max(0, providerIndex);
+          toast(`Connect ${m.provider} to use ${m.label}.`, "info");
+          break;
+        }
+        await ctx.setModel(ref);
+        await ctx.refresh();
+        state.overlay = null;
+        toast(`Model → ${ref}`, "ok");
         break;
       }
       case "plans": {
@@ -1780,6 +1913,9 @@ export async function runTui(): Promise<void> {
         state.overlay = null;
         break;
       }
+      case "approve":
+        await applyPendingEdits();
+        break;
       default:
         state.overlay = null;
     }
@@ -1802,6 +1938,8 @@ export async function runTui(): Promise<void> {
         return Math.min(12, state.savedSessions.length);
       case "workspaces":
         return Math.min(12, state.workspaces.length);
+      case "approve":
+        return Math.max(1, state.pendingEdits.length);
       case "palette": {
         const query = state.paletteFilter.toLowerCase();
         return paletteItems().filter((command) => matchesPaletteFilter(command, query)).length;
@@ -1955,8 +2093,24 @@ export async function runTui(): Promise<void> {
 
     if (state.overlay) {
       if (key === "\u001b") {
-        state.overlay = null;
+        if (state.overlay === "approve") {
+          rejectPendingEdits();
+        } else {
+          state.overlay = null;
+        }
         queueRender();
+        return;
+      }
+      if (state.overlay === "approve") {
+        if (key === "y" || key === "Y" || key === "\r" || key === "\n") {
+          void applyPendingEdits().then(() => queueRender());
+          return;
+        }
+        if (key === "n" || key === "N") {
+          rejectPendingEdits();
+          queueRender();
+          return;
+        }
         return;
       }
       if (state.overlay && INFO_OVERLAYS.includes(state.overlay)) {
@@ -2005,6 +2159,18 @@ export async function runTui(): Promise<void> {
         return;
       }
       return;
+    }
+
+    if (!state.overlay && state.pendingEdits.length) {
+      if (key === "y" || key === "Y") {
+        void applyPendingEdits().then(() => queueRender());
+        return;
+      }
+      if (key === "n" || key === "N") {
+        rejectPendingEdits();
+        queueRender();
+        return;
+      }
     }
 
     if (state.busy && (key === "\u001b" || key === "\u0003")) {

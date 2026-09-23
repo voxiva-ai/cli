@@ -110,6 +110,12 @@ export function providerReady(auth: AuthStore, provider: ProviderId): boolean {
   return Boolean(auth[provider]?.apiKey?.trim());
 }
 
+/** Free model can be used without forcing /connect (falls back to built-in if needed). */
+export function canUseWithoutKey(ref: string | undefined): boolean {
+  if (!ref) return false;
+  return isFreeModelRef(ref) || isBuiltinFree(ref);
+}
+
 export function parseModelRef(ref: string): { provider: ProviderId; model: string } | null {
   const slash = ref.indexOf("/");
   if (slash <= 0) return null;
@@ -213,9 +219,17 @@ export async function streamChat(
   const slash = modelRefStr.indexOf("/");
   const provider = modelRefStr.slice(0, slash) as ProviderId;
   const model = modelRefStr.slice(slash + 1);
+  const catalog = findCatalog(modelRefStr);
 
-  if (provider === "voxiva") {
-    return streamVoxivaFree(model, messages, handlers);
+  // Built-in free — always keyless.
+  if (provider === "voxiva" || catalog?.builtin) {
+    return streamVoxivaFree(catalog?.id ?? model, messages, handlers);
+  }
+
+  // Any Free model without that provider key → seamless built-in free fallback
+  // (OpenCode-style: pick Free and it just works).
+  if (catalog?.free && !providerReady(auth, provider)) {
+    return streamVoxivaFree("flash", messages, handlers);
   }
 
   if (provider === "anthropic") {
@@ -247,26 +261,34 @@ export async function streamChat(
       : {}),
   });
 
-  const stream = await client.chat.completions.create(
-    {
-      model,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      stream: true,
-    },
-    { signal: handlers.signal },
-  );
+  try {
+    const stream = await client.chat.completions.create(
+      {
+        model,
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        stream: true,
+      },
+      { signal: handlers.signal },
+    );
 
-  let full = "";
-  for await (const chunk of stream) {
-    if (handlers.signal?.aborted) break;
-    const text = chunk.choices[0]?.delta?.content ?? "";
-    if (text) {
-      full += text;
-      handlers.onToken(text);
+    let full = "";
+    for await (const chunk of stream) {
+      if (handlers.signal?.aborted) break;
+      const text = chunk.choices[0]?.delta?.content ?? "";
+      if (text) {
+        full += text;
+        handlers.onToken(text);
+      }
     }
+    handlers.onDone?.();
+    return full;
+  } catch (err) {
+    // Free OpenRouter (or similar) failed → fall back to built-in free instead of bouncing to /connect.
+    if (catalog?.free) {
+      return streamVoxivaFree("flash", messages, handlers);
+    }
+    throw err;
   }
-  handlers.onDone?.();
-  return full;
 }
 
 async function streamAnthropic(

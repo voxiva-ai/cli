@@ -96,7 +96,9 @@ voxiva
 | Plans | `/plans` |
 | Sessions | `/sessions` · `/continue` · Ctrl+X O |
 | Workspaces | `/workspaces` · Ctrl+X W |
-| Files | `/files` · Ctrl+X F |
+| Files | `/files` · Ctrl+X F · `@path` in prompt |
+| Apply edits | `y` / `/apply` · skip `n` / `/reject` |
+| Plans | `/plans` — use **build** to edit files |
 | Context | `/context` |
 | Memory | `/memory note` |
 | History | `/history` · Ctrl+X H |

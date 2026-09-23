@@ -39,7 +39,9 @@ export type SlashResult =
         | "memory-add"
         | "memory-clear"
         | "queue-clear"
-        | "continue";
+        | "continue"
+        | "apply"
+        | "reject";
       args?: string;
     };
 
@@ -62,7 +64,8 @@ export type OverlayMode =
   | "branch"
   | "queue"
   | "memory"
-  | "workspaces";
+  | "workspaces"
+  | "approve";
 
 export type SlashContext = {
   cwd: string;
@@ -205,6 +208,18 @@ export const SLASH_COMMANDS: SlashCommand[] = [
       if (text === "clear") return { type: "action", action: "memory-clear" };
       return { type: "action", action: "memory-add", args: text };
     },
+  },
+  {
+    name: "apply",
+    aliases: ["yes", "y"],
+    description: "Apply pending file changes",
+    handler: async () => ({ type: "action", action: "apply" }),
+  },
+  {
+    name: "reject",
+    aliases: ["no", "n", "deny"],
+    description: "Skip pending file changes",
+    handler: async () => ({ type: "action", action: "reject" }),
   },
   {
     name: "new",

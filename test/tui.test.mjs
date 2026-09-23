@@ -245,6 +245,16 @@ test("catalog includes deepseek and gemini flash", async () => {
   assert.ok(catalog.some((m) => m.label.includes("Space Bunny") || m.id.includes("space-bunny")));
 });
 
+test("free models never require a key", async () => {
+  const { canUseWithoutKey, DEFAULT_FREE_MODEL, listFreeCatalog, modelRef } =
+    await import("../dist/providers/chat.js");
+  assert.ok(canUseWithoutKey(DEFAULT_FREE_MODEL));
+  for (const model of listFreeCatalog()) {
+    assert.ok(canUseWithoutKey(modelRef(model)), model.label);
+  }
+  assert.equal(canUseWithoutKey("openai/gpt-4.1"), false);
+});
+
 test("one-line install scripts exist", () => {
   assert.ok(existsSync(join(root, "install")));
   assert.ok(existsSync(join(root, "install.ps1")));
