@@ -20,54 +20,105 @@ export type ModelInfo = {
   label: string;
   /** $0 catalog entry. */
   free?: boolean;
-  /** Keyless built-in (OpenCode-style — works after install). */
+  /** Works with no API key after install (OpenCode-style). */
   builtin?: boolean;
-  /** Upstream id for the free gateway. */
+  /** Upstream id for the keyless gateway. */
   upstream?: string;
+  /** Prefer this OpenRouter id when an OpenRouter key is present. */
+  openrouterId?: string;
 };
 
 /**
- * Default after install — same idea as OpenCode free:
- * pick a model, start coding, no API key.
+ * Default after install — OpenCode-style free model, no key.
  */
-export const DEFAULT_FREE_MODEL: ModelRef = "voxiva/code";
+export const DEFAULT_FREE_MODEL: ModelRef = "voxiva/big-pickle";
 
 const POLLINATIONS_URL = "https://text.pollinations.ai/openai";
 
 /**
- * Free picker (OpenCode-style).
- * Built-in entries need no key. OpenRouter `:free` need a free OpenRouter key.
+ * Free picker mirrors OpenCode Zen free models (names + ids).
+ * All `builtin` entries work keyless via the gateway.
+ * With an OpenRouter key, verified `openrouterId`s hit the real free model.
+ * @see https://opencode.ai/docs/zen/
  */
 const CATALOG: ModelInfo[] = [
-  // ——— Built-in free (no key) ———
+  // ——— Free (OpenCode Zen · no key) ———
   {
     provider: "voxiva",
-    id: "code",
-    label: "Free Coding",
+    id: "big-pickle",
+    label: "Big Pickle",
     free: true,
     builtin: true,
     upstream: "openai-fast",
   },
   {
     provider: "voxiva",
-    id: "fast",
-    label: "Free Fast",
+    id: "space-bunny-free",
+    label: "Space Bunny Free",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+    openrouterId: "stealth/space-bunny-alpha",
+  },
+  {
+    provider: "voxiva",
+    id: "longcat-2.5-preview-free",
+    label: "LongCat 2.5 Preview Free",
     free: true,
     builtin: true,
     upstream: "openai-fast",
   },
-  // ——— OpenRouter free (optional free account key) ———
-  { provider: "openrouter", id: "openrouter/free", label: "Free Models Router", free: true },
-  { provider: "openrouter", id: "stealth/space-bunny-alpha", label: "Space Bunny Free", free: true },
-  { provider: "openrouter", id: "nvidia/nemotron-3.5-lightning:free", label: "Nemotron 3.5 Lightning Free", free: true },
-  { provider: "openrouter", id: "nvidia/nemotron-3-ultra-550b-a55b:free", label: "Nemotron 3 Ultra Free", free: true },
-  { provider: "openrouter", id: "inclusionai/ling-3.0-flash-fin:free", label: "Ling 3.0 Flash Fin Free", free: true },
-  { provider: "openrouter", id: "cohere/north-mini-code:free", label: "North Mini Code Free", free: true },
-  { provider: "openrouter", id: "qwen/qwen3.8-27b:free", label: "Qwen3.8 27B Free", free: true },
-  { provider: "openrouter", id: "google/gemma-4-31b-it:free", label: "Gemma 4 31B Free", free: true },
-  { provider: "openrouter", id: "z-ai/glm-5.2:free", label: "GLM 5.2 Free", free: true },
-  { provider: "openrouter", id: "poolside/laguna-s-2.1:free", label: "Laguna S 2.1 Free", free: true },
-  { provider: "openrouter", id: "nex-agi/nex-n2.5-pro:free", label: "Nex N2.5 Pro Free", free: true },
+  {
+    provider: "voxiva",
+    id: "mimo-v2.6-flash-free",
+    label: "MiMo-V2.6-Flash Free",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+  },
+  {
+    provider: "voxiva",
+    id: "mimo-v2.5-free",
+    label: "MiMo-V2.5 Free",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+  },
+  {
+    provider: "voxiva",
+    id: "ling-3.0-flash-fin-free",
+    label: "Ling 3.0 Flash Fin Free",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+    openrouterId: "inclusionai/ling-3.0-flash-sante:free",
+  },
+  {
+    provider: "voxiva",
+    id: "nemotron-3-ultra-free",
+    label: "Nemotron 3 Ultra Free",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+    openrouterId: "nvidia/nemotron-3-ultra-550b-a55b:free",
+  },
+  {
+    provider: "voxiva",
+    id: "nemotron-3.5-lightning-free",
+    label: "Nemotron 3.5 Lightning Free",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+    openrouterId: "nvidia/nemotron-3.5-lightning:free",
+  },
+  {
+    provider: "voxiva",
+    id: "muse-spark-1.3-contributor-free",
+    label: "Muse Spark 1.3 Contributor Free",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+  },
   // ——— Paid / BYOK ———
   { provider: "openai", id: "gpt-4.1", label: "GPT-4.1" },
   { provider: "openai", id: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
@@ -91,16 +142,9 @@ export function listCatalog(): ModelInfo[] {
   return CATALOG;
 }
 
-/** Free models for /models. Without OpenRouter key → only built-in (always work). */
-export function listFreeCatalog(auth?: AuthStore): ModelInfo[] {
-  const builtin = CATALOG.filter((model) => model.builtin);
-  const openrouterFree = CATALOG.filter(
-    (model) => model.free && model.provider === "openrouter",
-  );
-  if (auth && providerReady(auth, "openrouter")) {
-    return [...builtin, ...openrouterFree];
-  }
-  return builtin;
+/** Free models for /models — always show full free list (all work keyless). */
+export function listFreeCatalog(_auth?: AuthStore): ModelInfo[] {
+  return CATALOG.filter((model) => model.free);
 }
 
 export function findCatalog(ref: string): ModelInfo | undefined {
@@ -299,12 +343,25 @@ export async function streamChat(
   const model = modelRefStr.slice(slash + 1);
   const catalog = findCatalog(modelRefStr);
 
-  // Built-in free — always keyless (OpenCode-style).
+  // Built-in free — OpenRouter when key+mapping, else keyless gateway.
   if (provider === "voxiva" || catalog?.builtin) {
+    if (catalog?.openrouterId && providerReady(auth, "openrouter")) {
+      try {
+        return await streamOpenAICompat(
+          auth,
+          "openrouter",
+          catalog.openrouterId,
+          messages,
+          handlers,
+        );
+      } catch {
+        // fall through to keyless
+      }
+    }
     return streamKeylessFree(catalog?.upstream ?? "openai-fast", messages, handlers);
   }
 
-  // OpenRouter free without key → same keyless gateway so chat still works.
+  // Legacy openrouter free without key → keyless so chat still works.
   if (catalog?.free && !providerReady(auth, provider)) {
     return streamKeylessFree("openai-fast", messages, handlers);
   }
@@ -313,6 +370,23 @@ export async function streamChat(
     return streamAnthropic(requireKey(auth, "anthropic"), model, messages, handlers);
   }
 
+  try {
+    return await streamOpenAICompat(auth, provider, model, messages, handlers);
+  } catch (err) {
+    if (catalog?.free) {
+      return streamKeylessFree(catalog.upstream ?? "openai-fast", messages, handlers);
+    }
+    throw err;
+  }
+}
+
+async function streamOpenAICompat(
+  auth: AuthStore,
+  provider: ProviderId,
+  model: string,
+  messages: ChatMessage[],
+  handlers: StreamHandlers,
+): Promise<string> {
   const baseURL =
     provider === "openrouter"
       ? "https://openrouter.ai/api/v1"
@@ -338,33 +412,26 @@ export async function streamChat(
       : {}),
   });
 
-  try {
-    const stream = await client.chat.completions.create(
-      {
-        model,
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
-        stream: true,
-      },
-      { signal: handlers.signal },
-    );
+  const stream = await client.chat.completions.create(
+    {
+      model,
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+      stream: true,
+    },
+    { signal: handlers.signal },
+  );
 
-    let full = "";
-    for await (const chunk of stream) {
-      if (handlers.signal?.aborted) break;
-      const text = chunk.choices[0]?.delta?.content ?? "";
-      if (text) {
-        full += text;
-        handlers.onToken(text);
-      }
+  let full = "";
+  for await (const chunk of stream) {
+    if (handlers.signal?.aborted) break;
+    const text = chunk.choices[0]?.delta?.content ?? "";
+    if (text) {
+      full += text;
+      handlers.onToken(text);
     }
-    handlers.onDone?.();
-    return full;
-  } catch (err) {
-    if (catalog?.free) {
-      return streamKeylessFree("openai-fast", messages, handlers);
-    }
-    throw err;
   }
+  handlers.onDone?.();
+  return full;
 }
 
 async function streamAnthropic(

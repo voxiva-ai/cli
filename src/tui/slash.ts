@@ -97,7 +97,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   },
   {
     name: "connect",
-    aliases: ["auth"],
+    aliases: ["auth", "conn"],
     description: "Add provider API key",
     handler: async () => ({ type: "overlay", mode: "connect" }),
   },
@@ -109,12 +109,13 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   },
   {
     name: "model",
-    description: "Set model — /model openai/gpt-4.1-mini",
+    aliases: ["m"],
+    description: "Set model — /model … or open picker",
     handler: async (args, ctx) => {
       const ref = args.trim();
       if (!ref) return { type: "overlay", mode: "models" };
       if (!parseModelRef(ref)) {
-        return { type: "toast", message: "Use provider/model, e.g. openai/gpt-4.1-mini", tone: "error" };
+        return { type: "toast", message: "Use provider/model, e.g. voxiva/big-pickle", tone: "error" };
       }
       await ctx.setModel(ref);
       await ctx.refresh();
@@ -434,7 +435,13 @@ export function matchesPaletteFilter(command: SlashCommand, query: string): bool
 
 export function slashSuggestions(input: string): SlashCommand[] {
   if (!input.startsWith("/")) return [];
-  const query = input.slice(1).toLowerCase().split(/\s/, 1)[0];
+  const query = input.slice(1).toLowerCase().split(/\s/, 1)[0] ?? "";
+
+  // Bare `/` → full command list (sorted), like OpenCode / Codex.
+  if (!query) {
+    return [...SLASH_COMMANDS].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   const scored = SLASH_COMMANDS.map((command) => {
     const names = [command.name, ...(command.aliases ?? [])];
     let score = -1;
@@ -447,7 +454,7 @@ export function slashSuggestions(input: string): SlashCommand[] {
   })
     .filter((row) => row.score >= 0)
     .sort((a, b) => b.score - a.score || a.command.name.localeCompare(b.command.name));
-  return scored.map((row) => row.command).slice(0, 8);
+  return scored.map((row) => row.command).slice(0, 16);
 }
 
 /** Overlays that close on Enter without selection. */

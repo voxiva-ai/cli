@@ -49,9 +49,9 @@ voxiva
 
 | | |
 |--|--|
-| 切换模型 | `/model` — Free Coding **无需密钥** |
-| 付费（GPT / Claude / Gemini） | `/model` → 选厂商 → 粘贴密钥 |
-| 更多免费（OpenRouter） | `/model` → OpenRouter → 粘贴免费密钥 |
+| 切换模型 | `/models` — Big Pickle、Space Bunny、Nemotron… **无需密钥** |
+| 付费（GPT / Claude / Gemini） | `/models` → 选厂商 → 粘贴密钥 |
+| 更多免费（OpenRouter） | `/connect` → OpenRouter → 粘贴免费密钥 |
 | 切换计划 | `Tab` 或 `/plans` |
 | 继续上次对话 | `/continue` |
 | 退出 | `Ctrl+C` |
@@ -69,7 +69,7 @@ voxiva
 | 切换目录 | `cd /path/to/project` |
 | Shell | `!git status` · `!ls` |
 | 附加文件/图片 | `@路径`，或复制文件后 `Ctrl+V` |
-| 命令面板 | `/` 或 `Ctrl+P` |
+| 命令 | `/` → 完整列表 · 输入过滤 |
 | 停止生成 | `Esc` |
 | 应用 / 跳过修改 | `y` / `n` |
 

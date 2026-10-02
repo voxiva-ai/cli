@@ -33,7 +33,7 @@ export async function doctorCheck(): Promise<number> {
   const auth = await loadAuth();
   const providers = Object.keys(auth).filter((k) => auth[k as keyof typeof auth]?.apiKey);
 
-  console.log(`${config.defaultModel ? c.ok("✓") : c.muted("·")} Model ${config.defaultModel ?? "voxiva/code (default free)"}`);
+  console.log(`${config.defaultModel ? c.ok("✓") : c.muted("·")} Model ${config.defaultModel ?? "voxiva/big-pickle (default free)"}`);
   console.log(
     `${providers.length ? c.ok("✓") : c.ok("✓")} Providers ${providers.length ? providers.join(", ") : "free · no key"}`,
   );

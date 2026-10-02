@@ -231,12 +231,24 @@ export async function runTui(): Promise<void> {
   if (!defaultModel || !parseModelRef(defaultModel) || !findCatalog(defaultModel)) {
     defaultModel = DEFAULT_FREE_MODEL;
   }
-  // OpenRouter free without a key → fall back to built-in free (OpenCode-style).
-  if (
-    defaultModel.startsWith("openrouter/") &&
-    isFreeModelRef(defaultModel) &&
-    !connectedProviders.includes("openrouter")
-  ) {
+  // Legacy free ids / OpenRouter-without-key → Big Pickle.
+  const legacyFree = new Set([
+    "voxiva/code",
+    "voxiva/fast",
+    "voxiva/space-bunny",
+    "voxiva/nemotron-3.5-lightning",
+    "voxiva/nemotron-3-ultra",
+    "voxiva/ling-3.0-flash",
+    "voxiva/mimo-v2.5",
+    "voxiva/mimo-v2.6-flash",
+    "voxiva/longcat-2.5",
+    "voxiva/muse-spark",
+    "voxiva/north-mini-code",
+    "voxiva/qwen3.8-27b",
+    "voxiva/gemma-4-31b",
+    "voxiva/glm-5.2",
+  ]);
+  if (defaultModel.startsWith("openrouter/") || legacyFree.has(defaultModel)) {
     defaultModel = DEFAULT_FREE_MODEL;
   }
   if (!config.defaultModel || config.defaultModel !== defaultModel) {
@@ -831,7 +843,7 @@ export async function runTui(): Promise<void> {
           });
         }
         out.push("");
-        out.push(t.dim("  ↑↓ enter · type to search · OpenAI / Anthropic / Google = API key"));
+        out.push(t.dim("  ↑↓ enter · type to search · free = no key · OpenAI/Anthropic/Google = API key"));
         break;
       }
       case "plans":
@@ -1137,15 +1149,20 @@ export async function runTui(): Promise<void> {
     if (!suggestions.length) return;
     state.suggestIndex = Math.max(0, Math.min(state.suggestIndex, suggestions.length - 1));
     const { cols } = termSize();
+    const visible = suggestions.slice(0, 14);
+    const hint =
+      suggestions.length > visible.length
+        ? `↑↓ · Tab · Enter · type to filter (${suggestions.length})`
+        : "↑↓ · Tab · Enter";
     target.push(
       ...suggestionRows(
-        suggestions.map((command, index) => ({
+        visible.map((command, index) => ({
           name: command.name,
           description: command.description,
-          selected: index === state.suggestIndex,
+          selected: index === Math.min(state.suggestIndex, visible.length - 1),
         })),
         cols,
-        "↑↓ · Tab · Enter",
+        hint,
       ),
     );
   }

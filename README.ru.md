@@ -49,9 +49,9 @@ voxiva
 
 | | |
 |--|--|
-| Модель | `/model` — Free Coding сразу, **без ключа** |
-| Платные (GPT / Claude / Gemini) | `/model` → провайдер → вставить ключ |
-| Ещё free (OpenRouter) | `/model` → OpenRouter → бесплатный ключ |
+| Модель | `/models` — Big Pickle, Space Bunny, Nemotron… **без ключа** |
+| Платные (GPT / Claude / Gemini) | `/models` → провайдер → вставить ключ |
+| Ещё free (OpenRouter) | `/connect` → OpenRouter → бесплатный ключ |
 | План | `Tab` или `/plans` |
 | Продолжить чат | `/continue` |
 | Выход | `Ctrl+C` |
@@ -69,7 +69,7 @@ voxiva
 | Сменить папку | `cd D:\path` |
 | Shell | `!git status` · `!dir` |
 | Файл / фото | `@путь` или скопировать файл → `Ctrl+V` |
-| Команды | `/` или `Ctrl+P` |
+| Команды | `/` → полный список · печатай для фильтра |
 | Стоп | `Esc` |
 | Применить / пропустить правку | `y` / `n` |
 

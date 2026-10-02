@@ -109,7 +109,23 @@ test("footer is pinned with input bar above status columns", () => {
   assert.deepEqual(frame.lines.slice(-5), [...pinned, ...footer]);
 });
 
-test("slash aliases resolve and suggestions filter", () => {
+test("slash / lists many commands and filters model", async () => {
+  const { slashSuggestions, resolveSlash } = await import("../dist/tui/slash.js");
+  const all = slashSuggestions("/");
+  assert.ok(all.length >= 20, `expected many commands, got ${all.length}`);
+  assert.ok(all.some((c) => c.name === "models"));
+  assert.ok(all.some((c) => c.name === "help"));
+  assert.ok(all.some((c) => c.name === "continue"));
+  assert.ok(all.some((c) => c.name === "apply"));
+  assert.ok(all.some((c) => c.name === "reject"));
+  const mod = slashSuggestions("/mod");
+  assert.ok(mod.some((c) => c.name === "model" || c.name === "models"));
+  assert.equal(resolveSlash("/models")?.cmd.name, "models");
+  assert.equal(resolveSlash("/model")?.cmd.name, "model");
+});
+
+test("slash aliases resolve and suggestions filter", async () => {
+  const { resolveSlash, slashSuggestions } = await import("../dist/tui/slash.js");
   assert.equal(resolveSlash("/summarize")?.cmd.name, "compact");
   assert.equal(resolveSlash("/resume")?.cmd.name, "sessions");
   assert.equal(resolveSlash("/status")?.cmd.name, "doctor");
@@ -241,12 +257,26 @@ test("catalog includes deepseek and gemini flash", async () => {
   assert.ok(parseModelRef("deepseek/deepseek-reasoner"));
   const free = listFreeCatalog();
   assert.ok(free.length >= 1);
-  assert.ok(free.every((m) => m.builtin), "picker without key shows only built-in free");
-  assert.equal(DEFAULT_FREE_MODEL, "voxiva/code");
+  assert.ok(free.every((m) => m.free), "picker shows free models");
+  assert.equal(DEFAULT_FREE_MODEL, "voxiva/big-pickle");
   assert.ok(isFreeModelRef(DEFAULT_FREE_MODEL));
   assert.ok(isBuiltinFree(DEFAULT_FREE_MODEL));
   assert.equal(providerReady({}, "voxiva"), true);
   assert.ok(catalog.some((m) => m.builtin));
+  assert.ok(free.some((m) => m.label.includes("Big Pickle")));
+  assert.ok(free.some((m) => m.label.includes("Space Bunny")));
+  assert.ok(free.some((m) => m.id === "nemotron-3-ultra-free"));
+  assert.ok(free.length >= 8);
+});
+
+test("plan voice does not brand as Voxiva Check", async () => {
+  const { planSystem } = await import("../dist/plans/index.js");
+  for (const id of ["build", "ship", "check", "explore"]) {
+    const sys = planSystem(id, "en");
+    assert.ok(sys.includes("not a branded product"), id);
+    assert.ok(!/I am Voxiva/i.test(sys), id);
+    assert.ok(!/Voxiva Check/i.test(sys), id);
+  }
 });
 
 test("free models never require a key", async () => {

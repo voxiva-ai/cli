@@ -49,9 +49,9 @@ Free model works with **no API key**. Type → Enter.
 
 | | |
 |--|--|
-| Free models | `/model` — Free Coding works with **no key** |
-| Paid (GPT / Claude / Gemini) | `/model` → provider → paste key |
-| More free (OpenRouter) | `/model` → OpenRouter → paste free key |
+| Free models | `/models` — Big Pickle, Space Bunny, Nemotron… **no key** |
+| Paid (GPT / Claude / Gemini) | `/models` → provider → paste key |
+| More free (OpenRouter) | `/connect` → OpenRouter → free key unlocks real free endpoints |
 | Plan | `Tab` or `/plans` |
 | Resume | `/continue` |
 | Exit | `Ctrl+C` |
@@ -69,7 +69,7 @@ Free model works with **no API key**. Type → Enter.
 | Change folder | `cd /path/to/project` |
 | Shell | `!git status` · `!ls` |
 | Attach file/image | `@path` or copy file → `Ctrl+V` |
-| Palette | `/` or `Ctrl+P` |
+| Commands | `/` → full list · type to filter |
 | Stop | `Esc` |
 | Apply / skip edit | `y` / `n` |
 

@@ -51,7 +51,7 @@ const DEFAULT_CONFIG: VoxivaConfig = {
   plan: "build",
   theme: "voxiva",
   locale: "en",
-  defaultModel: "voxiva/code",
+  defaultModel: "voxiva/big-pickle",
 };
 
 export async function ensureDir(): Promise<void> {
