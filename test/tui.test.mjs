@@ -232,6 +232,7 @@ test("catalog includes deepseek and gemini flash", async () => {
     listFreeCatalog,
     DEFAULT_FREE_MODEL,
     isFreeModelRef,
+    isBuiltinFree,
     providerReady,
   } = await import("../dist/providers/chat.js");
   const catalog = listCatalog();
@@ -239,12 +240,13 @@ test("catalog includes deepseek and gemini flash", async () => {
   assert.ok(catalog.some((m) => m.provider === "google" && m.id === "gemini-2.5-flash"));
   assert.ok(parseModelRef("deepseek/deepseek-reasoner"));
   const free = listFreeCatalog();
-  assert.ok(free.length >= 5);
-  assert.equal(DEFAULT_FREE_MODEL, "openrouter/qwen/qwen3.8-27b:free");
+  assert.ok(free.length >= 1);
+  assert.ok(free.every((m) => m.builtin), "picker without key shows only built-in free");
+  assert.equal(DEFAULT_FREE_MODEL, "voxiva/code");
   assert.ok(isFreeModelRef(DEFAULT_FREE_MODEL));
-  assert.equal(providerReady({}, "openrouter"), false);
-  assert.ok(!catalog.some((m) => m.provider === "voxiva"));
-  assert.ok(catalog.some((m) => m.label.includes("Space Bunny") || m.id.includes("space-bunny")));
+  assert.ok(isBuiltinFree(DEFAULT_FREE_MODEL));
+  assert.equal(providerReady({}, "voxiva"), true);
+  assert.ok(catalog.some((m) => m.builtin));
 });
 
 test("free models never require a key", async () => {

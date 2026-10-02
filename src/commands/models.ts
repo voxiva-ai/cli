@@ -11,21 +11,25 @@ export async function modelsList(): Promise<void> {
       .map(([k]) => k),
   );
 
-  console.log(c.bold("Free models\n"));
-  for (const info of listFreeCatalog()) {
+  console.log(c.bold("Free models (work after install)\n"));
+  for (const info of listFreeCatalog(auth)) {
     const ref = modelRef(info);
     const active = config.defaultModel === ref;
-    const ready = connected.has(info.provider);
     const mark = active ? c.brand("›") : " ";
-    const status = ready ? c.ok("free") : c.ok("free · no key");
+    const status = info.builtin
+      ? c.ok("free · no key")
+      : connected.has(info.provider)
+        ? c.ok("free")
+        : c.muted("needs OpenRouter key");
     console.log(
       `${mark} ${c.text(info.label.padEnd(32))} ${c.muted(ref.padEnd(48))} ${status}`,
     );
   }
 
   console.log("");
-  console.log(c.muted("API key (paid)"));
+  console.log(c.muted("API key (paid / more free)"));
   for (const p of [
+    { id: "openrouter", label: "OpenRouter" },
     { id: "openai", label: "OpenAI" },
     { id: "anthropic", label: "Anthropic" },
     { id: "google", label: "Google" },
@@ -35,10 +39,7 @@ export async function modelsList(): Promise<void> {
   }
 
   console.log("");
-  console.log(
-    c.muted("Default:"),
-    c.brand(config.defaultModel ?? DEFAULT_FREE_MODEL),
-  );
+  console.log(c.muted("Default:"), c.brand(config.defaultModel ?? DEFAULT_FREE_MODEL));
 }
 
 export async function modelsUse(ref: string): Promise<void> {
@@ -49,9 +50,10 @@ export async function modelsUse(ref: string): Promise<void> {
     return;
   }
 
-  const known = listFreeCatalog().some((m) => modelRef(m) === ref);
+  const auth = await loadAuth();
+  const known = listFreeCatalog(auth).some((m) => modelRef(m) === ref);
   if (!known) {
-    console.log(c.muted(`Note: ${ref} is not in the free catalog — will still be saved.`));
+    console.log(c.muted(`Note: ${ref} may need an API key — will still be saved.`));
   }
 
   await patchConfig({ defaultModel: ref as `${typeof parsed.provider}/${string}` });

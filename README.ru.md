@@ -49,8 +49,9 @@ voxiva
 
 | | |
 |--|--|
-| Модель | `/model` |
+| Модель | `/model` — Free Coding сразу, **без ключа** |
 | Платные (GPT / Claude / Gemini) | `/model` → провайдер → вставить ключ |
+| Ещё free (OpenRouter) | `/model` → OpenRouter → бесплатный ключ |
 | План | `Tab` или `/plans` |
 | Продолжить чат | `/continue` |
 | Выход | `Ctrl+C` |

@@ -51,7 +51,7 @@ const DEFAULT_CONFIG: VoxivaConfig = {
   plan: "build",
   theme: "voxiva",
   locale: "en",
-  defaultModel: "openrouter/qwen/qwen3.8-27b:free",
+  defaultModel: "voxiva/code",
 };
 
 export async function ensureDir(): Promise<void> {

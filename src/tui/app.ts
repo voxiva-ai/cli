@@ -1,4 +1,4 @@
-import { loadAuth, patchConfig, saveAuth, type ModelRef, type PlanId, type ProviderId } from "../config/store.js";
+import { loadAuth, patchConfig, saveAuth, type AuthStore, type ModelRef, type PlanId, type ProviderId } from "../config/store.js";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { execSync, spawnSync } from "node:child_process";
 import chalk from "chalk";
@@ -13,6 +13,7 @@ import {
   DEFAULT_FREE_MODEL,
   canUseWithoutKey,
   findCatalog,
+  isFreeModelRef,
   type ChatMessage,
   type ModelInfo,
 } from "../providers/chat.js";
@@ -98,8 +99,9 @@ const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
   { id: "groq", label: "Groq", description: "Fast hosted open models · GROQ_API_KEY" },
 ];
 
-/** Paid providers shown as API-key buttons under free models in /models. */
+/** Paid / extra free via API key under free models in /models. */
 const KEY_CONNECT: { id: ProviderId; label: string; description: string }[] = [
+  { id: "openrouter", label: "OpenRouter", description: "More free models · paste free key" },
   { id: "openai", label: "OpenAI", description: "ChatGPT · paste OPENAI_API_KEY" },
   { id: "anthropic", label: "Anthropic", description: "Claude · paste ANTHROPIC_API_KEY" },
   { id: "google", label: "Google", description: "Gemini · paste GEMINI_API_KEY" },
@@ -226,7 +228,15 @@ export async function runTui(): Promise<void> {
 
   const cwd = process.cwd();
   let defaultModel = config.defaultModel ?? DEFAULT_FREE_MODEL;
-  if (!defaultModel || !parseModelRef(defaultModel) || defaultModel.startsWith("voxiva/")) {
+  if (!defaultModel || !parseModelRef(defaultModel) || !findCatalog(defaultModel)) {
+    defaultModel = DEFAULT_FREE_MODEL;
+  }
+  // OpenRouter free without a key → fall back to built-in free (OpenCode-style).
+  if (
+    defaultModel.startsWith("openrouter/") &&
+    isFreeModelRef(defaultModel) &&
+    !connectedProviders.includes("openrouter")
+  ) {
     defaultModel = DEFAULT_FREE_MODEL;
   }
   if (!config.defaultModel || config.defaultModel !== defaultModel) {
@@ -353,7 +363,10 @@ export async function runTui(): Promise<void> {
 
   function filteredModels(): ModelInfo[] {
     const q = state.paletteFilter.toLowerCase().trim();
-    const all = listFreeCatalog();
+    const authStub = Object.fromEntries(
+      state.authKeys.map((id) => [id, { apiKey: "x" }]),
+    ) as AuthStore;
+    const all = listFreeCatalog(authStub);
     if (!q) return all;
     return all.filter(
       (model) =>
@@ -764,7 +777,7 @@ export async function runTui(): Promise<void> {
       case "models": {
         const items = modelPickerItems();
         out.push(t.text("Select model") + " ".repeat(Math.max(1, inner - 16)) + t.dim("esc"));
-        out.push(t.dim("Free models work with no key · paid → paste your API key"));
+        out.push(t.dim("Free models work with no key · OpenRouter / OpenAI / Anthropic / Google = API key"));
         out.push(
           t.dim("Search") +
             t.dim(": ") +
@@ -1987,6 +2000,7 @@ export async function runTui(): Promise<void> {
         if (!item) break;
         if (item.kind === "provider") {
           const defaults: Partial<Record<ProviderId, ModelRef>> = {
+            openrouter: "openrouter/qwen/qwen3.8-27b:free",
             openai: "openai/gpt-4o-mini",
             anthropic: "anthropic/claude-3-5-haiku-20241022",
             google: "google/gemini-2.5-flash",

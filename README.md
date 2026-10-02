@@ -49,8 +49,9 @@ Free model works with **no API key**. Type → Enter.
 
 | | |
 |--|--|
-| Model | `/model` |
+| Free models | `/model` — Free Coding works with **no key** |
 | Paid (GPT / Claude / Gemini) | `/model` → provider → paste key |
+| More free (OpenRouter) | `/model` → OpenRouter → paste free key |
 | Plan | `Tab` or `/plans` |
 | Resume | `/continue` |
 | Exit | `Ctrl+C` |

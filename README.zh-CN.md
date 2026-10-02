@@ -49,8 +49,9 @@ voxiva
 
 | | |
 |--|--|
-| 切换模型 | `/model` |
+| 切换模型 | `/model` — Free Coding **无需密钥** |
 | 付费（GPT / Claude / Gemini） | `/model` → 选厂商 → 粘贴密钥 |
+| 更多免费（OpenRouter） | `/model` → OpenRouter → 粘贴免费密钥 |
 | 切换计划 | `Tab` 或 `/plans` |
 | 继续上次对话 | `/continue` |
 | 退出 | `Ctrl+C` |

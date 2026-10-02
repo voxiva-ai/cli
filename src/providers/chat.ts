@@ -1,6 +1,7 @@
 import type { AuthStore, ModelRef, ProviderId } from "../config/store.js";
 import { PROVIDER_IDS } from "../config/store.js";
 import { VERSION } from "../tui/copy.js";
+import { randomUUID } from "node:crypto";
 
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -17,23 +18,45 @@ export type ModelInfo = {
   id: string;
   provider: ProviderId;
   label: string;
-  /** $0 — works without a paid plan. */
+  /** $0 catalog entry. */
   free?: boolean;
-  /** Upstream model id when different from catalog id. */
+  /** Keyless built-in (OpenCode-style — works after install). */
+  builtin?: boolean;
+  /** Upstream id for the free gateway. */
   upstream?: string;
 };
 
-/** Default after install — free OpenRouter model (keyless via silent fallback). */
-export const DEFAULT_FREE_MODEL: ModelRef = "openrouter/qwen/qwen3.8-27b:free";
+/**
+ * Default after install — same idea as OpenCode free:
+ * pick a model, start coding, no API key.
+ */
+export const DEFAULT_FREE_MODEL: ModelRef = "voxiva/code";
 
 const POLLINATIONS_URL = "https://text.pollinations.ai/openai";
 
 /**
- * Built-in picker. Free models first.
- * Free OpenRouter entries work without a key via silent Pollinations fallback.
+ * Free picker (OpenCode-style).
+ * Built-in entries need no key. OpenRouter `:free` need a free OpenRouter key.
  */
 const CATALOG: ModelInfo[] = [
-  // ——— OpenRouter free ———
+  // ——— Built-in free (no key) ———
+  {
+    provider: "voxiva",
+    id: "code",
+    label: "Free Coding",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+  },
+  {
+    provider: "voxiva",
+    id: "fast",
+    label: "Free Fast",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+  },
+  // ——— OpenRouter free (optional free account key) ———
   { provider: "openrouter", id: "openrouter/free", label: "Free Models Router", free: true },
   { provider: "openrouter", id: "stealth/space-bunny-alpha", label: "Space Bunny Free", free: true },
   { provider: "openrouter", id: "nvidia/nemotron-3.5-lightning:free", label: "Nemotron 3.5 Lightning Free", free: true },
@@ -68,8 +91,16 @@ export function listCatalog(): ModelInfo[] {
   return CATALOG;
 }
 
-export function listFreeCatalog(): ModelInfo[] {
-  return CATALOG.filter((model) => model.free);
+/** Free models for /models. Without OpenRouter key → only built-in (always work). */
+export function listFreeCatalog(auth?: AuthStore): ModelInfo[] {
+  const builtin = CATALOG.filter((model) => model.builtin);
+  const openrouterFree = CATALOG.filter(
+    (model) => model.free && model.provider === "openrouter",
+  );
+  if (auth && providerReady(auth, "openrouter")) {
+    return [...builtin, ...openrouterFree];
+  }
+  return builtin;
 }
 
 export function findCatalog(ref: string): ModelInfo | undefined {
@@ -81,20 +112,21 @@ export function isFreeModelRef(ref: string | undefined): boolean {
   return Boolean(findCatalog(ref)?.free);
 }
 
-/** @deprecated removed — no branded Voxiva models; free still works keyless. */
-export function isBuiltinFree(_ref: string | undefined): boolean {
-  return false;
+export function isBuiltinFree(ref: string | undefined): boolean {
+  if (!ref) return false;
+  return Boolean(findCatalog(ref)?.builtin);
 }
 
-/** Provider is ready to call. */
+/** Provider is ready to call (built-in free never needs a key). */
 export function providerReady(auth: AuthStore, provider: ProviderId): boolean {
+  if (provider === "voxiva") return true;
   return Boolean(auth[provider]?.apiKey?.trim());
 }
 
-/** Free model can be used without forcing /connect (keyless fallback if needed). */
+/** Free / built-in can be used without forcing /connect. */
 export function canUseWithoutKey(ref: string | undefined): boolean {
   if (!ref) return false;
-  return isFreeModelRef(ref);
+  return isBuiltinFree(ref) || isFreeModelRef(ref);
 }
 
 export function parseModelRef(ref: string): { provider: ProviderId; model: string } | null {
@@ -123,41 +155,46 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
+  const timeout = AbortSignal.timeout(ms);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 async function streamKeylessFree(
+  upstream: string,
   messages: ChatMessage[],
   handlers: StreamHandlers,
 ): Promise<string> {
   const bodyBase = {
-    model: "openai-fast",
+    model: upstream || "openai-fast",
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
+  };
+  const headers = {
+    "content-type": "application/json",
+    "user-agent": `voxiva-cli/${VERSION}`,
+    "x-request-id": randomUUID(),
   };
 
   let lastError = "Free model unavailable.";
 
-  // 1) Prefer streaming — feels instant once tokens start.
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // 1) Streaming first
+  for (let attempt = 0; attempt < 3; attempt++) {
     if (handlers.signal?.aborted) break;
-    if (attempt > 0) await sleep(400);
+    if (attempt > 0) await sleep(350 * attempt);
     try {
       const response = await fetch(POLLINATIONS_URL, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "user-agent": `voxiva-cli/${VERSION}`,
-          accept: "text/event-stream",
-        },
+        headers: { ...headers, accept: "text/event-stream" },
         body: JSON.stringify({ ...bodyBase, stream: true }),
-        signal: handlers.signal
-          ? AbortSignal.any([handlers.signal, AbortSignal.timeout(45_000)])
-          : AbortSignal.timeout(45_000),
+        signal: withTimeout(handlers.signal, 60_000),
       });
-      if (response.status === 429) {
+      if (response.status === 429 || response.status === 402) {
         lastError = "Free model is busy — retrying…";
         continue;
       }
       if (!response.ok || !response.body) {
         lastError = `Free model error (${response.status}).`;
-        break; // fall through to non-stream
+        break;
       }
 
       const reader = response.body.getReader();
@@ -188,7 +225,7 @@ async function streamKeylessFree(
               handlers.onToken(text);
             }
           } catch {
-            // ignore partial JSON
+            // ignore
           }
         }
       }
@@ -204,29 +241,28 @@ async function streamKeylessFree(
     }
   }
 
-  // 2) Non-stream fallback — dump immediately (no fake typing delay).
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // 2) Non-stream fallback
+  for (let attempt = 0; attempt < 3; attempt++) {
     if (handlers.signal?.aborted) break;
-    if (attempt > 0) await sleep(500);
+    if (attempt > 0) await sleep(400 * attempt);
     try {
       const response = await fetch(POLLINATIONS_URL, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "user-agent": `voxiva-cli/${VERSION}`,
-        },
+        headers,
         body: JSON.stringify({ ...bodyBase, stream: false }),
-        signal: handlers.signal
-          ? AbortSignal.any([handlers.signal, AbortSignal.timeout(45_000)])
-          : AbortSignal.timeout(45_000),
+        signal: withTimeout(handlers.signal, 60_000),
       });
       const raw = await response.text();
-      if (response.status === 429) {
+      if (response.status === 429 || response.status === 402) {
         lastError = "Free model is busy — retrying…";
         continue;
       }
       if (!response.ok) {
-        lastError = `Free model error (${response.status}). Try /connect OpenRouter.`;
+        lastError = `Free model error (${response.status}).`;
+        continue;
+      }
+      if (!raw.trim() || raw.trim() === "{}") {
+        lastError = "Empty free-model reply — retrying…";
         continue;
       }
       let parsed: { choices?: { message?: { content?: string } }[] };
@@ -238,9 +274,7 @@ async function streamKeylessFree(
       }
       const full = parsed.choices?.[0]?.message?.content?.trim() ?? "";
       if (!full) {
-        lastError = raw.includes("budget")
-          ? "Free tier budget reached — wait a minute or /connect OpenRouter."
-          : "Empty free-model reply.";
+        lastError = "Empty free-model reply — retrying…";
         continue;
       }
       handlers.onToken(full);
@@ -265,14 +299,14 @@ export async function streamChat(
   const model = modelRefStr.slice(slash + 1);
   const catalog = findCatalog(modelRefStr);
 
-  // Free catalog → never billed. Prefer OpenRouter free key ($0) when present;
-  // otherwise silent keyless path. Legacy voxiva/* also keyless.
-  if (provider === "voxiva" || catalog?.free) {
-    if (catalog?.free && providerReady(auth, provider) && provider === "openrouter") {
-      // fall through to OpenRouter free ($0) below
-    } else {
-      return streamKeylessFree(messages, handlers);
-    }
+  // Built-in free — always keyless (OpenCode-style).
+  if (provider === "voxiva" || catalog?.builtin) {
+    return streamKeylessFree(catalog?.upstream ?? "openai-fast", messages, handlers);
+  }
+
+  // OpenRouter free without key → same keyless gateway so chat still works.
+  if (catalog?.free && !providerReady(auth, provider)) {
+    return streamKeylessFree("openai-fast", messages, handlers);
   }
 
   if (provider === "anthropic") {
@@ -327,7 +361,7 @@ export async function streamChat(
     return full;
   } catch (err) {
     if (catalog?.free) {
-      return streamKeylessFree(messages, handlers);
+      return streamKeylessFree("openai-fast", messages, handlers);
     }
     throw err;
   }
@@ -359,14 +393,11 @@ async function streamAnthropic(
   );
 
   let full = "";
-  for await (const event of stream) {
-    if (handlers.signal?.aborted) break;
-    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-      const text = event.delta.text;
-      full += text;
-      handlers.onToken(text);
-    }
-  }
+  stream.on("text", (text) => {
+    full += text;
+    handlers.onToken(text);
+  });
+  await stream.finalMessage();
   handlers.onDone?.();
   return full;
 }

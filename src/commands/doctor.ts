@@ -33,9 +33,9 @@ export async function doctorCheck(): Promise<number> {
   const auth = await loadAuth();
   const providers = Object.keys(auth).filter((k) => auth[k as keyof typeof auth]?.apiKey);
 
-  console.log(`${config.defaultModel ? c.ok("✓") : c.muted("·")} Model ${config.defaultModel ?? "openrouter/qwen/qwen3.8-27b:free (default free)"}`);
+  console.log(`${config.defaultModel ? c.ok("✓") : c.muted("·")} Model ${config.defaultModel ?? "voxiva/code (default free)"}`);
   console.log(
-    `${providers.length ? c.ok("✓") : c.ok("✓")} Providers ${providers.length ? providers.join(", ") : "free (no key)"}`,
+    `${providers.length ? c.ok("✓") : c.ok("✓")} Providers ${providers.length ? providers.join(", ") : "free · no key"}`,
   );
   console.log(`${c.muted("·")} Config ${configDir()}`);
   console.log(`${c.muted("·")} Plan ${config.plan}`);
