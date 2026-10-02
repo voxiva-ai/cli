@@ -169,36 +169,48 @@ export type HeaderInfo = {
   plan: string;
   planId: PlanId;
   model?: string;
-  authKeys: string[];
+  directory: string;
+  updateBanner?: string;
+  tip?: string;
   noModelLabel?: string;
-  notConnectedLabel?: string;
-  /** Extra status line when /details is on. */
-  detailsLine?: string;
 };
 
-/** Status header — title + status line(s), no icons. */
+/**
+ * Compact Voxiva header (Codex layout, own voice):
+ *   › Voxiva CLI (v0.1.0)
+ *   model · …     /model to change
+ *   plan  · …     Tab to switch
+ *   dir   · ~
+ */
 export function renderHeader(info: HeaderInfo, cols: number): string[] {
   const t = c();
-  const w = fullWidth(cols);
-  const inner = w - 4;
-
+  const boxWidth = Math.min(48, Math.max(38, Math.min(cols - 2, 50)));
+  const inner = boxWidth - 4;
   const noModel = info.noModelLabel ?? "no model";
-  const notConnected = info.notConnectedLabel ?? "not connected";
-  const modelVal = info.model ? t.text(info.model) : t.dim(noModel);
-  const planVal = chalk.hex(PLAN_COLORS[info.planId])(info.plan);
-  const authVal = info.authKeys.length
-    ? t.muted(info.authKeys.join(", "))
-    : t.dim(notConnected);
+  const modelName = info.model ?? noModel;
 
-  const rows = [
-    `${t.accent(">")} ${t.text("Voxiva CLI")} ${t.dim(`(v${info.version})`)}`,
-    `${planVal}${t.dim(" · ")}${modelVal}${t.dim(" · ")}${authVal}`,
-  ];
-  if (info.detailsLine) {
-    rows.push(t.dim(info.detailsLine));
-  }
+  const row = (key: string, value: string, hint?: string) => {
+    const left = `${t.dim(key.padEnd(6))} ${value}`;
+    if (!hint) return left;
+    const room = Math.max(8, inner - stringWidth(left) - 1);
+    return `${left}  ${truncate(hint, room)}`;
+  };
 
-  const top = t.border("┌" + "─".repeat(w - 2) + "┐");
+  const title = `${t.accent("›")} ${t.text("Voxiva CLI")} ${t.dim(`(v${info.version})`)}`;
+  const modelLine = row(
+    "model",
+    t.text(truncate(modelName, Math.max(10, inner - 22))),
+    `${t.accent("/model")} ${t.dim("to change")}`,
+  );
+  const planLine = row(
+    "plan",
+    chalk.hex(PLAN_COLORS[info.planId])(info.plan),
+    t.dim("Tab to switch"),
+  );
+  const dirLine = row("dir", t.text(truncate(info.directory, inner - 8)));
+
+  const rows = [title, modelLine, planLine, dirLine];
+  const top = t.border("┌" + "─".repeat(boxWidth - 2) + "┐");
   const body = rows.map((line) => {
     const clipped = truncate(line, inner);
     return (
@@ -209,22 +221,33 @@ export function renderHeader(info: HeaderInfo, cols: number): string[] {
       t.border("│")
     );
   });
-  const bottom = t.border("└" + "─".repeat(w - 2) + "┘");
-  return [top, ...body, bottom];
+  const bottom = t.border("└" + "─".repeat(boxWidth - 2) + "┘");
+  const out = [top, ...body, bottom];
+  if (info.updateBanner) {
+    out.unshift(t.ok(truncate(`↑ Update available · ${info.updateBanner}`, cols - 2)), "");
+  }
+  if (info.tip) {
+    out.push("");
+    out.push(t.dim("Tip: ") + info.tip);
+  }
+  return out;
 }
 
 export type StatusFooterParts = {
   cwd: string;
+  model?: string;
   busy?: boolean;
   queued?: number;
   workingLabel?: string;
   queuedLabel?: string;
 };
 
-/** Footer — workspace path only. */
+/** Footer — model · directory. */
 export function statusFooter(parts: StatusFooterParts, width: number): string {
   const t = c();
-  const left = t.dim(truncate(parts.cwd, width - 16));
+  const model = parts.model ? t.muted(truncate(parts.model, 28)) : "";
+  const cwd = t.dim(truncate(parts.cwd, Math.max(12, width - 40)));
+  const left = model ? `${model}${t.dim(" · ")}${cwd}` : cwd;
   const right = parts.busy
     ? parts.queued
       ? t.accent(parts.queuedLabel ?? `queued ${parts.queued}`)
@@ -284,18 +307,10 @@ export function clearScreen(): void {
   process.stdout.write("\x1b[2J\x1b[H");
 }
 
-export function enterAltScreen(): void {
-  process.stdout.write("\x1b[?1049h\x1b[H");
-}
-
-export function leaveAltScreen(): void {
-  process.stdout.write("\x1b[?1049l");
-}
-
 export function paintFrame(lines: string[], cols: number): void {
   const frame = lines.map((line) => {
-    const lineWidth = stringWidth(line);
-    return line + " ".repeat(Math.max(0, cols - lineWidth));
+    const clipped = truncate(line, cols);
+    return clipped + " ".repeat(Math.max(0, cols - stringWidth(clipped)));
   });
   process.stdout.write("\x1b[H" + frame.join("\n"));
 }
@@ -306,6 +321,15 @@ export function hideCursor(): void {
 
 export function showCursor(): void {
   process.stdout.write("\x1b[?25h");
+}
+
+export function enterAltScreen(): void {
+  // alt screen + mouse wheel (SGR)
+  process.stdout.write("\x1b[?1049h\x1b[H\x1b[?1000h\x1b[?1006h");
+}
+
+export function leaveAltScreen(): void {
+  process.stdout.write("\x1b[?1006l\x1b[?1000l\x1b[?1049l");
 }
 
 export function userBubble(text: string): string {
@@ -326,6 +350,47 @@ export function errorNote(text: string): string {
 
 export function okNote(text: string): string {
   return c().ok(text);
+}
+
+/** Compact attachment chip in chat. */
+export function attachmentChip(
+  kind: "image" | "file" | "paste",
+  label: string,
+  detail?: string,
+): string {
+  const t = c();
+  const tag =
+    kind === "image" ? t.muted("image") : kind === "paste" ? t.muted("paste") : t.muted("file");
+  const extra = detail ? t.dim(` · ${detail}`) : "";
+  return `${t.dim("┌")} ${tag}${t.dim(" · ")}${t.text(label)}${extra} ${t.dim("┐")}`;
+}
+
+/** Multi-line paste preview card for chat history. */
+export function pasteCard(text: string, width: number, detail?: string): string[] {
+  const t = c();
+  const inner = Math.max(20, width - 4);
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const preview = lines.slice(0, 3).map((line) => truncate(line || " ", inner - 2));
+  const more = lines.length > 3 ? lines.length - 3 : 0;
+  const head = detail ? `paste · ${detail}` : "paste";
+  const out = [
+    t.dim("┌ ") + t.muted(truncate(head, inner - 2)) + " " + t.dim("─".repeat(Math.max(2, inner - stringWidth(head) - 4))),
+  ];
+  for (const line of preview) {
+    out.push(t.dim("│ ") + t.muted(line));
+  }
+  if (more) out.push(t.dim("│ ") + t.dim(`… +${more} more lines`));
+  out.push(t.dim("└" + "─".repeat(Math.max(8, inner - 1))));
+  return out;
+}
+
+/** Image / file card in chat. */
+export function mediaCard(
+  kind: "image" | "file",
+  label: string,
+  detail?: string,
+): string {
+  return attachmentChip(kind, label, detail);
 }
 
 /** Compact file-change card for chat. */
@@ -415,7 +480,7 @@ export function renderBadge(
   planId: PlanId,
   cols: number,
 ): string[] {
-  return renderHeader({ version, plan: planId, planId, authKeys: [] }, cols);
+  return renderHeader({ version, plan: planId, planId, directory: "~" }, cols);
 }
 
 /** @deprecated use statusFooter */

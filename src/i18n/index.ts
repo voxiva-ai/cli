@@ -65,8 +65,8 @@ type Dict = {
 
 const DICTS: Record<LocaleId, Dict> = {
   en: {
-    placeholder: "Ask anything, or / for commands",
-    needConnect: "Connect a provider with /connect — or pick Voxiva Flash Free (no key).",
+    placeholder: "Ask Voxiva anything, or / for commands",
+    needConnect: "Connect a provider with /connect — or pick a free model in /models.",
     needModel: "Pick a model with /models — free ones are at the top.",
     queueBusy: "Queued — runs after this reply.",
     voiceListen: "Listening… Ctrl+R again to stop",
@@ -80,7 +80,7 @@ const DICTS: Record<LocaleId, Dict> = {
   },
   ru: {
     placeholder: "Спроси что угодно или / для команд",
-    needConnect: "Подключи провайдера: /connect — или выбери Voxiva Flash Free (без ключа).",
+    needConnect: "Подключи провайдера: /connect — или выбери бесплатную модель в /models.",
     needModel: "Выбери модель: /models — бесплатные сверху.",
     queueBusy: "В очереди — отправится после ответа.",
     voiceListen: "Слушаю… Ctrl+R ещё раз — стоп",

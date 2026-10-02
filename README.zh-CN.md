@@ -1,0 +1,90 @@
+<p align="center">
+  <b>Voxiva CLI</b><br/>
+  终端编程助手 · 免费模型 · 文件修改需确认
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="README.ru.md">Русский</a>
+</p>
+
+<p align="center">
+  <b>Beta v0.1.0</b> · Node.js 20+
+</p>
+
+---
+
+## 安装
+
+**macOS / Linux**
+```bash
+curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
+```
+
+**Windows（PowerShell）**
+```powershell
+irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
+```
+
+**npm**
+```bash
+npm install -g @voxiva/cli
+# 或：npm install -g github:voxiva-ai/cli
+```
+
+```bash
+voxiva --version && voxiva doctor
+```
+
+---
+
+## 开始
+
+```bash
+voxiva
+```
+
+默认 **免费模型**，无需 API Key。输入内容后按 Enter。
+
+| | |
+|--|--|
+| 切换模型 | `/model` |
+| 付费（GPT / Claude / Gemini） | `/model` → 选厂商 → 粘贴密钥 |
+| 切换计划 | `Tab` 或 `/plans` |
+| 继续上次对话 | `/continue` |
+| 退出 | `Ctrl+C` |
+
+---
+
+## 快捷键
+
+| | |
+|--|--|
+| 粘贴 | `Ctrl+V` → 图片/长文本显示为卡片 |
+| 复制上一条回复 | `Ctrl+Y` / `/copy` |
+| 移除卡片 | 输入为空时按 `Backspace` |
+| 滚动聊天 | 鼠标滚轮 · `PgUp`/`PgDn` · 输入为空时 `↑`/`↓` |
+| 切换目录 | `cd /path/to/project` |
+| Shell | `!git status` · `!ls` |
+| 附加文件/图片 | `@路径`，或复制文件后 `Ctrl+V` |
+| 命令面板 | `/` 或 `Ctrl+P` |
+| 停止生成 | `Esc` |
+| 应用 / 跳过修改 | `y` / `n` |
+
+---
+
+## 命令
+
+`/model` · `/plans` · `/continue` · `/sessions` · `/workspaces` · `/files` · `/history` · `/copy` · `/undo` · `/memory` · `/init` · `/diff` · `/cost` · `/themes` · `/lang` · `/shortcuts` · `/help`
+
+---
+
+## 说明
+
+- **免费模型**不会走付费扣费路径
+- 启动时检查更新（有新版本会显示横幅）
+- 数据目录：`~/.voxiva/`
+- 卸载：`npm uninstall -g @voxiva/cli`
+
+MIT · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)

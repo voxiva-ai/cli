@@ -4,19 +4,31 @@ import { execSync, spawnSync } from "node:child_process";
 import chalk from "chalk";
 import stringWidth from "string-width";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { getPlan, planSystemAsync, PLANS } from "../plans/index.js";
 import {
-  listCatalog,
+  listFreeCatalog,
   modelRef,
   parseModelRef,
   DEFAULT_FREE_MODEL,
-  isFreeModelRef,
   canUseWithoutKey,
   findCatalog,
   type ChatMessage,
+  type ModelInfo,
 } from "../providers/chat.js";
 import { streamChat } from "../providers/chat.js";
+import {
+  clipboardToDraft,
+  clipboardToInsert,
+  isImagePath,
+  normalizeBracketedPaste,
+  readClipboard,
+  textToDraft,
+  writeClipboard,
+  type DraftAttachment,
+} from "../clipboard/index.js";
+import { checkForUpdate } from "../update/check.js";
+
 import {
   getSession,
   getContinuableSession,
@@ -31,7 +43,6 @@ import {
   assistantBubble,
   clearScreen,
   composeFrame,
-  contentIndent,
   enterAltScreen,
   errorNote,
   fullWidth,
@@ -39,9 +50,11 @@ import {
   horizontalRule,
   inputBar,
   leaveAltScreen,
+  mediaCard,
   okNote,
   paintFrame,
   panel,
+  pasteCard,
   renderHeader,
   showCursor,
   statusFooter,
@@ -85,7 +98,22 @@ const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
   { id: "groq", label: "Groq", description: "Fast hosted open models · GROQ_API_KEY" },
 ];
 
-type UiMessage = { role: "user" | "assistant" | "system"; text: string };
+/** Paid providers shown as API-key buttons under free models in /models. */
+const KEY_CONNECT: { id: ProviderId; label: string; description: string }[] = [
+  { id: "openai", label: "OpenAI", description: "ChatGPT · paste OPENAI_API_KEY" },
+  { id: "anthropic", label: "Anthropic", description: "Claude · paste ANTHROPIC_API_KEY" },
+  { id: "google", label: "Google", description: "Gemini · paste GEMINI_API_KEY" },
+];
+
+type ModelPickerItem =
+  | { kind: "model"; model: ModelInfo }
+  | { kind: "provider"; id: ProviderId; label: string; description: string };
+
+type UiMessage = {
+  role: "user" | "assistant" | "system";
+  text: string;
+  attachments?: DraftAttachment[];
+};
 
 type AppState = {
   input: string;
@@ -131,6 +159,10 @@ type AppState = {
   workspaces: WorkspaceRecord[];
   /** File edits waiting for user approval. */
   pendingEdits: FileEdit[];
+  /** Composer attachments (images / long paste / files) — shown as chips. */
+  draftAttachments: DraftAttachment[];
+  /** Shown above header when a newer GitHub/npm release exists. */
+  updateBanner?: string;
 };
 
 function shortCwd(cwd: string): string {
@@ -194,7 +226,7 @@ export async function runTui(): Promise<void> {
 
   const cwd = process.cwd();
   let defaultModel = config.defaultModel ?? DEFAULT_FREE_MODEL;
-  if (!defaultModel || !parseModelRef(defaultModel)) {
+  if (!defaultModel || !parseModelRef(defaultModel) || defaultModel.startsWith("voxiva/")) {
     defaultModel = DEFAULT_FREE_MODEL;
   }
   if (!config.defaultModel || config.defaultModel !== defaultModel) {
@@ -251,6 +283,8 @@ export async function runTui(): Promise<void> {
     memoryNotes: [],
     workspaces,
     pendingEdits: [],
+    draftAttachments: [],
+    updateBanner: undefined,
   };
 
   let running = true;
@@ -317,17 +351,42 @@ export async function runTui(): Promise<void> {
     return state.memoryNotes.filter((note) => note.text.toLowerCase().includes(q));
   }
 
-  function filteredModels() {
+  function filteredModels(): ModelInfo[] {
     const q = state.paletteFilter.toLowerCase().trim();
-    const all = listCatalog();
+    const all = listFreeCatalog();
     if (!q) return all;
     return all.filter(
       (model) =>
         model.label.toLowerCase().includes(q) ||
         model.id.toLowerCase().includes(q) ||
         model.provider.toLowerCase().includes(q) ||
-        (model.free && "free".includes(q)),
+        "free".includes(q),
     );
+  }
+
+  function modelPickerItems(): ModelPickerItem[] {
+    const q = state.paletteFilter.toLowerCase().trim();
+    const models: ModelPickerItem[] = filteredModels().map((model) => ({
+      kind: "model",
+      model,
+    }));
+    const providers = KEY_CONNECT.filter(
+      (p) =>
+        !q ||
+        p.label.toLowerCase().includes(q) ||
+        p.id.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
+        "key".includes(q) ||
+        "api".includes(q),
+    ).map(
+      (p): ModelPickerItem => ({
+        kind: "provider",
+        id: p.id,
+        label: p.label,
+        description: p.description,
+      }),
+    );
+    return [...models, ...providers];
   }
 
   const SETTINGS_ITEMS = [
@@ -500,6 +559,68 @@ export async function runTui(): Promise<void> {
     toast(toastMsg ?? `Resumed: ${session.title}`, "ok");
   }
 
+  async function changeCwd(target: string) {
+    const raw = target.trim().replace(/^["']|["']$/g, "");
+    if (!raw) {
+      toast(state.cwd, "info");
+      return;
+    }
+    const next = isAbsolute(raw) ? raw : resolve(state.cwd, raw);
+    try {
+      process.chdir(next);
+    } catch {
+      toast(`Cannot cd to ${next}`, "error");
+      return;
+    }
+    state.cwd = process.cwd();
+    ctx.cwd = state.cwd;
+    state.fileCache = [];
+    await refreshSystemPrompt();
+    await touchWorkspace(state.cwd, {
+      lastModel: state.model,
+      lastPlan: state.plan,
+      lastSessionId: state.sessionId,
+    });
+    await patchConfig({ cwd: state.cwd });
+    state.workspaces = await listWorkspaces();
+    state.messages.push({ role: "system", text: `dir → ${shortCwd(state.cwd)}` });
+    queueRender(true);
+  }
+
+  async function runShellCommand(command: string) {
+    if (state.busy) {
+      toast("Wait for the current response to finish.", "info");
+      return;
+    }
+    state.messages.push({ role: "user", text: `!${command}` });
+    try {
+      const output = execSync(command, {
+        cwd: state.cwd,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        shell: process.platform === "win32" ? "powershell.exe" : "/bin/sh",
+        timeout: 60_000,
+      }).trim();
+      const result = output || "(command completed without output)";
+      state.messages.push({ role: "system", text: result });
+      state.history.push({
+        role: "user",
+        content: `Shell command: ${command}\n\nOutput:\n${result}`,
+      });
+      await persistSession();
+    } catch (error) {
+      const result =
+        error && typeof error === "object" && "stderr" in error
+          ? String(error.stderr).trim()
+          : error instanceof Error
+            ? error.message
+            : String(error);
+      state.messages.push({ role: "system", text: result || "Shell command failed." });
+      toast("Shell command failed.", "error");
+    }
+    queueRender();
+  }
+
   async function switchWorkspace(path: string) {
     try {
       process.chdir(path);
@@ -551,6 +672,13 @@ export async function runTui(): Promise<void> {
       draw();
     });
   }
+
+  // Soft update banner — never blocks startup; cache keeps installs stable offline.
+  void checkForUpdate().then((info) => {
+    if (!info || !running) return;
+    state.updateBanner = `v${info.latest} · ${info.installHint}`;
+    queueRender();
+  });
 
   function clampOverlayIndex() {
     const count = overlayItemCount();
@@ -634,43 +762,63 @@ export async function runTui(): Promise<void> {
         break;
       }
       case "models": {
-        const models = filteredModels();
+        const items = modelPickerItems();
         out.push(t.text("Select model") + " ".repeat(Math.max(1, inner - 16)) + t.dim("esc"));
+        out.push(t.dim("Free models work with no key · paid → paste your API key"));
         out.push(
           t.dim("Search") +
             t.dim(": ") +
             (state.paletteFilter ? t.text(state.paletteFilter) : t.dim("")),
         );
         out.push("");
-        if (!models.length) {
+        if (!items.length) {
           out.push(t.dim("  No models match."));
         } else {
-          const start = Math.max(0, Math.min(state.overlayIndex - 3, models.length - 10));
-          models.slice(start, start + 10).forEach((m, visibleIndex) => {
+          const start = Math.max(0, Math.min(state.overlayIndex - 3, items.length - 10));
+          let showedKeyHeader = false;
+          items.slice(start, start + 10).forEach((item, visibleIndex) => {
             const i = start + visibleIndex;
-            const ref = modelRef(m);
             const selected = i === state.overlayIndex;
-            const active = state.model === ref;
-            const status = m.free
-              ? "Free"
-              : state.authKeys.includes(m.provider)
-                ? "Ready"
-                : "Key";
-            const dot = active ? "● " : "  ";
-            const name = truncate(m.label, Math.max(16, inner - 12));
-            const gap = Math.max(1, inner - 2 - stringWidth(dot + name) - stringWidth(status));
-            const plain = `${dot}${name}${" ".repeat(gap)}${status}`;
-            if (selected) {
-              out.push(chalk.bgHex("#c45c26").hex("#fff8f0")(truncate(` ${plain}`, inner)));
+            if (item.kind === "provider" && !showedKeyHeader) {
+              showedKeyHeader = true;
+              out.push(t.dim("  ── Use your API key ──"));
+            }
+            if (item.kind === "model") {
+              const m = item.model;
+              const ref = modelRef(m);
+              const active = state.model === ref;
+              const status = "Free";
+              const dot = active ? "● " : "  ";
+              const name = truncate(m.label, Math.max(16, inner - 12));
+              const gap = Math.max(1, inner - 2 - stringWidth(dot + name) - stringWidth(status));
+              const plain = `${dot}${name}${" ".repeat(gap)}${status}`;
+              if (selected) {
+                out.push(chalk.bgHex("#c45c26").hex("#fff8f0")(truncate(` ${plain}`, inner)));
+              } else {
+                const left = active ? t.text(dot + name) : t.muted(dot + name);
+                out.push(truncate(` ${left}${" ".repeat(gap)}${t.ok(status)}`, inner + 20));
+              }
             } else {
-              const left = active ? t.text(dot + name) : t.muted(dot + name);
-              const right = m.free ? t.ok(status) : t.dim(status);
-              out.push(truncate(` ${left}${" ".repeat(gap)}${right}`, inner + 20));
+              const connected = state.authKeys.includes(item.id);
+              const status = connected ? "Ready" : "Key";
+              const name = truncate(item.label, Math.max(16, inner - 12));
+              const gap = Math.max(1, inner - 2 - stringWidth("  " + name) - stringWidth(status));
+              const plain = `  ${name}${" ".repeat(gap)}${status}`;
+              if (selected) {
+                out.push(chalk.bgHex("#c45c26").hex("#fff8f0")(truncate(` ${plain}`, inner)));
+              } else {
+                out.push(
+                  truncate(
+                    ` ${t.muted("  " + name)}${" ".repeat(gap)}${connected ? t.ok(status) : t.accent(status)}`,
+                    inner + 20,
+                  ),
+                );
+              }
             }
           });
         }
         out.push("");
-        out.push(t.dim("  ↑↓ enter · type to search · Free works with no key"));
+        out.push(t.dim("  ↑↓ enter · type to search · OpenAI / Anthropic / Google = API key"));
         break;
       }
       case "plans":
@@ -801,8 +949,15 @@ export async function runTui(): Promise<void> {
         out.push(t.muted("Shortcuts"));
         out.push("");
         for (const row of [
+          ["Ctrl+V", "Paste → image/paste chips"],
+          ["Backspace", "Remove last chip (empty input)"],
+          ["Ctrl+Y", "Copy last reply"],
+          ["/copy", "Copy last reply"],
           ["Ctrl+P", "Command palette"],
           ["Ctrl+R", "Voice listen"],
+          ["PgUp/PgDn", "Scroll chat"],
+          ["↑↓ empty", "Scroll chat"],
+          ["Mouse wheel", "Scroll chat"],
           ["Ctrl+X M", "Models"],
           ["Ctrl+X F", "Files"],
           ["Ctrl+X H", "History"],
@@ -813,10 +968,10 @@ export async function runTui(): Promise<void> {
           ["Ctrl+X L", "Sessions"],
           ["Esc", "Stop / close"],
           ["!", "Shell command"],
-          ["@file", "Attach file into prompt"],
-          ["Tab", "Accept slash suggestion"],
+          ["@file", "Attach file or image"],
+          ["Tab", "Accept slash · cycle plan"],
         ] as const) {
-          out.push(`  ${t.accent(row[0].padEnd(12))}${t.dim(row[1])}`);
+          out.push(`  ${t.accent(row[0].padEnd(14))}${t.dim(row[1])}`);
         }
         out.push("");
         out.push(t.dim("  esc · back"));
@@ -984,46 +1139,31 @@ export async function runTui(): Promise<void> {
 
   function draw() {
     const { cols, rows } = termSize();
-    const inner = fullWidth(cols) - 8;
     const body: string[] = [];
     const pinned: string[] = [];
     let cursorInBox = { inputRow: 0, inputCol: 0 };
     const t = tc();
     const s = strings();
-    const detailsLine = state.details
-      ? [
-          state.model ?? "no model",
-          isFreeModelRef(state.model) ? "free" : "byok",
-          `theme ${state.theme}`,
-          `lang ${state.locale}`,
-          formatUsage(usage),
-        ].join(" · ")
-      : undefined;
     const modelLabel = state.model
       ? (() => {
           const info = findCatalog(state.model);
-          const short = info?.label ?? modelShort(state.model);
-          return isFreeModelRef(state.model) ? `${short}` : short;
+          return info?.label ?? modelShort(state.model);
         })()
       : undefined;
-    const authDisplay =
-      canUseWithoutKey(state.model) || state.authKeys.length
-        ? canUseWithoutKey(state.model) && !state.authKeys.length
-          ? ["free"]
-          : state.authKeys.length
-            ? state.authKeys
-            : ["free"]
-        : [];
+    const tip =
+      state.messages.length === 0
+        ? t.dim("resume a past chat with ") + t.accent("/continue")
+        : undefined;
     const header = renderHeader(
       {
         version: VERSION,
         plan: state.plan,
         planId: state.plan,
         model: modelLabel,
-        authKeys: authDisplay,
+        directory: shortCwd(state.cwd),
+        updateBanner: state.updateBanner,
+        tip,
         noModelLabel: s.noModel,
-        notConnectedLabel: s.notConnected,
-        detailsLine,
       },
       cols,
     );
@@ -1032,32 +1172,68 @@ export async function runTui(): Promise<void> {
       body.push(...header);
       body.push("");
       body.push(...panel(renderOverlay(), cols));
-    } else if (state.messages.length === 0) {
-      body.push(...header);
     } else {
       body.push(...header);
-      body.push("");
+      if (state.messages.length || state.draftAttachments.length) {
+        body.push("");
+      }
       const messageRows: string[] = [];
-      const indent = contentIndent(cols);
+      // Left-aligned like Codex — never center+wrap past terminal width.
+      const pad = "  ";
+      const prefixW = 2;
+      const wrapW = Math.max(20, cols - pad.length - prefixW - 1);
       for (const msg of state.messages) {
         const display =
           msg.role === "assistant" ? stripFileBlocks(msg.text) || msg.text : msg.text;
         const text =
           display || (state.busy && msg.role === "assistant" ? (state.thinking ? "…" : "…") : "");
-        if (!text && msg.role !== "assistant") continue;
+        if (!text && msg.role !== "assistant" && !(msg.role === "user" && msg.attachments?.length)) {
+          continue;
+        }
 
         if (msg.role === "user") {
-          const wrapped = wrapText(text, inner - 2);
-          wrapped.forEach((line, index) => {
-            messageRows.push(
-              indent + (index === 0 ? t.accent("› ") : "  ") + userBubble(line),
-            );
-          });
+          if (msg.attachments?.length) {
+            for (const att of msg.attachments) {
+              if (att.kind === "paste" && att.text) {
+                for (const row of pasteCard(att.text, wrapW + 2, att.detail)) {
+                  messageRows.push(truncate(pad + row, cols));
+                }
+              } else if (att.kind === "image" || att.kind === "file") {
+                messageRows.push(
+                  truncate(pad + mediaCard(att.kind, att.label, att.detail), cols),
+                );
+              }
+            }
+            if (text.trim()) {
+              const wrapped = wrapText(text, wrapW);
+              wrapped.forEach((line, index) => {
+                messageRows.push(
+                  truncate(
+                    pad + (index === 0 ? t.accent("› ") : "  ") + userBubble(line),
+                    cols,
+                  ),
+                );
+              });
+            }
+          } else {
+            const wrapped = wrapText(text, wrapW);
+            wrapped.forEach((line, index) => {
+              messageRows.push(
+                truncate(
+                  pad + (index === 0 ? t.accent("› ") : "  ") + userBubble(line),
+                  cols,
+                ),
+              );
+            });
+          }
         } else if (msg.role === "assistant") {
-          const wrapped = wrapText(text, inner - 2);
+          const wrapped = wrapText(text, wrapW);
           wrapped.forEach((line, index) => {
             messageRows.push(
-              indent + (index === 0 ? t.dim("  ") : "  ") + assistantBubble(line),
+              truncate(
+                pad + (index === 0 ? t.dim("  ") : "  ") + assistantBubble(line),
+                cols,
+              ),
             );
           });
         } else {
@@ -1069,37 +1245,56 @@ export async function runTui(): Promise<void> {
                 : null;
           if (kind) {
             const path = text.replace(/^(applied|skipped) ·\s*/, "");
-            messageRows.push(indent + "  " + fileChangeCard(path, kind));
+            messageRows.push(truncate(pad + "  " + fileChangeCard(path, kind), cols));
           } else {
-            const wrapped = wrapText(text, inner - 2);
+            const wrapped = wrapText(text, wrapW);
             for (const line of wrapped) {
-              messageRows.push(indent + "  " + systemNote(line));
+              messageRows.push(truncate(pad + "  " + systemNote(line), cols));
             }
           }
         }
-        // tight spacing — one blank only between turns
         messageRows.push("");
       }
       if (state.pendingEdits.length && state.overlay !== "approve") {
         messageRows.push(
-          indent +
-            "  " +
-            fileChangeCard(
-              `${state.pendingEdits.length} file${state.pendingEdits.length > 1 ? "s" : ""}`,
-              "pending",
-              "y apply · n skip",
-            ),
+          truncate(
+            pad +
+              "  " +
+              fileChangeCard(
+                `${state.pendingEdits.length} file${state.pendingEdits.length > 1 ? "s" : ""}`,
+                "pending",
+                "y apply · n skip",
+              ),
+            cols,
+          ),
         );
         messageRows.push("");
       }
-      const maxVisible = Math.max(2, rows - 14);
+
+      // Draft paste/image — live in the chat thread (not above the input).
+      if (state.draftAttachments.length) {
+        for (const att of state.draftAttachments) {
+          if (att.kind === "paste" && att.text) {
+            for (const row of pasteCard(att.text, wrapW + 2, att.detail)) {
+              messageRows.push(truncate(pad + row, cols));
+            }
+          } else if (att.kind === "image" || att.kind === "file") {
+            messageRows.push(truncate(pad + mediaCard(att.kind, att.label, att.detail), cols));
+          }
+        }
+        messageRows.push("");
+      }
+
+      // Reserve: footer(2) + input(~4) + header + gap
+      const reserved = header.length + 1 + 2 + 5;
+      const maxVisible = Math.max(3, rows - reserved);
       const total = messageRows.length;
       const maxScroll = Math.max(0, total - maxVisible);
-      state.scrollOffset = Math.min(state.scrollOffset, maxScroll);
+      state.scrollOffset = Math.min(Math.max(0, state.scrollOffset), maxScroll);
       const start = Math.max(0, total - maxVisible - state.scrollOffset);
       body.push(...messageRows.slice(start, start + maxVisible));
       if (state.scrollOffset > 0) {
-        body.push(`  ${t.dim(`↑ ${state.scrollOffset} older`)}`);
+        body.push(t.dim(`  ↑ scroll · PgUp/PgDn or mouse wheel · ${state.scrollOffset} up`));
       }
     }
 
@@ -1137,6 +1332,7 @@ export async function runTui(): Promise<void> {
       statusFooter(
         {
           cwd: shortCwd(state.cwd),
+          model: modelLabel,
           busy: state.busy,
           queued: state.promptQueue.length,
           workingLabel: s.working,
@@ -1337,7 +1533,7 @@ export async function runTui(): Promise<void> {
           toast("Nothing to copy.", "info");
           return;
         }
-        const ok = copyText(last.text);
+        const ok = writeClipboard(last.text);
         toast(ok ? "Last reply copied." : "Could not reach clipboard.", ok ? "ok" : "error");
         return;
       }
@@ -1475,24 +1671,36 @@ export async function runTui(): Promise<void> {
     }
   }
 
-  function copyText(text: string): boolean {
-    try {
-      if (process.platform === "win32") {
-        const result = spawnSync(
-          "powershell",
-          ["-NoProfile", "-Command", "[Console]::InputEncoding=[Text.UTF8Encoding]::UTF8; $input | Set-Clipboard"],
-          { input: text, encoding: "utf8" },
-        );
-        return result.status === 0;
-      }
-      if (process.platform === "darwin") {
-        return spawnSync("pbcopy", [], { input: text }).status === 0;
-      }
-      if (spawnSync("xclip", ["-selection", "clipboard"], { input: text }).status === 0) return true;
-      return spawnSync("wl-copy", [], { input: text }).status === 0;
-    } catch {
-      return false;
+  function pasteFromClipboard() {
+    const clip = readClipboard();
+    const { attachments, inlineText } = clipboardToDraft(clip);
+    if (!attachments.length && !inlineText) return;
+    if (attachments.length) {
+      state.draftAttachments.push(...attachments);
+      state.scrollOffset = 0;
     }
+    if (inlineText) insertAtCursor(inlineText);
+    queueRender(true);
+  }
+
+  function applyTextPaste(raw: string) {
+    const { attachments, inlineText } = textToDraft(raw);
+    if (attachments.length) {
+      state.draftAttachments.push(...attachments);
+      state.scrollOffset = 0;
+    }
+    if (inlineText) insertAtCursor(inlineText);
+    queueRender(true);
+  }
+
+  function copyLastReply() {
+    const last = [...state.messages].reverse().find((message) => message.role === "assistant");
+    if (!last?.text.trim()) {
+      toast("Nothing to copy.", "info");
+      return;
+    }
+    const ok = writeClipboard(last.text);
+    toast(ok ? "Last reply copied." : "Could not reach clipboard.", ok ? "ok" : "error");
   }
 
   async function applySlashResult(result: SlashResult) {
@@ -1540,6 +1748,7 @@ export async function runTui(): Promise<void> {
 
   async function submitInput() {
     let line = state.input.trim();
+    const drafts = [...state.draftAttachments];
     // Enter on incomplete `/…` runs the highlighted suggestion (Codex/Claude style)
     if (line.startsWith("/") && !line.includes(" ") && activeSuggestions().length) {
       const selected = activeSuggestions()[Math.min(state.suggestIndex, activeSuggestions().length - 1)];
@@ -1547,19 +1756,21 @@ export async function runTui(): Promise<void> {
         line = `/${selected.name}`;
       }
     }
+    if (!line && !drafts.length) return;
+
     state.input = "";
     state.cursor = 0;
     state.suggestIndex = 0;
-    if (!line) return;
+    state.draftAttachments = [];
 
     if (state.busy && !line.startsWith("/") && !line.startsWith("!")) {
-      state.promptQueue.push(line);
+      state.promptQueue.push(line || "[attachment]");
       toast(`${strings().queueBusy} (${state.promptQueue.length})`, "info");
       queueRender();
       return;
     }
 
-    const slash = resolveSlash(line);
+    const slash = line.startsWith("/") ? resolveSlash(line) : null;
     if (slash) {
       const result = await slash.cmd.handler(slash.args, ctx);
       await applySlashResult(result);
@@ -1570,43 +1781,25 @@ export async function runTui(): Promise<void> {
       return;
     }
 
+    // Local builtins — no LLM round-trip
+    const cdMatch = line.match(/^cd(?:\s+(.+))?$/i);
+    if (cdMatch && !drafts.length) {
+      await changeCwd(cdMatch[1] ?? "");
+      return;
+    }
+    if (/^pwd$/i.test(line) && !drafts.length) {
+      state.messages.push({ role: "user", text: line });
+      state.messages.push({ role: "system", text: state.cwd });
+      queueRender();
+      return;
+    }
     if (line.startsWith("!")) {
-      if (state.busy) {
-        toast("Wait for the current response to finish.", "info");
-        return;
-      }
       const command = line.slice(1).trim();
       if (!command) {
         toast("Type a shell command after !", "info");
         return;
       }
-      state.messages.push({ role: "user", text: `!${command}` });
-      try {
-        const output = execSync(command, {
-          cwd: state.cwd,
-          encoding: "utf8",
-          stdio: ["ignore", "pipe", "pipe"],
-          shell: process.platform === "win32" ? "powershell.exe" : "/bin/sh",
-          timeout: 60_000,
-        }).trim();
-        const result = output || "(command completed without output)";
-        state.messages.push({ role: "system", text: result });
-        state.history.push({
-          role: "user",
-          content: `Shell command: ${command}\n\nOutput:\n${result}`,
-        });
-        await persistSession();
-      } catch (error) {
-        const result =
-          error && typeof error === "object" && "stderr" in error
-            ? String(error.stderr).trim()
-            : error instanceof Error
-              ? error.message
-              : String(error);
-        state.messages.push({ role: "system", text: result });
-        toast("Shell command failed.", "error");
-      }
-      queueRender();
+      await runShellCommand(command);
       return;
     }
 
@@ -1626,25 +1819,54 @@ export async function runTui(): Promise<void> {
       }
     }
 
-    state.messages.push({ role: "user", text: line });
+    state.messages.push({
+      role: "user",
+      text: line,
+      attachments: drafts.length ? drafts : undefined,
+    });
     state.scrollOffset = 0;
     let prompt = line;
+
+    for (const att of drafts) {
+      if (att.kind === "paste" && att.text) {
+        prompt += `\n\n<paste label="${att.label}">\n${att.text}\n</paste>`;
+      } else if (att.path) {
+        try {
+          if (att.kind === "image" || isImagePath(att.path)) {
+            prompt += `\n\n<image path="${att.path}" label="${att.label}">\nUser attached this screenshot/image. Describe it and use it when answering.\n</image>`;
+          } else {
+            const content = await readFile(att.path, "utf8");
+            prompt += `\n\n<file path="${att.path}">\n${content.slice(0, 100_000)}\n</file>`;
+          }
+        } catch {
+          toast(`Could not read ${att.label}`, "error");
+        }
+      }
+    }
+
     const references = [...line.matchAll(/@(?:"([^"]+)"|([^\s]+))/g)];
     for (const match of references.slice(0, 8)) {
-      const relative = (match[1] || match[2]).replace(/[),.;]+$/, "");
-      const path = join(state.cwd, relative);
+      const rawPath = (match[1] || match[2]).replace(/[),.;]+$/, "");
+      const path = isAbsolute(rawPath) ? rawPath : join(state.cwd, rawPath);
       try {
-        const content = await readFile(path, "utf8");
-        prompt += `\n\n<file path="${relative}">\n${content.slice(0, 100_000)}\n</file>`;
+        if (isImagePath(path)) {
+          prompt += `\n\n<image path="${path}">\nUser attached this image. Describe it or use it when answering.\n</image>`;
+        } else {
+          const content = await readFile(path, "utf8");
+          prompt += `\n\n<file path="${rawPath}">\n${content.slice(0, 100_000)}\n</file>`;
+        }
       } catch {
-        toast(`Could not read @${relative}`, "error");
+        toast(`Could not read @${rawPath}`, "error");
       }
+    }
+    if (!prompt.trim() && drafts.length) {
+      prompt = drafts.map((d) => `[${d.kind}: ${d.label}]`).join(" ");
     }
     state.history.push({ role: "user", content: prompt });
     const responseIndex = state.messages.length;
-    state.messages.push({ role: "assistant", text: "" });
+    state.messages.push({ role: "assistant", text: "…" });
     state.busy = true;
-    queueRender();
+    queueRender(true);
 
     const inputTokens = estimateMessagesTokens(state.history);
     let reply = "";
@@ -1654,6 +1876,9 @@ export async function runTui(): Promise<void> {
       reply = await streamChat(authNow, state.model, state.history, {
         signal: streamAbort.signal,
         onToken: (chunk) => {
+          if (state.messages[responseIndex].text === "…") {
+            state.messages[responseIndex].text = "";
+          }
           state.messages[responseIndex].text += chunk;
           queueRender();
         },
@@ -1758,29 +1983,32 @@ export async function runTui(): Promise<void> {
         break;
       }
       case "models": {
-        const m = filteredModels()[state.overlayIndex];
-        if (!m) break;
+        const item = modelPickerItems()[state.overlayIndex];
+        if (!item) break;
+        if (item.kind === "provider") {
+          const defaults: Partial<Record<ProviderId, ModelRef>> = {
+            openai: "openai/gpt-4o-mini",
+            anthropic: "anthropic/claude-3-5-haiku-20241022",
+            google: "google/gemini-2.5-flash",
+          };
+          state.pendingModel = defaults[item.id];
+          if (state.authKeys.includes(item.id) && state.pendingModel) {
+            await ctx.setModel(state.pendingModel);
+            await ctx.refresh();
+            state.pendingModel = undefined;
+            state.overlay = null;
+            toast(`${item.label} · using ${state.model}`, "ok");
+            break;
+          }
+          await startConnectKey(item.id);
+          break;
+        }
+        const m = item.model;
         const ref = modelRef(m);
-        // Free models never bounce to /connect — they work immediately.
-        if (m.free || m.builtin) {
-          await ctx.setModel(ref);
-          await ctx.refresh();
-          state.overlay = null;
-          toast(`${m.label} · ready`, "ok");
-          break;
-        }
-        if (!state.authKeys.includes(m.provider)) {
-          const providerIndex = PROVIDERS.findIndex((provider) => provider.id === m.provider);
-          state.pendingModel = ref;
-          state.overlay = "connect";
-          state.overlayIndex = Math.max(0, providerIndex);
-          toast(`Connect ${m.provider} to use ${m.label}.`, "info");
-          break;
-        }
         await ctx.setModel(ref);
         await ctx.refresh();
         state.overlay = null;
-        toast(`Model → ${ref}`, "ok");
+        toast(`${m.label} · ready`, "ok");
         break;
       }
       case "plans": {
@@ -1927,7 +2155,7 @@ export async function runTui(): Promise<void> {
       case "connect":
         return PROVIDERS.length;
       case "models":
-        return filteredModels().length;
+        return modelPickerItems().length;
       case "plans":
         return PLANS.length;
       case "themes":
@@ -2018,6 +2246,12 @@ export async function runTui(): Promise<void> {
   setVoiceListening(false);
   draw();
 
+  function scrollChat(delta: number) {
+    if (state.overlay || state.messages.length === 0) return;
+    state.scrollOffset = Math.max(0, state.scrollOffset + delta);
+    queueRender();
+  }
+
   function insertAuthKeyAtCursor(text: string) {
     const sanitized = text.replace(/[\r\n]/g, "");
     state.authKeyInput =
@@ -2030,6 +2264,15 @@ export async function runTui(): Promise<void> {
 
   const onData = (key: string) => {
     if (!running) return;
+
+    // Mouse wheel (SGR): \x1b[<64;x;yM up, \x1b[<65;x;yM down
+    const mouse = key.match(/\x1b\[<(\d+);(\d+);(\d+)([Mm])/);
+    if (mouse) {
+      const btn = Number(mouse[1]);
+      if (btn === 64) scrollChat(3);
+      else if (btn === 65) scrollChat(-3);
+      return;
+    }
 
     if (state.overlay === "connect-key") {
       if (key === "\u001b") {
@@ -2069,7 +2312,7 @@ export async function runTui(): Promise<void> {
         pasteBuffer = key.split("\x1b[200~").pop() ?? "";
         if (pasteBuffer.includes("\x1b[201~")) {
           const end = pasteBuffer.indexOf("\x1b[201~");
-          insertAuthKeyAtCursor(pasteBuffer.slice(0, end));
+          insertAuthKeyAtCursor(normalizeBracketedPaste(pasteBuffer.slice(0, end)).replace(/\s+/g, ""));
           inPaste = false;
           pasteBuffer = "";
         }
@@ -2079,10 +2322,21 @@ export async function runTui(): Promise<void> {
         pasteBuffer += key;
         const end = pasteBuffer.indexOf("\x1b[201~");
         if (end >= 0) {
-          insertAuthKeyAtCursor(pasteBuffer.slice(0, end));
+          insertAuthKeyAtCursor(normalizeBracketedPaste(pasteBuffer.slice(0, end)).replace(/\s+/g, ""));
           inPaste = false;
           pasteBuffer = "";
         }
+        return;
+      }
+      if (key === "\u0016") {
+        const clip = readClipboard();
+        const text = clip.text.trim().replace(/\s+/g, "");
+        if (!text) {
+          toast("Clipboard is empty.", "info");
+          return;
+        }
+        insertAuthKeyAtCursor(text);
+        toast("Key pasted.", "ok");
         return;
       }
       if (!key.startsWith("\u001b") && [...key].every((char) => char >= " ")) {
@@ -2185,7 +2439,7 @@ export async function runTui(): Promise<void> {
       pasteBuffer = key.split("\x1b[200~").pop() ?? "";
       if (pasteBuffer.includes("\x1b[201~")) {
         const end = pasteBuffer.indexOf("\x1b[201~");
-        insertAtCursor(pasteBuffer.slice(0, end));
+        applyTextPaste(normalizeBracketedPaste(pasteBuffer.slice(0, end)));
         inPaste = false;
         pasteBuffer = "";
       }
@@ -2195,10 +2449,21 @@ export async function runTui(): Promise<void> {
       pasteBuffer += key;
       const end = pasteBuffer.indexOf("\x1b[201~");
       if (end >= 0) {
-        insertAtCursor(pasteBuffer.slice(0, end));
+        applyTextPaste(normalizeBracketedPaste(pasteBuffer.slice(0, end)));
         inPaste = false;
         pasteBuffer = "";
       }
+      return;
+    }
+
+    // Ctrl+V — system clipboard (text + image/file paths on Windows)
+    if (key === "\u0016") {
+      pasteFromClipboard();
+      return;
+    }
+    // Ctrl+Y — copy last assistant reply
+    if (key === "\u0019") {
+      copyLastReply();
       return;
     }
 
@@ -2267,6 +2532,10 @@ export async function runTui(): Promise<void> {
         queueRender();
         return;
       }
+      if (!state.input) {
+        scrollChat(3);
+        return;
+      }
     }
     if (key === "\u001b[B") {
       const suggestions = activeSuggestions();
@@ -2275,18 +2544,17 @@ export async function runTui(): Promise<void> {
         queueRender();
         return;
       }
+      if (!state.input) {
+        scrollChat(-3);
+        return;
+      }
     }
     if (key === "\u001b[5~") {
-      state.scrollOffset = Math.min(
-        Math.max(0, state.messages.length * 3),
-        state.scrollOffset + 5,
-      );
-      queueRender();
+      scrollChat(8);
       return;
     }
     if (key === "\u001b[6~") {
-      state.scrollOffset = Math.max(0, state.scrollOffset - 5);
-      queueRender();
+      scrollChat(-8);
       return;
     }
     if (key === "\r" || key === "\n") {
@@ -2300,6 +2568,9 @@ export async function runTui(): Promise<void> {
         state.cursor = previous;
         state.suggestIndex = 0;
         queueRender();
+      } else if (state.draftAttachments.length) {
+        state.draftAttachments.pop();
+        queueRender(true);
       }
       return;
     }

@@ -63,3 +63,12 @@ export async function fileExists(cwd: string, rel: string): Promise<boolean> {
     return false;
   }
 }
+
+/** Compact file list for the system prompt so the model knows the workspace. */
+export async function workspaceSnapshot(cwd: string, limit = 40): Promise<string> {
+  const files = await listProjectFiles(cwd);
+  if (!files.length) return `(empty or unreadable: ${cwd})`;
+  const shown = files.slice(0, limit);
+  const more = files.length > limit ? `\n… +${files.length - limit} more` : "";
+  return shown.join("\n") + more;
+}

@@ -1,154 +1,90 @@
-# Voxiva CLI
+<p align="center">
+  <b>Voxiva CLI</b><br/>
+  Terminal coding agent · free models · file edits with approval
+</p>
 
-Terminal coding agent from [Voxiva](https://github.com/voxiva-ai).
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="README.ru.md">Русский</a>
+</p>
 
-Connect OpenAI, Anthropic, OpenRouter, Google, DeepSeek, or Groq. Switch plans, themes, languages, workspaces, and models. Chat in the terminal.
+<p align="center">
+  <b>Beta v0.1.0</b> · Node.js 20+
+</p>
 
-**Beta `v0.1.0`**
+---
 
 ## Install
 
-Needs **Node.js 20+** ([nodejs.org](https://nodejs.org/)).
-
-### Quick install (recommended)
-
-No clone. Same idea as OpenCode — one line.
-
 **macOS / Linux**
-
 ```bash
 curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 ```
 
 **Windows (PowerShell)**
-
 ```powershell
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
-This installs the global `voxiva` command via npm (registry first, GitHub fallback).
-
-### npm
-
+**npm**
 ```bash
 npm install -g @voxiva/cli
-# or before publish:
-npm install -g github:voxiva-ai/cli
+# or: npm install -g github:voxiva-ai/cli
 ```
-
-### From source (contributors)
-
-**macOS / Linux**
 
 ```bash
-git clone https://github.com/voxiva-ai/cli.git
-cd cli
-chmod +x scripts/install.sh
-./scripts/install.sh
+voxiva --version && voxiva doctor
 ```
 
-**Windows**
+---
 
-```powershell
-git clone https://github.com/voxiva-ai/cli.git
-cd cli
-.\scripts\install.ps1
-```
-
-**Manual**
-
-```bash
-npm install
-npm run build
-npm link
-```
-
-### Verify
-
-```bash
-voxiva --version
-voxiva doctor
-```
-
-### Uninstall
-
-```bash
-npm uninstall -g @voxiva/cli
-# or if linked from source:
-npm unlink -g @voxiva/cli
-```
-
-## Use
+## Start
 
 ```bash
 voxiva
 ```
+
+Free model works with **no API key**. Type → Enter.
 
 | | |
 |--|--|
-| Commands | `/` then ↑↓ · Tab · Enter |
-| Palette | `Ctrl+P` |
-| Voice | `Ctrl+R` |
-| Language | `/lang` |
-| Theme | `/themes` |
-| Provider | `/connect` |
-| Model | `/models` or `/model deepseek/deepseek-chat` |
-| Plans | `/plans` |
-| Sessions | `/sessions` · `/continue` · Ctrl+X O |
-| Workspaces | `/workspaces` · Ctrl+X W |
-| Files | `/files` · Ctrl+X F · `@path` in prompt |
-| Apply edits | `y` / `/apply` · skip `n` / `/reject` |
-| Plans | `/plans` — use **build** to edit files |
-| Context | `/context` |
-| Memory | `/memory note` |
-| History | `/history` · Ctrl+X H |
-| Branch | `/branch` |
-| Queue | `/queue` |
-| Settings | `/settings` |
-| Shortcuts | `/shortcuts` |
-| Actions | `/review` `/test` `/fix` `/explain` `/retry` `/copy` `/stop` |
-| Details | `/details` — full model, theme, usage |
-| Cost | `/cost` — session token estimate |
-| Diff | `/diff` — git status summary |
-| Init | `/init` — create `AGENTS.md` (loaded into prompts) |
+| Model | `/model` |
+| Paid (GPT / Claude / Gemini) | `/model` → provider → paste key |
+| Plan | `Tab` or `/plans` |
+| Resume | `/continue` |
+| Exit | `Ctrl+C` |
 
-Keys: `~/.voxiva/auth.json` or env `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`.
+---
 
-Sessions and workspaces are stored on disk under `~/.voxiva/` (`sessions.json`, `workspaces.json`, `config.json`).
+## Shortcuts
 
-## Built-in models
+| | |
+|--|--|
+| Paste | `Ctrl+V` → chip for image / long text |
+| Copy last reply | `Ctrl+Y` / `/copy` |
+| Remove chip | `Backspace` (empty input) |
+| Scroll | mouse wheel · `PgUp`/`PgDn` · `↑`/`↓` (empty input) |
+| Change folder | `cd /path/to/project` |
+| Shell | `!git status` · `!ls` |
+| Attach file/image | `@path` or copy file → `Ctrl+V` |
+| Palette | `/` or `Ctrl+P` |
+| Stop | `Esc` |
+| Apply / skip edit | `y` / `n` |
 
-**Works right after install — no API key:**
+---
 
-- `Voxiva Flash Free` / `Voxiva Code Free` — built-in free models
+## Commands
 
-```bash
-voxiva
-# then type — or /models to switch
-```
+`/model` · `/plans` · `/continue` · `/sessions` · `/workspaces` · `/files` · `/history` · `/copy` · `/undo` · `/memory` · `/init` · `/diff` · `/cost` · `/themes` · `/lang` · `/shortcuts` · `/help`
 
-**More free models** (optional free OpenRouter key): Space Bunny, Nemotron, Ling, Qwen, Gemma, GLM…
+---
 
-**Paid / BYOK:** OpenAI, Anthropic, Gemini, DeepSeek, Groq.
+## Notes
 
-## Plans
+- **Free** models = no billing on the free path
+- Updates check on launch (banner if newer release)
+- Data: `~/.voxiva/` (`config.json`, `auth.json`, `sessions.json`)
+- Uninstall: `npm uninstall -g @voxiva/cli`
 
-`build` · `ship` · `check` · `explore`
-
-Plans adapt to the project stack (TypeScript, Go, Python, Rust, …). Put project rules in `AGENTS.md`.
-
-## Themes
-
-`voxiva` · `slate` · `midnight` · `arctic` · `ember` · `forest` · `mono`
-
-## Languages
-
-`/lang` — en, ru, zh, es, de, fr, ja, pt, ko, hi
-
-## Security
-
-See [SECURITY.md](SECURITY.md). Don’t commit API keys.
-
-## License
-
-MIT — [LICENSE](LICENSE)
+MIT · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)

@@ -1,6 +1,6 @@
 import { c } from "../brand/index.js";
 import { loadAuth, loadConfig, patchConfig, parseModelRef } from "../config/store.js";
-import { DEFAULT_FREE_MODEL, listCatalog, modelRef } from "../providers/chat.js";
+import { DEFAULT_FREE_MODEL, listFreeCatalog, modelRef } from "../providers/chat.js";
 
 export async function modelsList(): Promise<void> {
   const config = await loadConfig();
@@ -11,33 +11,27 @@ export async function modelsList(): Promise<void> {
       .map(([k]) => k),
   );
 
-  console.log(c.bold("Available models\n"));
-  let section: "none" | "free" | "paid" = "none";
-  for (const info of listCatalog()) {
-    if (info.free && section !== "free") {
-      console.log(c.muted("Free"));
-      section = "free";
-    } else if (!info.free && section !== "paid") {
-      console.log("");
-      console.log(c.muted("Paid / BYOK"));
-      section = "paid";
-    }
+  console.log(c.bold("Free models\n"));
+  for (const info of listFreeCatalog()) {
     const ref = modelRef(info);
     const active = config.defaultModel === ref;
-    const ready = info.builtin || connected.has(info.provider);
+    const ready = connected.has(info.provider);
     const mark = active ? c.brand("›") : " ";
-    const status = info.builtin
-      ? c.ok("free · no key")
-      : info.free
-        ? ready
-          ? c.ok("free")
-          : c.muted("free · OpenRouter key")
-        : ready
-          ? c.ok("ready")
-          : c.muted("needs auth");
+    const status = ready ? c.ok("free") : c.ok("free · no key");
     console.log(
       `${mark} ${c.text(info.label.padEnd(32))} ${c.muted(ref.padEnd(48))} ${status}`,
     );
+  }
+
+  console.log("");
+  console.log(c.muted("API key (paid)"));
+  for (const p of [
+    { id: "openai", label: "OpenAI" },
+    { id: "anthropic", label: "Anthropic" },
+    { id: "google", label: "Google" },
+  ] as const) {
+    const status = connected.has(p.id) ? c.ok("key ready") : c.muted("paste key via /model");
+    console.log(`  ${c.text(p.label.padEnd(12))} ${status}`);
   }
 
   console.log("");
@@ -45,9 +39,6 @@ export async function modelsList(): Promise<void> {
     c.muted("Default:"),
     c.brand(config.defaultModel ?? DEFAULT_FREE_MODEL),
   );
-  if (!config.defaultModel) {
-    console.log(c.muted("Tip:"), c.brand(`voxiva models use ${DEFAULT_FREE_MODEL}`));
-  }
 }
 
 export async function modelsUse(ref: string): Promise<void> {
@@ -58,10 +49,9 @@ export async function modelsUse(ref: string): Promise<void> {
     return;
   }
 
-  const catalog = listCatalog();
-  const known = catalog.some((m) => modelRef(m) === ref);
+  const known = listFreeCatalog().some((m) => modelRef(m) === ref);
   if (!known) {
-    console.log(c.muted(`Note: ${ref} is not in the built-in catalog — will still be saved.`));
+    console.log(c.muted(`Note: ${ref} is not in the free catalog — will still be saved.`));
   }
 
   await patchConfig({ defaultModel: ref as `${typeof parsed.provider}/${string}` });

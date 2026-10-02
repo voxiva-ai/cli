@@ -51,37 +51,47 @@ test("long Unicode input keeps cursor inside the bar", () => {
   assert.ok(result.inputCol < 80);
 });
 
-test("header is compact with title and status line", () => {
+test("header is compact Codex-style with model plan directory", () => {
   const lines = renderHeader(
     {
       version: "0.1.0",
       plan: "build",
       planId: "build",
-      model: "gpt-4.1-mini",
-      authKeys: ["openai"],
+      model: "Qwen Free",
+      directory: "~/proj",
     },
     80,
   );
-  assert.equal(lines.length, 4);
-  assert.ok(lines[1].includes("Voxiva CLI"));
-  assert.ok(lines[2].includes("gpt-4.1-mini"));
-  assert.ok(!lines[2].includes("/models"));
+  assert.ok(lines.some((line) => line.includes("Voxiva CLI")));
+  assert.ok(lines.some((line) => line.includes("Qwen Free")));
+  assert.ok(lines.some((line) => line.includes("/model")));
+  assert.ok(lines.some((line) => line.includes("dir")));
+  assert.ok(lines.some((line) => line.includes("~/proj")));
+  assert.ok(stringWidth(lines[0]) < 55);
 });
 
-test("header details line expands when provided", () => {
+test("header shows update banner and tip", () => {
   const lines = renderHeader(
     {
       version: "0.1.0",
       plan: "explore",
       planId: "explore",
-      model: "gpt-4.1-mini",
-      authKeys: ["openai"],
-      detailsLine: "theme ember · lang ru · 100 tokens",
+      model: "Flash",
+      directory: "~",
+      updateBanner: "v0.1.1 · npm i -g @voxiva/cli",
+      tip: "resume with /continue",
     },
     80,
   );
-  assert.equal(lines.length, 5);
-  assert.ok(lines[3].includes("ember"));
+  assert.ok(lines[0].includes("Update"));
+  assert.ok(lines.some((line) => line.includes("Tip:")));
+  assert.ok(lines.some((line) => line.includes("/continue")));
+});
+
+test("footer shows model and workspace", () => {
+  const line = statusFooter({ cwd: "~/proj", model: "Flash Free" }, 80);
+  assert.ok(line.includes("~/proj"));
+  assert.ok(line.includes("Flash Free"));
 });
 
 test("footer is pinned with input bar above status columns", () => {
@@ -97,12 +107,6 @@ test("footer is pinned with input bar above status columns", () => {
   );
   assert.equal(frame.lines.length, 16);
   assert.deepEqual(frame.lines.slice(-5), [...pinned, ...footer]);
-});
-
-test("footer shows workspace only", () => {
-  const line = statusFooter({ cwd: "~/proj" }, 80);
-  assert.ok(line.includes("~/proj"));
-  assert.ok(!line.includes("plan"));
 });
 
 test("slash aliases resolve and suggestions filter", () => {
@@ -228,7 +232,6 @@ test("catalog includes deepseek and gemini flash", async () => {
     listFreeCatalog,
     DEFAULT_FREE_MODEL,
     isFreeModelRef,
-    isBuiltinFree,
     providerReady,
   } = await import("../dist/providers/chat.js");
   const catalog = listCatalog();
@@ -237,11 +240,10 @@ test("catalog includes deepseek and gemini flash", async () => {
   assert.ok(parseModelRef("deepseek/deepseek-reasoner"));
   const free = listFreeCatalog();
   assert.ok(free.length >= 5);
-  assert.equal(DEFAULT_FREE_MODEL, "voxiva/flash");
+  assert.equal(DEFAULT_FREE_MODEL, "openrouter/qwen/qwen3.8-27b:free");
   assert.ok(isFreeModelRef(DEFAULT_FREE_MODEL));
-  assert.ok(isBuiltinFree(DEFAULT_FREE_MODEL));
-  assert.equal(providerReady({}, "voxiva"), true);
-  assert.equal(catalog[0].builtin, true);
+  assert.equal(providerReady({}, "openrouter"), false);
+  assert.ok(!catalog.some((m) => m.provider === "voxiva"));
   assert.ok(catalog.some((m) => m.label.includes("Space Bunny") || m.id.includes("space-bunny")));
 });
 
@@ -261,4 +263,11 @@ test("one-line install scripts exist", () => {
   const sh = readFileSync(join(root, "install"), "utf8");
   assert.ok(sh.includes("npm install -g"));
   assert.ok(sh.includes("github:voxiva-ai/cli"));
+});
+
+test("compareVersions detects newer releases", async () => {
+  const { compareVersions } = await import("../dist/update/check.js");
+  assert.equal(compareVersions("0.0.1", "0.0.0"), 1);
+  assert.equal(compareVersions("0.0.0", "0.0.1"), -1);
+  assert.equal(compareVersions("v0.0.0", "0.0.0"), 0);
 });
