@@ -295,11 +295,18 @@ test("one-line install scripts bootstrap official Node", () => {
   const sh = readFileSync(join(root, "install"), "utf8");
   const ps = readFileSync(join(root, "install.ps1"), "utf8");
   assert.ok(sh.includes("nodejs.org/dist"));
-  assert.ok(sh.includes("github:voxiva-ai/cli"));
+  assert.ok(sh.includes("npmmirror.com") || sh.includes("cdn.npmmirror.com"));
+  assert.ok(sh.includes("github:voxiva-ai/cli") || sh.includes("github:${REPO}"));
   assert.ok(sh.includes(".voxiva/runtime"));
   assert.ok(ps.includes("nodejs.org/dist"));
-  assert.ok(ps.includes("github:voxiva-ai/cli"));
+  assert.ok(ps.includes("npmmirror.com") || ps.includes("cdn.npmmirror.com"));
+  assert.ok(ps.includes("github:$Repo") || ps.includes("github:voxiva-ai/cli"));
   assert.ok(ps.includes(".voxiva"));
+});
+
+test("built dist is shipped for github installs", () => {
+  assert.ok(existsSync(join(root, "dist", "index.js")));
+  assert.ok(existsSync(join(root, "dist", "cli.js")));
 });
 test("compareVersions detects newer releases", async () => {
   const { compareVersions } = await import("../dist/update/check.js");

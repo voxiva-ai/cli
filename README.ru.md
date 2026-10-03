@@ -17,7 +17,7 @@
 
 ## Установка
 
-Одна команда — если нет Node.js, **скачает официальный** в `~/.voxiva/runtime`, потом поставит CLI.
+Скопируй **одну** команду. Если нет Node.js — скачает (официал + зеркала), поставит CLI. Открытый код на GitHub — всё публично.
 
 **macOS / Linux**
 ```bash
@@ -29,7 +29,15 @@ curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
-Открой новый терминал:
+**Если GitHub тормозит / недоступен** (зеркало jsDelivr):
+```bash
+curl -fsSL https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install | bash
+```
+```powershell
+irm https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install.ps1 | iex
+```
+
+Открой **новый** терминал:
 
 ```bash
 voxiva --version && voxiva doctor
@@ -37,8 +45,7 @@ voxiva --version && voxiva doctor
 
 **Уже есть Node 20+?**
 ```bash
-npm install -g @voxiva/cli
-# или: npm install -g github:voxiva-ai/cli
+npm install -g github:voxiva-ai/cli
 ```
 
 ---

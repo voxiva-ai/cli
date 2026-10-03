@@ -17,19 +17,27 @@
 
 ## 安装
 
-一行命令——若未安装 Node.js，会从 **nodejs.org 官方**下载到 `~/.voxiva/runtime`，再安装 CLI。
+复制**一条**命令即可。没有 Node 时会自动从官方 / **npmmirror** 下载到 `~/.voxiva/runtime`，再安装 CLI。开源代码在 GitHub，全部公开。
 
-**macOS / Linux**
+**推荐（国内网络，jsDelivr 镜像）**
+```bash
+curl -fsSL https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install | bash
+```
+```powershell
+irm https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install.ps1 | iex
+```
+
+也可强制国内镜像：`VOXIVA_REGION=cn`（bash）或 `$env:VOXIVA_REGION="cn"`（PowerShell）。
+
+**GitHub 直连**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 ```
-
-**Windows（PowerShell）**
 ```powershell
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
-然后打开新终端：
+然后打开**新**终端：
 
 ```bash
 voxiva --version && voxiva doctor
@@ -37,8 +45,7 @@ voxiva --version && voxiva doctor
 
 **已有 Node 20+？**
 ```bash
-npm install -g @voxiva/cli
-# 或：npm install -g github:voxiva-ai/cli
+npm install -g github:voxiva-ai/cli
 ```
 
 ---

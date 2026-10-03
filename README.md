@@ -17,7 +17,7 @@
 
 ## Install
 
-One line — **downloads official Node.js** into `~/.voxiva/runtime` if missing, then installs the CLI.
+Copy **one** command. It downloads Node.js (official + mirrors) if missing, then installs the CLI. Works in EN / RU / CN networks — mirrors kick in automatically when GitHub or npmjs is slow.
 
 **macOS / Linux**
 ```bash
@@ -29,7 +29,17 @@ curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
-Then open a new terminal:
+**If GitHub is blocked/slow (often China)** — same installer via jsDelivr:
+```bash
+curl -fsSL https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install | bash
+```
+```powershell
+irm https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install.ps1 | iex
+```
+
+Force China mirrors: `VOXIVA_REGION=cn` (bash) or `$env:VOXIVA_REGION="cn"` (PowerShell) before the command.
+
+Then open a **new** terminal:
 
 ```bash
 voxiva --version && voxiva doctor
@@ -37,8 +47,7 @@ voxiva --version && voxiva doctor
 
 **Already have Node 20+?**
 ```bash
-npm install -g @voxiva/cli
-# or: npm install -g github:voxiva-ai/cli
+npm install -g github:voxiva-ai/cli
 ```
 
 ---

@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 # Voxiva CLI — one-line installer (macOS / Linux)
 #
+# Primary (GitHub):
 #   curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 #
-# Downloads official Node.js into ~/.voxiva/runtime if missing (<20),
-# installs the CLI, and puts a launcher on PATH.
+# Mirror if GitHub raw is slow/blocked (CN / some networks):
+#   curl -fsSL https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install | bash
+#
+# Downloads Node.js (official + mirrors) into ~/.voxiva/runtime when missing,
+# installs the CLI, puts a launcher on PATH. Works without a preinstalled Node.
 #
 # Optional:
 #   VERSION=0.1.0 curl … | bash
-#   VOXIVA_METHOD=github curl … | bash
+#   VOXIVA_METHOD=github|npm|auto curl … | bash
+#   VOXIVA_REGION=cn curl … | bash          # prefer China mirrors first
 
 set -euo pipefail
 
@@ -17,8 +22,9 @@ RUNTIME_DIR="$VOXIVA_HOME/runtime"
 PREFIX_DIR="$VOXIVA_HOME/prefix"
 BIN_DIR="$VOXIVA_HOME/bin"
 NODE_MIN_MAJOR=20
-# Fallback pin if index.json is unreachable
 NODE_FALLBACK_VERSION="22.14.0"
+REPO="voxiva-ai/cli"
+BRANCH="main"
 
 echo ""
 echo "  voxiva"
@@ -48,6 +54,22 @@ case "$os" in
     ;;
 esac
 
+# Prefer CN mirrors when locale/timezone/region says so (or VOXIVA_REGION=cn).
+prefer_cn=0
+region_lc="$(printf '%s' "${VOXIVA_REGION:-${LANG:-}${LC_ALL:-}${TZ:-}}" | tr '[:upper:]' '[:lower:]')"
+case "$region_lc" in
+  *cn*|*zh*|*shanghai*|*chongqing*|*urumqi*|*hongkong*|*prc*) prefer_cn=1 ;;
+esac
+
+curl_get() {
+  # $1=url $2=outfile
+  curl -fL --connect-timeout 12 --max-time 300 --retry 2 --retry-delay 1 -o "$2" "$1"
+}
+
+http_ok() {
+  curl -fsSI --connect-timeout 8 --max-time 15 "$1" >/dev/null 2>&1
+}
+
 node_ok() {
   local bin="$1"
   [ -x "$bin" ] || return 1
@@ -72,32 +94,60 @@ resolve_bundled_node() {
   return 1
 }
 
-latest_lts_version() {
-  local json
-  json="$(curl -fsSL --connect-timeout 15 --max-time 60 "https://nodejs.org/dist/index.json" 2>/dev/null || true)"
-  if [ -z "$json" ]; then
-    echo "$NODE_FALLBACK_VERSION"
-    return
-  fi
-  # First entry marked lts (not false)
-  local ver
-  ver="$(printf '%s' "$json" | tr '{' '\n' | grep '"lts":' | grep -v '"lts":false' | head -n1 | sed -n 's/.*"version":"v\([^"]*\)".*/\1/p')"
-  if [ -n "$ver" ]; then
-    echo "$ver"
+node_index_urls() {
+  if [ "$prefer_cn" -eq 1 ]; then
+    echo "https://cdn.npmmirror.com/binaries/node/index.json"
+    echo "https://nodejs.org/dist/index.json"
   else
-    echo "$NODE_FALLBACK_VERSION"
+    echo "https://nodejs.org/dist/index.json"
+    echo "https://cdn.npmmirror.com/binaries/node/index.json"
   fi
+}
+
+node_tarball_urls() {
+  local version="$1"
+  local base="node-v${version}-${platform}-${arch}.tar.gz"
+  if [ "$prefer_cn" -eq 1 ]; then
+    echo "https://cdn.npmmirror.com/binaries/node/v${version}/${base}"
+    echo "https://npmmirror.com/mirrors/node/v${version}/${base}"
+    echo "https://nodejs.org/dist/v${version}/${base}"
+  else
+    echo "https://nodejs.org/dist/v${version}/${base}"
+    echo "https://cdn.npmmirror.com/binaries/node/v${version}/${base}"
+    echo "https://npmmirror.com/mirrors/node/v${version}/${base}"
+  fi
+}
+
+latest_lts_version() {
+  local url json ver
+  while IFS= read -r url; do
+    json="$(curl -fsSL --connect-timeout 12 --max-time 45 "$url" 2>/dev/null || true)"
+    [ -z "$json" ] && continue
+    ver="$(printf '%s' "$json" | tr '{' '\n' | grep '"lts":' | grep -v '"lts":false' | head -n1 | sed -n 's/.*"version":"v\([^"]*\)".*/\1/p')"
+    if [ -n "$ver" ]; then
+      echo "$ver"
+      return
+    fi
+  done < <(node_index_urls)
+  echo "$NODE_FALLBACK_VERSION"
 }
 
 download_node() {
   local version="$1"
   local base="node-v${version}-${platform}-${arch}"
-  local url="https://nodejs.org/dist/v${version}/${base}.tar.gz"
-  local tmp
+  local tmp url
   tmp="$(mktemp -d)"
-  echo "→ Downloading Node.js v${version} (official nodejs.org)…"
-  if ! curl -fL --connect-timeout 20 --max-time 300 -o "$tmp/node.tar.gz" "$url"; then
-    echo "Failed to download $url"
+  echo "→ Downloading Node.js v${version}…"
+  local ok=0
+  while IFS= read -r url; do
+    echo "  trying $url"
+    if curl_get "$url" "$tmp/node.tar.gz"; then
+      ok=1
+      break
+    fi
+  done < <(node_tarball_urls "$version")
+  if [ "$ok" -ne 1 ]; then
+    echo "Failed to download Node.js from all mirrors."
     rm -rf "$tmp"
     exit 1
   fi
@@ -132,7 +182,6 @@ NODE_BIN="$(ensure_node)"
 export PATH="$(dirname "$NODE_BIN"):$PATH"
 
 if ! command -v npm >/dev/null 2>&1; then
-  # Bundled Node always ships npm next to node
   if [ -x "$(dirname "$NODE_BIN")/npm" ]; then
     export PATH="$(dirname "$NODE_BIN"):$PATH"
   else
@@ -147,30 +196,96 @@ echo "✓ npm $($NPM_BIN -v)"
 METHOD="${VOXIVA_METHOD:-auto}"
 VERSION="${VERSION:-latest}"
 
-install_pkg() {
-  local spec="$1"
-  echo "→ npm install --prefix $PREFIX_DIR $spec"
-  "$NPM_BIN" install --prefix "$PREFIX_DIR" --no-fund --no-audit "$spec"
+npm_registries() {
+  if [ "$prefer_cn" -eq 1 ]; then
+    echo "https://registry.npmmirror.com"
+    echo "https://registry.npmjs.org"
+  else
+    echo "https://registry.npmjs.org"
+    echo "https://registry.npmmirror.com"
+  fi
 }
 
-case "$METHOD" in
-  npm)
-    install_pkg "@voxiva/cli@${VERSION}"
-    ;;
-  github)
-    install_pkg "github:voxiva-ai/cli"
-    ;;
-  auto|*)
-    if install_pkg "@voxiva/cli@${VERSION}" 2>/dev/null; then
-      :
-    else
-      echo "  npm registry unavailable — installing from GitHub…"
-      install_pkg "github:voxiva-ai/cli"
-    fi
-    ;;
-esac
+install_pkg_with_registry() {
+  local spec="$1"
+  local registry="$2"
+  echo "→ npm install --prefix $PREFIX_DIR ($registry) $spec"
+  npm_config_registry="$registry" \
+    "$NPM_BIN" install --prefix "$PREFIX_DIR" --no-fund --no-audit --fetch-retries=3 --fetch-retry-mintimeout=2000 "$spec"
+}
 
-# Locate package entry (unix npm --prefix layout)
+install_pkg() {
+  local spec="$1"
+  local reg
+  local last_err=1
+  while IFS= read -r reg; do
+    if install_pkg_with_registry "$spec" "$reg"; then
+      return 0
+    fi
+    last_err=$?
+  done < <(npm_registries)
+  return "$last_err"
+}
+
+pkg_specs_auto() {
+  # Prefer GitHub — npm package may not be published yet.
+  echo "github:${REPO}"
+  echo "https://codeload.github.com/${REPO}/tar.gz/refs/heads/${BRANCH}"
+  echo "https://github.com/${REPO}/archive/refs/heads/${BRANCH}.tar.gz"
+  echo "@voxiva/cli@${VERSION}"
+}
+
+install_cli() {
+  local spec
+  case "$METHOD" in
+    npm)
+      install_pkg "@voxiva/cli@${VERSION}"
+      return
+      ;;
+    github)
+      install_pkg "github:${REPO}" || install_pkg "https://codeload.github.com/${REPO}/tar.gz/refs/heads/${BRANCH}"
+      return
+      ;;
+  esac
+
+  while IFS= read -r spec; do
+    echo "→ Trying package source: $spec"
+    if install_pkg "$spec"; then
+      return 0
+    fi
+    echo "  failed, next source…"
+  done < <(pkg_specs_auto)
+  echo "All package sources failed."
+  exit 1
+}
+
+install_cli
+
+# If git install brought sources without dist, build once.
+PKG_ROOT=""
+for candidate in \
+  "$PREFIX_DIR/lib/node_modules/@voxiva/cli" \
+  "$PREFIX_DIR/node_modules/@voxiva/cli"
+do
+  if [ -d "$candidate" ]; then
+    PKG_ROOT="$candidate"
+    break
+  fi
+done
+
+if [ -n "$PKG_ROOT" ] && [ ! -f "$PKG_ROOT/dist/index.js" ]; then
+  echo "→ Building CLI (dist missing)…"
+  (
+    cd "$PKG_ROOT"
+    if [ -f package-lock.json ]; then
+      "$NPM_BIN" ci --no-fund --no-audit || "$NPM_BIN" install --no-fund --no-audit
+    else
+      "$NPM_BIN" install --no-fund --no-audit
+    fi
+    "$NPM_BIN" run build
+  )
+fi
+
 PKG_ENTRY=""
 for candidate in \
   "$PREFIX_DIR/lib/node_modules/@voxiva/cli/dist/index.js" \
@@ -192,27 +307,23 @@ cat > "$BIN_DIR/voxiva" <<EOF
 set -euo pipefail
 HOME_DIR="\${VOXIVA_HOME:-\$HOME/.voxiva}"
 NODE="\$HOME_DIR/runtime/current/bin/node"
-ENTRY="$PKG_ENTRY"
-# Re-resolve entry relative to prefix if this install moved
-if [ ! -f "\$ENTRY" ]; then
-  for c in \\
-    "\$HOME_DIR/prefix/lib/node_modules/@voxiva/cli/dist/index.js" \\
-    "\$HOME_DIR/prefix/node_modules/@voxiva/cli/dist/index.js"
-  do
-    [ -f "\$c" ] && ENTRY="\$c" && break
-  done
-fi
+ENTRY=""
+for c in \\
+  "\$HOME_DIR/prefix/lib/node_modules/@voxiva/cli/dist/index.js" \\
+  "\$HOME_DIR/prefix/node_modules/@voxiva/cli/dist/index.js"
+do
+  [ -f "\$c" ] && ENTRY="\$c" && break
+done
 if [ ! -x "\$NODE" ]; then
-  # Fall back to system node, or re-run installer
   if command -v node >/dev/null 2>&1; then
     NODE="\$(command -v node)"
   else
-    echo "Node.js missing. Re-run:"
-    echo "  curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash"
+    echo "Node.js missing. Re-run installer:"
+    echo "  curl -fsSL https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install | bash"
     exit 1
   fi
 fi
-if [ ! -f "\$ENTRY" ]; then
+if [ -z "\$ENTRY" ] || [ ! -f "\$ENTRY" ]; then
   echo "Voxiva CLI files missing. Re-run the installer."
   exit 1
 fi
@@ -220,18 +331,14 @@ exec "\$NODE" "\$ENTRY" "\$@"
 EOF
 chmod +x "$BIN_DIR/voxiva"
 
-# Also symlink into ~/.local/bin when possible
 LOCAL_BIN="$HOME/.local/bin"
 mkdir -p "$LOCAL_BIN"
 ln -sfn "$BIN_DIR/voxiva" "$LOCAL_BIN/voxiva"
 
-# Persist PATH for common shells
 path_line='export PATH="$HOME/.voxiva/bin:$HOME/.local/bin:$PATH"'
 for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
   if [ -f "$rc" ] || [ "$rc" = "$HOME/.profile" ]; then
-    if [ ! -f "$rc" ]; then
-      touch "$rc"
-    fi
+    [ -f "$rc" ] || touch "$rc"
     if ! grep -qF '.voxiva/bin' "$rc" 2>/dev/null; then
       printf '\n# Voxiva CLI\n%s\n' "$path_line" >> "$rc"
     fi
@@ -251,7 +358,7 @@ echo "  then /models  (free)  or  /connect  (API keys)"
 echo ""
 echo "Doctor:  voxiva doctor"
 echo ""
-echo "Node + CLI live under: $VOXIVA_HOME"
-echo "If 'voxiva' is not found, open a new terminal or run:"
+echo "Files: $VOXIVA_HOME"
+echo "If 'voxiva' is not found, open a new terminal or:"
 echo "  export PATH=\"$BIN_DIR:\$PATH\""
 echo ""
