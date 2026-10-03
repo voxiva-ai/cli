@@ -51,6 +51,10 @@ export async function doctorCheck(): Promise<number> {
     return 1;
   }
 
-  console.log(c.ok("Ready."), c.brand("voxiva"), c.muted("— free model works without keys. /models to switch."));
+  console.log(
+    c.ok("Ready."),
+    c.brand("voxiva"),
+    c.muted("— free models work without keys. Missing Node? re-run the one-line installer."),
+  );
   return 0;
 }

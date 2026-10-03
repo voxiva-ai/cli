@@ -13,14 +13,15 @@ echo "  voxiva"
 echo "  Installing from source…"
 echo ""
 
-if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js 20+ is required: https://nodejs.org/"
-  exit 1
+# Bootstrap Node from official installer if missing.
+if ! command -v node >/dev/null 2>&1 || [ "$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)" -lt 20 ]; then
+  echo "Node.js 20+ missing — running one-line installer bootstrap…"
+  curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
+  export PATH="$HOME/.voxiva/bin:$HOME/.voxiva/runtime/current/bin:$HOME/.local/bin:$PATH"
 fi
 
-major="$(node -p "process.versions.node.split('.')[0]")"
-if [ "$major" -lt 20 ]; then
-  echo "Node.js 20+ is required (found $(node -v))."
+if ! command -v node >/dev/null 2>&1; then
+  echo "Node.js still missing after bootstrap."
   exit 1
 fi
 
@@ -47,7 +48,7 @@ voxiva --version
 echo ""
 echo "Next:"
 echo "  voxiva"
-echo "  then /connect and /models"
+echo "  then /models or /connect"
 echo ""
 echo "Prefer one-line install without cloning?"
 echo "  curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash"

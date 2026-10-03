@@ -17,6 +17,8 @@
 
 ## 安装
 
+一行命令——若未安装 Node.js，会从 **nodejs.org 官方**下载到 `~/.voxiva/runtime`，再安装 CLI。
+
 **macOS / Linux**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
@@ -27,14 +29,16 @@ curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
-**npm**
-```bash
-npm install -g @voxiva/cli
-# 或：npm install -g github:voxiva-ai/cli
-```
+然后打开新终端：
 
 ```bash
 voxiva --version && voxiva doctor
+```
+
+**已有 Node 20+？**
+```bash
+npm install -g @voxiva/cli
+# 或：npm install -g github:voxiva-ai/cli
 ```
 
 ---
@@ -83,9 +87,9 @@ voxiva
 
 ## 说明
 
-- **免费模型**不会走付费扣费路径
-- 启动时检查更新（有新版本会显示横幅）
-- 数据目录：`~/.voxiva/`
-- 卸载：`npm uninstall -g @voxiva/cli`
+- **免费模型**不扣费；API Key 用 `/connect`
+- 安装程序将 Node + CLI 放在 `~/.voxiva/`（`runtime/`、`prefix/`、`bin/`）
+- 数据：同目录下的 `config.json`、`auth.json`、`sessions.json`
+- 卸载：删除 `~/.voxiva` 并从 PATH 移除
 
 MIT · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)

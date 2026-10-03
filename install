@@ -3,78 +3,255 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 #
+# Downloads official Node.js into ~/.voxiva/runtime if missing (<20),
+# installs the CLI, and puts a launcher on PATH.
+#
 # Optional:
-#   VERSION=0.1.0 curl … | bash     # pin npm package version when published
-#   VOXIVA_METHOD=github curl … | bash   # force github:voxiva-ai/cli
+#   VERSION=0.1.0 curl … | bash
+#   VOXIVA_METHOD=github curl … | bash
 
 set -euo pipefail
+
+VOXIVA_HOME="${VOXIVA_HOME:-$HOME/.voxiva}"
+RUNTIME_DIR="$VOXIVA_HOME/runtime"
+PREFIX_DIR="$VOXIVA_HOME/prefix"
+BIN_DIR="$VOXIVA_HOME/bin"
+NODE_MIN_MAJOR=20
+# Fallback pin if index.json is unreachable
+NODE_FALLBACK_VERSION="22.14.0"
 
 echo ""
 echo "  voxiva"
 echo "  Installing Voxiva CLI…"
 echo ""
 
-if ! command -v node >/dev/null 2>&1; then
-  echo "Node.js 20+ is required: https://nodejs.org/"
-  exit 1
-fi
+mkdir -p "$VOXIVA_HOME" "$RUNTIME_DIR" "$PREFIX_DIR" "$BIN_DIR"
 
-major="$(node -p "process.versions.node.split('.')[0]")"
-if [ "$major" -lt 20 ]; then
-  echo "Node.js 20+ is required (found $(node -v))."
-  exit 1
-fi
+os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+arch="$(uname -m)"
+case "$arch" in
+  x86_64|amd64) arch="x64" ;;
+  aarch64|arm64) arch="arm64" ;;
+  armv7l) arch="armv7l" ;;
+  *)
+    echo "Unsupported CPU: $arch"
+    exit 1
+    ;;
+esac
+
+case "$os" in
+  linux) platform="linux" ;;
+  darwin) platform="darwin" ;;
+  *)
+    echo "Unsupported OS: $os (use install.ps1 on Windows)"
+    exit 1
+    ;;
+esac
+
+node_ok() {
+  local bin="$1"
+  [ -x "$bin" ] || return 1
+  local major
+  major="$("$bin" -p "process.versions.node.split('.')[0]" 2>/dev/null || true)"
+  [ -n "$major" ] && [ "$major" -ge "$NODE_MIN_MAJOR" ]
+}
+
+resolve_system_node() {
+  if command -v node >/dev/null 2>&1 && node_ok "$(command -v node)"; then
+    command -v node
+    return 0
+  fi
+  return 1
+}
+
+resolve_bundled_node() {
+  if [ -x "$RUNTIME_DIR/current/bin/node" ] && node_ok "$RUNTIME_DIR/current/bin/node"; then
+    echo "$RUNTIME_DIR/current/bin/node"
+    return 0
+  fi
+  return 1
+}
+
+latest_lts_version() {
+  local json
+  json="$(curl -fsSL --connect-timeout 15 --max-time 60 "https://nodejs.org/dist/index.json" 2>/dev/null || true)"
+  if [ -z "$json" ]; then
+    echo "$NODE_FALLBACK_VERSION"
+    return
+  fi
+  # First entry marked lts (not false)
+  local ver
+  ver="$(printf '%s' "$json" | tr '{' '\n' | grep '"lts":' | grep -v '"lts":false' | head -n1 | sed -n 's/.*"version":"v\([^"]*\)".*/\1/p')"
+  if [ -n "$ver" ]; then
+    echo "$ver"
+  else
+    echo "$NODE_FALLBACK_VERSION"
+  fi
+}
+
+download_node() {
+  local version="$1"
+  local base="node-v${version}-${platform}-${arch}"
+  local url="https://nodejs.org/dist/v${version}/${base}.tar.gz"
+  local tmp
+  tmp="$(mktemp -d)"
+  echo "→ Downloading Node.js v${version} (official nodejs.org)…"
+  if ! curl -fL --connect-timeout 20 --max-time 300 -o "$tmp/node.tar.gz" "$url"; then
+    echo "Failed to download $url"
+    rm -rf "$tmp"
+    exit 1
+  fi
+  echo "→ Extracting…"
+  tar -xzf "$tmp/node.tar.gz" -C "$tmp"
+  rm -rf "$RUNTIME_DIR/$base"
+  mv "$tmp/$base" "$RUNTIME_DIR/$base"
+  ln -sfn "$RUNTIME_DIR/$base" "$RUNTIME_DIR/current"
+  rm -rf "$tmp"
+  echo "✓ Node.js v${version} → $RUNTIME_DIR/current"
+}
+
+ensure_node() {
+  local node_bin=""
+  if node_bin="$(resolve_bundled_node)"; then
+    echo "✓ Node.js $($node_bin -v) (bundled)" >&2
+    printf '%s\n' "$node_bin"
+    return
+  fi
+  if node_bin="$(resolve_system_node)"; then
+    echo "✓ Node.js $($node_bin -v) (system)" >&2
+    printf '%s\n' "$node_bin"
+    return
+  fi
+  local ver
+  ver="$(latest_lts_version)"
+  download_node "$ver" >&2
+  resolve_bundled_node
+}
+
+NODE_BIN="$(ensure_node)"
+export PATH="$(dirname "$NODE_BIN"):$PATH"
 
 if ! command -v npm >/dev/null 2>&1; then
-  echo "npm is required (comes with Node.js)."
-  exit 1
+  # Bundled Node always ships npm next to node
+  if [ -x "$(dirname "$NODE_BIN")/npm" ]; then
+    export PATH="$(dirname "$NODE_BIN"):$PATH"
+  else
+    echo "npm missing next to Node at $NODE_BIN"
+    exit 1
+  fi
 fi
+
+NPM_BIN="$(command -v npm)"
+echo "✓ npm $($NPM_BIN -v)"
 
 METHOD="${VOXIVA_METHOD:-auto}"
 VERSION="${VERSION:-latest}"
 
-install_npm() {
-  echo "→ npm install -g @voxiva/cli@${VERSION}"
-  npm install -g "@voxiva/cli@${VERSION}"
-}
-
-install_github() {
-  echo "→ npm install -g github:voxiva-ai/cli"
-  npm install -g "github:voxiva-ai/cli"
+install_pkg() {
+  local spec="$1"
+  echo "→ npm install --prefix $PREFIX_DIR $spec"
+  "$NPM_BIN" install --prefix "$PREFIX_DIR" --no-fund --no-audit "$spec"
 }
 
 case "$METHOD" in
   npm)
-    install_npm
+    install_pkg "@voxiva/cli@${VERSION}"
     ;;
   github)
-    install_github
+    install_pkg "github:voxiva-ai/cli"
     ;;
   auto|*)
-    if install_npm 2>/dev/null; then
+    if install_pkg "@voxiva/cli@${VERSION}" 2>/dev/null; then
       :
     else
       echo "  npm registry unavailable — installing from GitHub…"
-      install_github
+      install_pkg "github:voxiva-ai/cli"
     fi
     ;;
 esac
 
-echo ""
-if command -v voxiva >/dev/null 2>&1; then
-  echo "✓ Installed"
-  echo ""
-  voxiva --version
-  echo ""
-  echo "Next:"
-  echo "  voxiva"
-  echo "  then /connect and /models"
-  echo ""
-  echo "Doctor:  voxiva doctor"
-else
-  echo "Installed, but voxiva is not on PATH."
-  echo "Add your npm global bin to PATH, then run: voxiva doctor"
-  NPM_BIN="$(npm prefix -g)/bin"
-  echo "  export PATH=\"$NPM_BIN:\$PATH\""
+# Locate package entry (unix npm --prefix layout)
+PKG_ENTRY=""
+for candidate in \
+  "$PREFIX_DIR/lib/node_modules/@voxiva/cli/dist/index.js" \
+  "$PREFIX_DIR/node_modules/@voxiva/cli/dist/index.js"
+do
+  if [ -f "$candidate" ]; then
+    PKG_ENTRY="$candidate"
+    break
+  fi
+done
+
+if [ -z "$PKG_ENTRY" ]; then
+  echo "Install finished but package entry not found under $PREFIX_DIR"
   exit 1
 fi
+
+cat > "$BIN_DIR/voxiva" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+HOME_DIR="\${VOXIVA_HOME:-\$HOME/.voxiva}"
+NODE="\$HOME_DIR/runtime/current/bin/node"
+ENTRY="$PKG_ENTRY"
+# Re-resolve entry relative to prefix if this install moved
+if [ ! -f "\$ENTRY" ]; then
+  for c in \\
+    "\$HOME_DIR/prefix/lib/node_modules/@voxiva/cli/dist/index.js" \\
+    "\$HOME_DIR/prefix/node_modules/@voxiva/cli/dist/index.js"
+  do
+    [ -f "\$c" ] && ENTRY="\$c" && break
+  done
+fi
+if [ ! -x "\$NODE" ]; then
+  # Fall back to system node, or re-run installer
+  if command -v node >/dev/null 2>&1; then
+    NODE="\$(command -v node)"
+  else
+    echo "Node.js missing. Re-run:"
+    echo "  curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash"
+    exit 1
+  fi
+fi
+if [ ! -f "\$ENTRY" ]; then
+  echo "Voxiva CLI files missing. Re-run the installer."
+  exit 1
+fi
+exec "\$NODE" "\$ENTRY" "\$@"
+EOF
+chmod +x "$BIN_DIR/voxiva"
+
+# Also symlink into ~/.local/bin when possible
+LOCAL_BIN="$HOME/.local/bin"
+mkdir -p "$LOCAL_BIN"
+ln -sfn "$BIN_DIR/voxiva" "$LOCAL_BIN/voxiva"
+
+# Persist PATH for common shells
+path_line='export PATH="$HOME/.voxiva/bin:$HOME/.local/bin:$PATH"'
+for rc in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile"; do
+  if [ -f "$rc" ] || [ "$rc" = "$HOME/.profile" ]; then
+    if [ ! -f "$rc" ]; then
+      touch "$rc"
+    fi
+    if ! grep -qF '.voxiva/bin' "$rc" 2>/dev/null; then
+      printf '\n# Voxiva CLI\n%s\n' "$path_line" >> "$rc"
+    fi
+  fi
+done
+
+export PATH="$BIN_DIR:$LOCAL_BIN:$PATH"
+
+echo ""
+echo "✓ Installed"
+echo ""
+"$BIN_DIR/voxiva" --version
+echo ""
+echo "Next:"
+echo "  voxiva"
+echo "  then /models  (free)  or  /connect  (API keys)"
+echo ""
+echo "Doctor:  voxiva doctor"
+echo ""
+echo "Node + CLI live under: $VOXIVA_HOME"
+echo "If 'voxiva' is not found, open a new terminal or run:"
+echo "  export PATH=\"$BIN_DIR:\$PATH\""
+echo ""

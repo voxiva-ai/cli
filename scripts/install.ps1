@@ -18,15 +18,22 @@ Write-Brand "  voxiva"
 Write-Brand "  Installing from source…" "DarkGray"
 Write-Brand ""
 
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-  Write-Host "Node.js 20+ is required: https://nodejs.org/" -ForegroundColor Red
-  exit 1
+$needNode = $true
+$nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+if ($nodeCmd) {
+  try {
+    $major = [int](node -p "process.versions.node.split('.')[0]")
+    if ($major -ge 20) { $needNode = $false }
+  } catch { $needNode = $true }
+}
+if ($needNode) {
+  Write-Brand "Node.js 20+ missing — bootstrapping from official installer…" "DarkGray"
+  Invoke-RestMethod https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | Invoke-Expression
+  $env:Path = "$HOME\.voxiva\bin;$HOME\.voxiva\runtime\current;$env:Path"
 }
 
-$nodeVersion = node -p "process.versions.node"
-$major = [int]($nodeVersion.Split(".")[0])
-if ($major -lt 20) {
-  Write-Host "Node.js 20+ is required (found $nodeVersion)." -ForegroundColor Red
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+  Write-Host "Node.js still missing after bootstrap." -ForegroundColor Red
   exit 1
 }
 
@@ -53,7 +60,7 @@ try {
   Write-Brand ""
   Write-Brand "Next:" "DarkGray"
   Write-Brand "  voxiva" "Blue"
-  Write-Brand "  then /connect and /models" "Blue"
+  Write-Brand "  then /models or /connect" "Blue"
   Write-Brand ""
   Write-Brand "Prefer one-line install without cloning?" "DarkGray"
   Write-Brand "  irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex" "Cyan"

@@ -289,14 +289,18 @@ test("free models never require a key", async () => {
   assert.equal(canUseWithoutKey("openai/gpt-4.1"), false);
 });
 
-test("one-line install scripts exist", () => {
+test("one-line install scripts bootstrap official Node", () => {
   assert.ok(existsSync(join(root, "install")));
   assert.ok(existsSync(join(root, "install.ps1")));
   const sh = readFileSync(join(root, "install"), "utf8");
-  assert.ok(sh.includes("npm install -g"));
+  const ps = readFileSync(join(root, "install.ps1"), "utf8");
+  assert.ok(sh.includes("nodejs.org/dist"));
   assert.ok(sh.includes("github:voxiva-ai/cli"));
+  assert.ok(sh.includes(".voxiva/runtime"));
+  assert.ok(ps.includes("nodejs.org/dist"));
+  assert.ok(ps.includes("github:voxiva-ai/cli"));
+  assert.ok(ps.includes(".voxiva"));
 });
-
 test("compareVersions detects newer releases", async () => {
   const { compareVersions } = await import("../dist/update/check.js");
   assert.equal(compareVersions("0.0.1", "0.0.0"), 1);

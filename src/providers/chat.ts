@@ -204,6 +204,80 @@ function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
+/** Keep recent turns so free/API models stay fast. */
+function prepareMessages(messages: ChatMessage[], maxChars = 48_000): ChatMessage[] {
+  const system = messages.filter((m) => m.role === "system");
+  const rest = messages.filter((m) => m.role !== "system");
+  const kept: ChatMessage[] = [];
+  let budget = maxChars;
+  for (let i = rest.length - 1; i >= 0; i--) {
+    const msg = rest[i];
+    const cost = msg.content.length + 24;
+    if (kept.length >= 2 && cost > budget) break;
+    kept.unshift(msg);
+    budget -= cost;
+  }
+  const sys = system[0];
+  if (!sys) return kept;
+  const sysText =
+    sys.content.length > 12_000
+      ? `${sys.content.slice(0, 12_000)}\n…(system truncated for speed)`
+      : sys.content;
+  return [{ role: "system", content: sysText }, ...kept];
+}
+
+type OpenAIClient = import("openai").default;
+type AnthropicClient = import("@anthropic-ai/sdk").default;
+
+const openaiClients = new Map<string, OpenAIClient>();
+const anthropicClients = new Map<string, AnthropicClient>();
+
+async function getOpenAIClient(auth: AuthStore, provider: ProviderId): Promise<OpenAIClient> {
+  const key = requireKey(auth, provider);
+  const cacheKey = `${provider}:${key.slice(0, 12)}`;
+  const hit = openaiClients.get(cacheKey);
+  if (hit) return hit;
+
+  const baseURL =
+    provider === "openrouter"
+      ? "https://openrouter.ai/api/v1"
+      : provider === "groq"
+        ? "https://api.groq.com/openai/v1"
+        : provider === "google"
+          ? "https://generativelanguage.googleapis.com/v1beta/openai"
+          : provider === "deepseek"
+            ? "https://api.deepseek.com"
+            : undefined;
+
+  const { default: OpenAI } = await import("openai");
+  const client = new OpenAI({
+    apiKey: key,
+    baseURL,
+    timeout: 90_000,
+    maxRetries: 1,
+    ...(provider === "openrouter"
+      ? {
+          defaultHeaders: {
+            "HTTP-Referer": "https://github.com/voxiva-ai/cli",
+            "X-Title": "Voxiva CLI",
+          },
+        }
+      : {}),
+  });
+  openaiClients.set(cacheKey, client);
+  return client;
+}
+
+async function getAnthropicClient(apiKey: string): Promise<AnthropicClient> {
+  const cacheKey = apiKey.slice(0, 12);
+  const hit = anthropicClients.get(cacheKey);
+  if (hit) return hit;
+  const { default: Anthropic } = await import("@anthropic-ai/sdk");
+  const client = new Anthropic({ apiKey, maxRetries: 1, timeout: 90_000 });
+  anthropicClients.set(cacheKey, client);
+  return client;
+}
+
 async function streamKeylessFree(
   upstream: string,
   messages: ChatMessage[],
@@ -212,6 +286,7 @@ async function streamKeylessFree(
   const bodyBase = {
     model: upstream || "openai-fast",
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    temperature: 0.3,
   };
   const headers = {
     "content-type": "application/json",
@@ -221,16 +296,16 @@ async function streamKeylessFree(
 
   let lastError = "Free model unavailable.";
 
-  // 1) Streaming first
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // 1) Streaming first — short retries for speed
+  for (let attempt = 0; attempt < 2; attempt++) {
     if (handlers.signal?.aborted) break;
-    if (attempt > 0) await sleep(350 * attempt);
+    if (attempt > 0) await sleep(120 * attempt);
     try {
       const response = await fetch(POLLINATIONS_URL, {
         method: "POST",
         headers: { ...headers, accept: "text/event-stream" },
         body: JSON.stringify({ ...bodyBase, stream: true }),
-        signal: withTimeout(handlers.signal, 60_000),
+        signal: withTimeout(handlers.signal, 45_000),
       });
       if (response.status === 429 || response.status === 402) {
         lastError = "Free model is busy — retrying…";
@@ -285,48 +360,32 @@ async function streamKeylessFree(
     }
   }
 
-  // 2) Non-stream fallback
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (handlers.signal?.aborted) break;
-    if (attempt > 0) await sleep(400 * attempt);
+  // 2) Non-stream fallback (one fast shot)
+  if (!handlers.signal?.aborted) {
     try {
       const response = await fetch(POLLINATIONS_URL, {
         method: "POST",
         headers,
         body: JSON.stringify({ ...bodyBase, stream: false }),
-        signal: withTimeout(handlers.signal, 60_000),
+        signal: withTimeout(handlers.signal, 40_000),
       });
       const raw = await response.text();
-      if (response.status === 429 || response.status === 402) {
-        lastError = "Free model is busy — retrying…";
-        continue;
+      if (response.ok && raw.trim() && raw.trim() !== "{}") {
+        const parsed = JSON.parse(raw) as {
+          choices?: { message?: { content?: string } }[];
+        };
+        const full = parsed.choices?.[0]?.message?.content?.trim() ?? "";
+        if (full) {
+          handlers.onToken(full);
+          handlers.onDone?.();
+          return full;
+        }
       }
-      if (!response.ok) {
-        lastError = `Free model error (${response.status}).`;
-        continue;
-      }
-      if (!raw.trim() || raw.trim() === "{}") {
-        lastError = "Empty free-model reply — retrying…";
-        continue;
-      }
-      let parsed: { choices?: { message?: { content?: string } }[] };
-      try {
-        parsed = JSON.parse(raw) as typeof parsed;
-      } catch {
-        lastError = "Free model returned invalid JSON.";
-        continue;
-      }
-      const full = parsed.choices?.[0]?.message?.content?.trim() ?? "";
-      if (!full) {
-        lastError = "Empty free-model reply — retrying…";
-        continue;
-      }
-      handlers.onToken(full);
-      handlers.onDone?.();
-      return full;
+      lastError = `Free model error (${response.status}).`;
     } catch (err) {
-      if (handlers.signal?.aborted) break;
-      lastError = err instanceof Error ? err.message : String(err);
+      if (!handlers.signal?.aborted) {
+        lastError = err instanceof Error ? err.message : String(err);
+      }
     }
   }
   throw new Error(lastError);
@@ -342,6 +401,7 @@ export async function streamChat(
   const provider = modelRefStr.slice(0, slash) as ProviderId;
   const model = modelRefStr.slice(slash + 1);
   const catalog = findCatalog(modelRefStr);
+  const prepared = prepareMessages(messages);
 
   // Built-in free — OpenRouter when key+mapping, else keyless gateway.
   if (provider === "voxiva" || catalog?.builtin) {
@@ -351,30 +411,30 @@ export async function streamChat(
           auth,
           "openrouter",
           catalog.openrouterId,
-          messages,
+          prepared,
           handlers,
         );
       } catch {
         // fall through to keyless
       }
     }
-    return streamKeylessFree(catalog?.upstream ?? "openai-fast", messages, handlers);
+    return streamKeylessFree(catalog?.upstream ?? "openai-fast", prepared, handlers);
   }
 
   // Legacy openrouter free without key → keyless so chat still works.
   if (catalog?.free && !providerReady(auth, provider)) {
-    return streamKeylessFree("openai-fast", messages, handlers);
+    return streamKeylessFree("openai-fast", prepared, handlers);
   }
 
   if (provider === "anthropic") {
-    return streamAnthropic(requireKey(auth, "anthropic"), model, messages, handlers);
+    return streamAnthropic(requireKey(auth, "anthropic"), model, prepared, handlers);
   }
 
   try {
-    return await streamOpenAICompat(auth, provider, model, messages, handlers);
+    return await streamOpenAICompat(auth, provider, model, prepared, handlers);
   } catch (err) {
     if (catalog?.free) {
-      return streamKeylessFree(catalog.upstream ?? "openai-fast", messages, handlers);
+      return streamKeylessFree(catalog.upstream ?? "openai-fast", prepared, handlers);
     }
     throw err;
   }
@@ -387,36 +447,13 @@ async function streamOpenAICompat(
   messages: ChatMessage[],
   handlers: StreamHandlers,
 ): Promise<string> {
-  const baseURL =
-    provider === "openrouter"
-      ? "https://openrouter.ai/api/v1"
-      : provider === "groq"
-        ? "https://api.groq.com/openai/v1"
-        : provider === "google"
-          ? "https://generativelanguage.googleapis.com/v1beta/openai"
-          : provider === "deepseek"
-            ? "https://api.deepseek.com"
-            : undefined;
-
-  const { default: OpenAI } = await import("openai");
-  const client = new OpenAI({
-    apiKey: requireKey(auth, provider),
-    baseURL,
-    ...(provider === "openrouter"
-      ? {
-          defaultHeaders: {
-            "HTTP-Referer": "https://github.com/voxiva-ai/cli",
-            "X-Title": "Voxiva CLI",
-          },
-        }
-      : {}),
-  });
-
+  const client = await getOpenAIClient(auth, provider);
   const stream = await client.chat.completions.create(
     {
       model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       stream: true,
+      temperature: 0.3,
     },
     { signal: handlers.signal },
   );
@@ -440,8 +477,7 @@ async function streamAnthropic(
   messages: ChatMessage[],
   handlers: StreamHandlers,
 ): Promise<string> {
-  const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const client = new Anthropic({ apiKey });
+  const client = await getAnthropicClient(apiKey);
 
   const system = messages.find((m) => m.role === "system")?.content;
   const rest = messages.filter((m) => m.role !== "system");
@@ -450,6 +486,7 @@ async function streamAnthropic(
     {
       model,
       max_tokens: 8192,
+      temperature: 0.3,
       system: system || undefined,
       messages: rest.map((m) => ({
         role: m.role === "assistant" ? "assistant" : "user",

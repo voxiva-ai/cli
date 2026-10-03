@@ -17,6 +17,8 @@
 
 ## Установка
 
+Одна команда — если нет Node.js, **скачает официальный** в `~/.voxiva/runtime`, потом поставит CLI.
+
 **macOS / Linux**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
@@ -27,14 +29,16 @@ curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
-**npm**
-```bash
-npm install -g @voxiva/cli
-# или: npm install -g github:voxiva-ai/cli
-```
+Открой новый терминал:
 
 ```bash
 voxiva --version && voxiva doctor
+```
+
+**Уже есть Node 20+?**
+```bash
+npm install -g @voxiva/cli
+# или: npm install -g github:voxiva-ai/cli
 ```
 
 ---
@@ -83,9 +87,9 @@ voxiva
 
 ## Важно
 
-- **Free**-модели не снимают деньги
-- При запуске проверяются обновления (баннер, если есть новая версия)
-- Данные: `~/.voxiva/` (Windows: `%USERPROFILE%\.voxiva\`)
-- Удалить: `npm uninstall -g @voxiva/cli`
+- **Free**-модели без оплаты; API-ключи — `/connect`
+- Установщик кладёт Node + CLI в `~/.voxiva/` (`runtime/`, `prefix/`, `bin/`)
+- Данные: `config.json`, `auth.json`, `sessions.json` там же
+- Удалить: папку `~/.voxiva` и запись из PATH
 
 MIT · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)

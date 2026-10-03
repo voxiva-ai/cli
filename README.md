@@ -17,6 +17,8 @@
 
 ## Install
 
+One line — **downloads official Node.js** into `~/.voxiva/runtime` if missing, then installs the CLI.
+
 **macOS / Linux**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
@@ -27,14 +29,16 @@ curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
-**npm**
-```bash
-npm install -g @voxiva/cli
-# or: npm install -g github:voxiva-ai/cli
-```
+Then open a new terminal:
 
 ```bash
 voxiva --version && voxiva doctor
+```
+
+**Already have Node 20+?**
+```bash
+npm install -g @voxiva/cli
+# or: npm install -g github:voxiva-ai/cli
 ```
 
 ---
@@ -83,9 +87,10 @@ Free model works with **no API key**. Type → Enter.
 
 ## Notes
 
-- **Free** models = no billing on the free path
-- Updates check on launch (banner if newer release)
+- **Free** models = no billing on the free path (fast streaming)
+- **API keys** via `/connect` — OpenAI / Anthropic / Google / OpenRouter (cached clients, streamed)
+- Installer stores Node + CLI under `~/.voxiva/` (`runtime/`, `prefix/`, `bin/`)
 - Data: `~/.voxiva/` (`config.json`, `auth.json`, `sessions.json`)
-- Uninstall: `npm uninstall -g @voxiva/cli`
+- Uninstall: delete `~/.voxiva` and remove it from PATH
 
 MIT · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
