@@ -15,6 +15,16 @@
 #   $env:VOXIVA_REGION = "cn"       # prefer China mirrors first
 
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+
+# Brand-new Windows boxes often default to TLS 1.0 — force modern TLS.
+try {
+  [Net.ServicePointManager]::SecurityProtocol = `
+    [Net.SecurityProtocolType]::Tls12 -bor `
+    [Net.SecurityProtocolType]::Tls13
+} catch {
+  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+}
 
 function Write-Brand([string]$Text, [string]$Color = "Cyan") {
   Write-Host $Text -ForegroundColor $Color
@@ -147,6 +157,21 @@ function Install-OfficialNode([string]$Version) {
   Write-Brand "[ok] Node.js v$Version -> $current" "Green"
 }
 
+function Install-NodeViaWinget {
+  $winget = Get-Command winget -ErrorAction SilentlyContinue
+  if (-not $winget) { return $false }
+  Write-Brand "-> Trying winget OpenJS.NodeJS.LTS…" "DarkGray"
+  try {
+    & winget install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements --silent
+    $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
+    Start-Sleep -Seconds 1
+    $system = Get-Command node -ErrorAction SilentlyContinue
+    return ($system -and (Test-NodeBin $system.Source))
+  } catch {
+    return $false
+  }
+}
+
 function Ensure-Node {
   $bundled = Join-Path $RuntimeDir "current\node.exe"
   if (Test-NodeBin $bundled) {
@@ -160,8 +185,22 @@ function Ensure-Node {
     return $system.Source
   }
 
-  $ver = Get-LatestLtsVersion
-  Install-OfficialNode $ver
+  try {
+    $ver = Get-LatestLtsVersion
+    Install-OfficialNode $ver
+  } catch {
+    Write-Brand "  zip download failed — trying winget…" "DarkGray"
+    if (-not (Install-NodeViaWinget)) {
+      throw "Node.js install failed. Install from https://nodejs.org/ and re-run."
+    }
+    $system = Get-Command node -ErrorAction SilentlyContinue
+    if ($system -and (Test-NodeBin $system.Source)) {
+      Write-Brand "[ok] Node.js $(& $system.Source -v) (winget)" "Green"
+      return $system.Source
+    }
+    throw "Node.js install failed"
+  }
+
   $bundled = Join-Path $RuntimeDir "current\node.exe"
   if (-not (Test-NodeBin $bundled)) {
     throw "Node.js install failed"
@@ -331,13 +370,16 @@ Write-Brand ""
 Write-Brand "[ok] Installed" "Green"
 Write-Brand ""
 & $LauncherCmd --version
+if ($LASTEXITCODE -ne 0) {
+  throw "voxiva --version failed after install"
+}
 Write-Brand ""
-Write-Brand "Next:" "DarkGray"
+Write-Brand "Smoke check…" "DarkGray"
+& $LauncherCmd doctor
+Write-Brand ""
+Write-Brand "Next (new terminal if needed):" "DarkGray"
 Write-Brand "  voxiva" "Blue"
 Write-Brand "  then /models  (free)  or  /connect  (API keys)" "Blue"
 Write-Brand ""
-Write-Brand "Doctor:  voxiva doctor" "DarkGray"
-Write-Brand ""
 Write-Brand "Files: $VoxivaHome" "DarkGray"
-Write-Brand "Open a new terminal if 'voxiva' is not found." "DarkGray"
 Write-Brand ""

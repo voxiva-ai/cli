@@ -33,12 +33,16 @@ export type ModelInfo = {
  */
 export const DEFAULT_FREE_MODEL: ModelRef = "voxiva/big-pickle";
 
-const POLLINATIONS_URL = "https://text.pollinations.ai/openai";
+/** Keyless OpenAI-compatible gateways (tried in order / raced). */
+const FREE_ENDPOINTS = [
+  "https://gen.pollinations.ai/v1/chat/completions",
+  "https://text.pollinations.ai/openai",
+] as const;
 
 /**
  * Free picker mirrors OpenCode Zen free models (names + ids).
- * All `builtin` entries work keyless via the gateway.
- * With an OpenRouter key, verified `openrouterId`s hit the real free model.
+ * All `builtin` entries work keyless. With an OpenRouter key, matching
+ * `openrouterId` routes to the real free OpenRouter model when possible.
  * @see https://opencode.ai/docs/zen/
  */
 const CATALOG: ModelInfo[] = [
@@ -70,6 +74,14 @@ const CATALOG: ModelInfo[] = [
   },
   {
     provider: "voxiva",
+    id: "fledge-alpha-free",
+    label: "Fledge Alpha Free",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+  },
+  {
+    provider: "voxiva",
     id: "mimo-v2.6-flash-free",
     label: "MiMo-V2.6-Flash Free",
     free: true,
@@ -83,6 +95,15 @@ const CATALOG: ModelInfo[] = [
     free: true,
     builtin: true,
     upstream: "openai-fast",
+  },
+  {
+    provider: "voxiva",
+    id: "ling-3.1-flash-free",
+    label: "Ling 3.1 Flash Free",
+    free: true,
+    builtin: true,
+    upstream: "openai-fast",
+    openrouterId: "inclusionai/ling-3.0-flash-sante:free",
   },
   {
     provider: "voxiva",
@@ -204,12 +225,26 @@ function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
+/** Warm TLS/DNS so the first free reply feels instant (OpenCode-like). */
+export function warmFreeGateway(): void {
+  for (const url of FREE_ENDPOINTS) {
+    void fetch(url, {
+      method: "OPTIONS",
+      signal: AbortSignal.timeout(4_000),
+      headers: { "user-agent": `voxiva-cli/${VERSION}` },
+    }).catch(() => {});
+  }
+}
+
 /** Keep recent turns so free/API models stay fast. */
-function prepareMessages(messages: ChatMessage[], maxChars = 48_000): ChatMessage[] {
+function prepareMessages(messages: ChatMessage[], maxChars = 40_000): ChatMessage[] {
   const system = messages.filter((m) => m.role === "system");
   const rest = messages.filter((m) => m.role !== "system");
+  const lastUser = [...rest].reverse().find((m) => m.role === "user");
+  const shortChat = (lastUser?.content.length ?? 0) < 100;
+
   const kept: ChatMessage[] = [];
-  let budget = maxChars;
+  let budget = shortChat ? 12_000 : maxChars;
   for (let i = rest.length - 1; i >= 0; i--) {
     const msg = rest[i];
     const cost = msg.content.length + 24;
@@ -217,12 +252,22 @@ function prepareMessages(messages: ChatMessage[], maxChars = 48_000): ChatMessag
     kept.unshift(msg);
     budget -= cost;
   }
+
   const sys = system[0];
   if (!sys) return kept;
-  const sysText =
-    sys.content.length > 12_000
-      ? `${sys.content.slice(0, 12_000)}\n…(system truncated for speed)`
-      : sys.content;
+
+  let sysText = sys.content;
+  if (shortChat) {
+    // Drop heavy workspace / FILE protocol for greetings & tiny asks — huge TTFT win.
+    sysText = sysText
+      .replace(/\nWorkspace:[\s\S]*$/, "")
+      .replace(/\nWhen you need to create or change project files[\s\S]*$/i, "")
+      .replace(/\n<<<FILE[\s\S]*$/i, "");
+    sysText = sysText.slice(0, 3_500);
+  } else if (sysText.length > 10_000) {
+    sysText = `${sysText.slice(0, 10_000)}\n…(system truncated for speed)`;
+  }
+
   return [{ role: "system", content: sysText }, ...kept];
 }
 
@@ -253,7 +298,7 @@ async function getOpenAIClient(auth: AuthStore, provider: ProviderId): Promise<O
   const client = new OpenAI({
     apiKey: key,
     baseURL,
-    timeout: 90_000,
+    timeout: 75_000,
     maxRetries: 1,
     ...(provider === "openrouter"
       ? {
@@ -273,7 +318,7 @@ async function getAnthropicClient(apiKey: string): Promise<AnthropicClient> {
   const hit = anthropicClients.get(cacheKey);
   if (hit) return hit;
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const client = new Anthropic({ apiKey, maxRetries: 1, timeout: 90_000 });
+  const client = new Anthropic({ apiKey, maxRetries: 1, timeout: 75_000 });
   anthropicClients.set(cacheKey, client);
   return client;
 }
@@ -286,45 +331,54 @@ async function streamKeylessFree(
   const bodyBase = {
     model: upstream || "openai-fast",
     messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    temperature: 0.3,
+    temperature: 0.2,
+    stream: true,
   };
   const headers = {
     "content-type": "application/json",
+    accept: "text/event-stream",
     "user-agent": `voxiva-cli/${VERSION}`,
     "x-request-id": randomUUID(),
   };
 
   let lastError = "Free model unavailable.";
 
-  // 1) Streaming first — short retries for speed
+  // Race endpoints: first token claims the stream (no interleaved junk).
   for (let attempt = 0; attempt < 2; attempt++) {
     if (handlers.signal?.aborted) break;
-    if (attempt > 0) await sleep(120 * attempt);
-    try {
-      const response = await fetch(POLLINATIONS_URL, {
+    if (attempt > 0) await sleep(100);
+
+    const raceAbort = new AbortController();
+    const signal = withTimeout(
+      handlers.signal ? AbortSignal.any([handlers.signal, raceAbort.signal]) : raceAbort.signal,
+      attempt === 0 ? 28_000 : 45_000,
+    );
+
+    let claimedBy: string | null = null;
+    const runners = FREE_ENDPOINTS.map(async (url) => {
+      const response = await fetch(url, {
         method: "POST",
-        headers: { ...headers, accept: "text/event-stream" },
-        body: JSON.stringify({ ...bodyBase, stream: true }),
-        signal: withTimeout(handlers.signal, 45_000),
+        headers,
+        body: JSON.stringify(bodyBase),
+        signal,
       });
       if (response.status === 429 || response.status === 402) {
-        lastError = "Free model is busy — retrying…";
-        continue;
+        throw new Error("Free model is busy");
       }
       if (!response.ok || !response.body) {
-        lastError = `Free model error (${response.status}).`;
-        break;
+        throw new Error(`Free model error (${response.status})`);
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
       let full = "";
-      let gotToken = false;
+      let isWinner = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+        if (signal.aborted) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
@@ -338,57 +392,89 @@ async function streamKeylessFree(
               choices?: { delta?: { content?: string } }[];
             };
             const text = json.choices?.[0]?.delta?.content ?? "";
-            if (text) {
-              gotToken = true;
-              full += text;
-              handlers.onToken(text);
+            if (!text) continue;
+            if (!isWinner) {
+              if (claimedBy && claimedBy !== url) {
+                throw new Error("lost race");
+              }
+              claimedBy = url;
+              isWinner = true;
             }
-          } catch {
-            // ignore
+            full += text;
+            handlers.onToken(text);
+          } catch (err) {
+            if (err instanceof Error && err.message === "lost race") throw err;
           }
         }
       }
 
-      if (gotToken && full.trim()) {
-        handlers.onDone?.();
-        return full;
-      }
-      lastError = "Empty free-model stream.";
-    } catch (err) {
-      if (handlers.signal?.aborted) break;
-      lastError = err instanceof Error ? err.message : String(err);
-    }
-  }
+      if (!isWinner || !full.trim()) throw new Error("Empty free-model stream.");
+      return full;
+    });
 
-  // 2) Non-stream fallback (one fast shot)
-  if (!handlers.signal?.aborted) {
     try {
-      const response = await fetch(POLLINATIONS_URL, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ ...bodyBase, stream: false }),
-        signal: withTimeout(handlers.signal, 40_000),
-      });
-      const raw = await response.text();
-      if (response.ok && raw.trim() && raw.trim() !== "{}") {
-        const parsed = JSON.parse(raw) as {
-          choices?: { message?: { content?: string } }[];
-        };
-        const full = parsed.choices?.[0]?.message?.content?.trim() ?? "";
-        if (full) {
-          handlers.onToken(full);
-          handlers.onDone?.();
-          return full;
-        }
-      }
-      lastError = `Free model error (${response.status}).`;
+      const full = await Promise.any(runners);
+      raceAbort.abort();
+      handlers.onDone?.();
+      return full;
     } catch (err) {
-      if (!handlers.signal?.aborted) {
+      raceAbort.abort();
+      if (handlers.signal?.aborted) break;
+      if (err instanceof AggregateError) {
+        lastError = err.errors.map((e) => (e instanceof Error ? e.message : String(e))).join(" · ");
+      } else {
         lastError = err instanceof Error ? err.message : String(err);
       }
     }
   }
+
+  // Non-stream fallback
+  if (!handlers.signal?.aborted) {
+    for (const url of FREE_ENDPOINTS) {
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "user-agent": `voxiva-cli/${VERSION}`,
+            "x-request-id": randomUUID(),
+          },
+          body: JSON.stringify({ ...bodyBase, stream: false }),
+          signal: withTimeout(handlers.signal, 35_000),
+        });
+        const raw = await response.text();
+        if (!response.ok || !raw.trim() || raw.trim() === "{}") continue;
+        const parsed = JSON.parse(raw) as {
+          choices?: { message?: { content?: string } }[];
+        };
+        const full = parsed.choices?.[0]?.message?.content?.trim() ?? "";
+        if (!full) continue;
+        handlers.onToken(full);
+        handlers.onDone?.();
+        return full;
+      } catch (err) {
+        if (handlers.signal?.aborted) break;
+        lastError = err instanceof Error ? err.message : String(err);
+      }
+    }
+  }
+
   throw new Error(lastError);
+}
+
+async function streamOpenRouterOrKeyless(
+  auth: AuthStore,
+  openrouterId: string,
+  upstream: string,
+  messages: ChatMessage[],
+  handlers: StreamHandlers,
+): Promise<string> {
+  // OpenRouter first (real free model quality); keyless if it errors.
+  try {
+    return await streamOpenAICompat(auth, "openrouter", openrouterId, messages, handlers);
+  } catch {
+    return streamKeylessFree(upstream, messages, handlers);
+  }
 }
 
 export async function streamChat(
@@ -405,20 +491,17 @@ export async function streamChat(
 
   // Built-in free — OpenRouter when key+mapping, else keyless gateway.
   if (provider === "voxiva" || catalog?.builtin) {
+    const upstream = catalog?.upstream ?? "openai-fast";
     if (catalog?.openrouterId && providerReady(auth, "openrouter")) {
-      try {
-        return await streamOpenAICompat(
-          auth,
-          "openrouter",
-          catalog.openrouterId,
-          prepared,
-          handlers,
-        );
-      } catch {
-        // fall through to keyless
-      }
+      return streamOpenRouterOrKeyless(
+        auth,
+        catalog.openrouterId,
+        upstream,
+        prepared,
+        handlers,
+      );
     }
-    return streamKeylessFree(catalog?.upstream ?? "openai-fast", prepared, handlers);
+    return streamKeylessFree(upstream, prepared, handlers);
   }
 
   // Legacy openrouter free without key → keyless so chat still works.
@@ -453,7 +536,7 @@ async function streamOpenAICompat(
       model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       stream: true,
-      temperature: 0.3,
+      temperature: 0.2,
     },
     { signal: handlers.signal },
   );
@@ -486,7 +569,7 @@ async function streamAnthropic(
     {
       model,
       max_tokens: 8192,
-      temperature: 0.3,
+      temperature: 0.2,
       system: system || undefined,
       messages: rest.map((m) => ({
         role: m.role === "assistant" ? "assistant" : "user",

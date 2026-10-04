@@ -6,8 +6,7 @@ import stringWidth from "string-width";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { getPlan, planSystemAsync, PLANS } from "../plans/index.js";
-import { listFreeCatalog, modelRef, parseModelRef, DEFAULT_FREE_MODEL, canUseWithoutKey, findCatalog, } from "../providers/chat.js";
-import { streamChat } from "../providers/chat.js";
+import { listFreeCatalog, modelRef, parseModelRef, DEFAULT_FREE_MODEL, canUseWithoutKey, findCatalog, streamChat, warmFreeGateway, } from "../providers/chat.js";
 import { clipboardToDraft, isImagePath, normalizeBracketedPaste, readClipboard, textToDraft, writeClipboard, } from "../clipboard/index.js";
 import { checkForUpdate } from "../update/check.js";
 import { getSession, getContinuableSession, listSessions, listSessionsForCwd, saveSession, } from "../sessions/store.js";
@@ -180,9 +179,13 @@ export async function runTui() {
     let streamAbort = null;
     let pasteBuffer = "";
     let inPaste = false;
-    const RENDER_MIN_MS = 33;
+    const RENDER_MIN_MS = 16;
     let leaderUntil = 0;
     let usage = emptyUsage();
+    // Warm free-model TLS/DNS in background — first reply starts faster.
+    if (canUseWithoutKey(state.model)) {
+        warmFreeGateway();
+    }
     async function refreshSystemPrompt() {
         state.history[0] = {
             role: "system",

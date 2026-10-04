@@ -14,10 +14,11 @@ import {
   canUseWithoutKey,
   findCatalog,
   isFreeModelRef,
+  streamChat,
+  warmFreeGateway,
   type ChatMessage,
   type ModelInfo,
 } from "../providers/chat.js";
-import { streamChat } from "../providers/chat.js";
 import {
   clipboardToDraft,
   clipboardToInsert,
@@ -315,9 +316,14 @@ export async function runTui(): Promise<void> {
   let streamAbort: AbortController | null = null;
   let pasteBuffer = "";
   let inPaste = false;
-  const RENDER_MIN_MS = 33;
+  const RENDER_MIN_MS = 16;
   let leaderUntil = 0;
   let usage: SessionUsage = emptyUsage();
+
+  // Warm free-model TLS/DNS in background — first reply starts faster.
+  if (canUseWithoutKey(state.model)) {
+    warmFreeGateway();
+  }
 
   async function refreshSystemPrompt() {
     state.history[0] = {

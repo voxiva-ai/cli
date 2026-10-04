@@ -94,9 +94,8 @@ voxiva
 
 ## Важно
 
-- **Free**-модели без оплаты; API-ключи — `/connect`
-- Установщик кладёт Node + CLI в `~/.voxiva/` (`runtime/`, `prefix/`, `bin/`)
-- Данные: `config.json`, `auth.json`, `sessions.json` там же
-- Удалить: папку `~/.voxiva` и запись из PATH
+- **Free**-модели как в OpenCode Zen, без ключа; API — `/connect`
+- Новый ПК: установщик сам качает Node + CLI и гоняет `doctor`
+- Всё лежит в `~/.voxiva/` — удалить папку + PATH
 
 MIT · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)

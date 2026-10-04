@@ -40,4 +40,6 @@ export declare function parseModelRef(ref: string): {
     model: string;
 } | null;
 export declare function modelRef(info: ModelInfo): ModelRef;
+/** Warm TLS/DNS so the first free reply feels instant (OpenCode-like). */
+export declare function warmFreeGateway(): void;
 export declare function streamChat(auth: AuthStore, modelRefStr: ModelRef, messages: ChatMessage[], handlers: StreamHandlers): Promise<string>;

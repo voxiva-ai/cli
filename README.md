@@ -96,10 +96,10 @@ Free model works with **no API key**. Type → Enter.
 
 ## Notes
 
-- **Free** models = no billing on the free path (fast streaming)
-- **API keys** via `/connect` — OpenAI / Anthropic / Google / OpenRouter (cached clients, streamed)
-- Installer stores Node + CLI under `~/.voxiva/` (`runtime/`, `prefix/`, `bin/`)
-- Data: `~/.voxiva/` (`config.json`, `auth.json`, `sessions.json`)
+- **Free** models = OpenCode Zen names, keyless streaming (dual gateway race + warm-up)
+- **API keys** via `/connect` — OpenAI / Anthropic / Google / OpenRouter
+- New PC: installer downloads Node (official / npmmirror / winget) + CLI, then runs `doctor`
+- Files under `~/.voxiva/` (`runtime/`, `prefix/`, `bin/`, config, sessions)
 - Uninstall: delete `~/.voxiva` and remove it from PATH
 
 MIT · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)

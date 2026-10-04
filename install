@@ -61,13 +61,31 @@ case "$region_lc" in
   *cn*|*zh*|*shanghai*|*chongqing*|*urumqi*|*hongkong*|*prc*) prefer_cn=1 ;;
 esac
 
+have_curl=0
+have_wget=0
+command -v curl >/dev/null 2>&1 && have_curl=1
+command -v wget >/dev/null 2>&1 && have_wget=1
+if [ "$have_curl" -ne 1 ] && [ "$have_wget" -ne 1 ]; then
+  echo "Need curl or wget to download Node.js / CLI."
+  exit 1
+fi
+
 curl_get() {
   # $1=url $2=outfile
-  curl -fL --connect-timeout 12 --max-time 300 --retry 2 --retry-delay 1 -o "$2" "$1"
+  if [ "$have_curl" -eq 1 ]; then
+    curl -fL --connect-timeout 12 --max-time 300 --retry 2 --retry-delay 1 -o "$2" "$1"
+  else
+    wget -q --timeout=300 -O "$2" "$1"
+  fi
 }
 
-http_ok() {
-  curl -fsSI --connect-timeout 8 --max-time 15 "$1" >/dev/null 2>&1
+http_fetch_text() {
+  # $1=url → stdout
+  if [ "$have_curl" -eq 1 ]; then
+    curl -fsSL --connect-timeout 12 --max-time 45 "$1"
+  else
+    wget -q --timeout=45 -O - "$1"
+  fi
 }
 
 node_ok() {
@@ -121,7 +139,7 @@ node_tarball_urls() {
 latest_lts_version() {
   local url json ver
   while IFS= read -r url; do
-    json="$(curl -fsSL --connect-timeout 12 --max-time 45 "$url" 2>/dev/null || true)"
+    json="$(http_fetch_text "$url" 2>/dev/null || true)"
     [ -z "$json" ] && continue
     ver="$(printf '%s' "$json" | tr '{' '\n' | grep '"lts":' | grep -v '"lts":false' | head -n1 | sed -n 's/.*"version":"v\([^"]*\)".*/\1/p')"
     if [ -n "$ver" ]; then
@@ -352,11 +370,12 @@ echo "✓ Installed"
 echo ""
 "$BIN_DIR/voxiva" --version
 echo ""
-echo "Next:"
+echo "Smoke check…"
+"$BIN_DIR/voxiva" doctor || true
+echo ""
+echo "Next (new terminal if needed):"
 echo "  voxiva"
 echo "  then /models  (free)  or  /connect  (API keys)"
-echo ""
-echo "Doctor:  voxiva doctor"
 echo ""
 echo "Files: $VOXIVA_HOME"
 echo "If 'voxiva' is not found, open a new terminal or:"

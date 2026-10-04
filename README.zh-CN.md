@@ -94,9 +94,8 @@ voxiva
 
 ## 说明
 
-- **免费模型**不扣费；API Key 用 `/connect`
-- 安装程序将 Node + CLI 放在 `~/.voxiva/`（`runtime/`、`prefix/`、`bin/`）
-- 数据：同目录下的 `config.json`、`auth.json`、`sessions.json`
-- 卸载：删除 `~/.voxiva` 并从 PATH 移除
+- **免费模型**对齐 OpenCode Zen，无需密钥；API 用 `/connect`
+- 新电脑：安装程序自动下载 Node + CLI，并运行 `doctor`
+- 文件在 `~/.voxiva/` — 删除该目录并清理 PATH 即可卸载
 
 MIT · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
