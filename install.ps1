@@ -1,23 +1,20 @@
 # Voxiva CLI — one-line installer (Windows)
 #
-# Primary (GitHub):
 #   irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
-#
-# Mirror if GitHub raw is slow/blocked (CN / some networks):
 #   irm https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install.ps1 | iex
 #
-# Downloads Node.js (official + mirrors) into ~/.voxiva/runtime when missing,
-# installs the CLI, puts a launcher on PATH.
+# Quiet by default (spinner only). Verbose: $env:VOXIVA_VERBOSE = "1"
 #
-# Optional env:
+# Optional:
 #   $env:VERSION = "0.1.0"
 #   $env:VOXIVA_METHOD = "github"   # github | npm | auto
-#   $env:VOXIVA_REGION = "cn"       # prefer China mirrors first
+#   $env:VOXIVA_REGION = "cn"
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
+$VerboseInstall = $env:VOXIVA_VERBOSE -eq "1"
+$StartedAt = Get-Date
 
-# Brand-new Windows boxes often default to TLS 1.0 — force modern TLS.
 try {
   [Net.ServicePointManager]::SecurityProtocol = `
     [Net.SecurityProtocolType]::Tls12 -bor `
@@ -26,8 +23,24 @@ try {
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 }
 
-function Write-Brand([string]$Text, [string]$Color = "Cyan") {
-  Write-Host $Text -ForegroundColor $Color
+$script:SpinFrames = @("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+$script:SpinIndex = 0
+
+function Write-Status([string]$Text) {
+  if ($VerboseInstall) {
+    Write-Host "  $Text" -ForegroundColor DarkGray
+    return
+  }
+  $frame = $script:SpinFrames[$script:SpinIndex % $script:SpinFrames.Length]
+  $script:SpinIndex++
+  $line = "  $frame  $Text"
+  Write-Host ("`r" + $line.PadRight(72)) -NoNewline
+}
+
+function Clear-Status {
+  if (-not $VerboseInstall) {
+    Write-Host ("`r" + (" " * 72) + "`r") -NoNewline
+  }
 }
 
 $VoxivaHome = if ($env:VOXIVA_HOME) { $env:VOXIVA_HOME } else { Join-Path $HOME ".voxiva" }
@@ -39,11 +52,9 @@ $NodeFallbackVersion = "22.14.0"
 $Repo = "voxiva-ai/cli"
 $Branch = "main"
 
-Write-Brand ""
-Write-Brand "  voxiva"
-Write-Brand "  Installing Voxiva CLI…" "DarkGray"
-Write-Brand ""
-
+Write-Host ""
+Write-Host "  voxiva" -ForegroundColor Cyan
+Write-Status "setting up…"
 New-Item -ItemType Directory -Force -Path $VoxivaHome, $RuntimeDir, $PrefixDir, $BinDir | Out-Null
 
 $PreferCn = $false
@@ -111,9 +122,7 @@ function Get-LatestLtsVersion {
           return ($row.version -replace "^v", "")
         }
       }
-    } catch {
-      # next mirror
-    }
+    } catch {}
   }
   return $NodeFallbackVersion
 }
@@ -125,19 +134,17 @@ function Install-OfficialNode([string]$Version) {
   $extract = Join-Path $env:TEMP "voxiva-node-extract-$Version"
   $ok = $false
 
-  Write-Brand "-> Downloading Node.js v$Version…" "DarkGray"
+  Write-Status "downloading Node.js…"
   foreach ($url in Get-NodeZipUrls $Version $arch) {
     try {
-      Write-Brand "  trying $url" "DarkGray"
       Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -TimeoutSec 300
       $ok = $true
       break
-    } catch {
-      # next mirror
-    }
+    } catch {}
   }
   if (-not $ok) { throw "Failed to download Node.js from all mirrors." }
 
+  Write-Status "unpacking Node.js…"
   if (Test-Path $extract) { Remove-Item -Recurse -Force $extract }
   Expand-Archive -Path $zip -DestinationPath $extract -Force
 
@@ -154,15 +161,14 @@ function Install-OfficialNode([string]$Version) {
 
   Remove-Item -Force $zip -ErrorAction SilentlyContinue
   Remove-Item -Recurse -Force $extract -ErrorAction SilentlyContinue
-  Write-Brand "[ok] Node.js v$Version -> $current" "Green"
 }
 
 function Install-NodeViaWinget {
   $winget = Get-Command winget -ErrorAction SilentlyContinue
   if (-not $winget) { return $false }
-  Write-Brand "-> Trying winget OpenJS.NodeJS.LTS…" "DarkGray"
+  Write-Status "installing Node via winget…"
   try {
-    & winget install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements --silent
+    & winget install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements --silent | Out-Null
     $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
     Start-Sleep -Seconds 1
     $system = Get-Command node -ErrorAction SilentlyContinue
@@ -174,41 +180,29 @@ function Install-NodeViaWinget {
 
 function Ensure-Node {
   $bundled = Join-Path $RuntimeDir "current\node.exe"
-  if (Test-NodeBin $bundled) {
-    Write-Brand "[ok] Node.js $(& $bundled -v) (bundled)" "Green"
-    return $bundled
-  }
+  if (Test-NodeBin $bundled) { return $bundled }
 
   $system = Get-Command node -ErrorAction SilentlyContinue
-  if ($system -and (Test-NodeBin $system.Source)) {
-    Write-Brand "[ok] Node.js $(& $system.Source -v) (system)" "Green"
-    return $system.Source
-  }
+  if ($system -and (Test-NodeBin $system.Source)) { return $system.Source }
 
   try {
     $ver = Get-LatestLtsVersion
     Install-OfficialNode $ver
   } catch {
-    Write-Brand "  zip download failed — trying winget…" "DarkGray"
     if (-not (Install-NodeViaWinget)) {
       throw "Node.js install failed. Install from https://nodejs.org/ and re-run."
     }
     $system = Get-Command node -ErrorAction SilentlyContinue
-    if ($system -and (Test-NodeBin $system.Source)) {
-      Write-Brand "[ok] Node.js $(& $system.Source -v) (winget)" "Green"
-      return $system.Source
-    }
+    if ($system -and (Test-NodeBin $system.Source)) { return $system.Source }
     throw "Node.js install failed"
   }
 
   $bundled = Join-Path $RuntimeDir "current\node.exe"
-  if (-not (Test-NodeBin $bundled)) {
-    throw "Node.js install failed"
-  }
-  Write-Brand "[ok] Node.js $(& $bundled -v) (bundled)" "Green"
+  if (-not (Test-NodeBin $bundled)) { throw "Node.js install failed" }
   return $bundled
 }
 
+Write-Status "checking Node.js…"
 $NodeBin = Ensure-Node
 $NodeDir = Split-Path $NodeBin -Parent
 $env:Path = "$NodeDir;$env:Path"
@@ -223,8 +217,6 @@ if (-not $NpmCmd) {
   $NpmPath = $NpmCmd.Source
 }
 
-Write-Brand "[ok] npm $(& $NpmPath -v)" "Green"
-
 $Method = if ($env:VOXIVA_METHOD) { $env:VOXIVA_METHOD } else { "auto" }
 $Version = if ($env:VERSION) { $env:VERSION } else { "latest" }
 
@@ -238,13 +230,12 @@ function Get-NpmRegistries {
 function Install-Pkg([string]$Spec) {
   foreach ($registry in Get-NpmRegistries) {
     try {
-      Write-Brand "-> npm install --prefix $PrefixDir ($registry) $Spec" "DarkGray"
+      Write-Status "installing CLI…"
       $env:npm_config_registry = $registry
-      & $NpmPath install --prefix $PrefixDir --no-fund --no-audit --fetch-retries=3 $Spec
+      $env:npm_config_loglevel = "error"
+      & $NpmPath install --prefix $PrefixDir --no-fund --no-audit --fetch-retries=3 --silent $Spec 2>$null
       if ($LASTEXITCODE -eq 0) { return }
-    } catch {
-      # try next registry
-    }
+    } catch {}
   }
   throw "npm install failed: $Spec"
 }
@@ -272,12 +263,9 @@ function Install-Cli {
 
   foreach ($spec in $specs) {
     try {
-      Write-Brand "-> Trying package source: $spec" "DarkGray"
       Install-Pkg $spec
       return
-    } catch {
-      Write-Brand "  failed, next source…" "DarkGray"
-    }
+    } catch {}
   }
   throw "All package sources failed."
 }
@@ -290,11 +278,11 @@ $PkgRoot = @(
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 if ($PkgRoot -and -not (Test-Path (Join-Path $PkgRoot "dist\index.js"))) {
-  Write-Brand "-> Building CLI (dist missing)…" "DarkGray"
+  Write-Status "building…"
   Push-Location $PkgRoot
   try {
-    & $NpmPath install --no-fund --no-audit
-    & $NpmPath run build
+    & $NpmPath install --no-fund --no-audit --silent 2>$null
+    & $NpmPath run build --silent 2>$null
   } finally {
     Pop-Location
   }
@@ -309,6 +297,7 @@ if (-not $PkgEntry) {
   throw "Install finished but package entry not found under $PrefixDir"
 }
 
+Write-Status "finishing…"
 $LauncherCmd = Join-Path $BinDir "voxiva.cmd"
 $LauncherPs1 = Join-Path $BinDir "voxiva.ps1"
 
@@ -362,24 +351,29 @@ if (-not $userPath) { $userPath = "" }
 if ($userPath -notlike "*$BinDir*") {
   $newPath = if ($userPath.Trim()) { "$BinDir;$userPath" } else { $BinDir }
   [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-  Write-Brand "[ok] Added $BinDir to user PATH" "Green"
 }
 $env:Path = "$BinDir;$env:Path"
 
-Write-Brand ""
-Write-Brand "[ok] Installed" "Green"
-Write-Brand ""
-& $LauncherCmd --version
-if ($LASTEXITCODE -ne 0) {
-  throw "voxiva --version failed after install"
-}
-Write-Brand ""
-Write-Brand "Smoke check…" "DarkGray"
-& $LauncherCmd doctor
-Write-Brand ""
-Write-Brand "Next (new terminal if needed):" "DarkGray"
-Write-Brand "  voxiva" "Blue"
-Write-Brand "  then /models  (free)  or  /connect  (API keys)" "Blue"
-Write-Brand ""
-Write-Brand "Files: $VoxivaHome" "DarkGray"
-Write-Brand ""
+$verOut = & $LauncherCmd --version 2>$null
+if ($LASTEXITCODE -ne 0) { throw "voxiva --version failed after install" }
+
+$elapsed = [int]((Get-Date) - $StartedAt).TotalSeconds
+$fakeTokens = 1200 + ($elapsed * 37) + (Get-Random -Minimum 40 -Maximum 400)
+$jokes = @(
+  "Tokens burned by this install: 0. Tokens we pretended to burn: $fakeTokens.",
+  "Your wallet lost `$0.00. Your dignity: still buffering.",
+  "Free models unlocked. Paid anxiety: optional.",
+  "Context window used for install logs: intentionally tiny."
+)
+$joke = $jokes[(Get-Random -Maximum $jokes.Count)]
+
+Clear-Status
+Write-Host ""
+Write-Host "  ✓  ready  ·  ${elapsed}s" -ForegroundColor Green
+Write-Host "  $joke" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "  Open a new terminal and type:" -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "    voxiva" -ForegroundColor Cyan
+Write-Host ""
+if ($verOut) { Write-Host "  $verOut" -ForegroundColor DarkGray; Write-Host "" }

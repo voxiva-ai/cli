@@ -268,7 +268,9 @@ test("catalog includes deepseek and gemini flash", async () => {
   assert.ok(free.some((m) => m.id === "nemotron-3-ultra-free"));
   assert.ok(free.some((m) => m.id === "fledge-alpha-free"));
   assert.ok(free.some((m) => m.id === "ling-3.1-flash-free"));
-  assert.ok(free.length >= 10);
+  assert.ok(free.some((m) => m.id === "deepseek-v4-flash-free"));
+  assert.ok(free.some((m) => m.id === "minimax-m2.5-free"));
+  assert.ok(free.length >= 30, `expected OpenCode-sized free catalog, got ${free.length}`);
 });
 
 test("plan voice does not brand as Voxiva Check", async () => {

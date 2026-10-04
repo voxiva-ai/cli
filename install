@@ -25,11 +25,30 @@ NODE_MIN_MAJOR=20
 NODE_FALLBACK_VERSION="22.14.0"
 REPO="voxiva-ai/cli"
 BRANCH="main"
+VERBOSE="${VOXIVA_VERBOSE:-0}"
+STARTED_AT="$(date +%s)"
+SPIN_I=0
+SPIN_FRAMES='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+
+status() {
+  if [ "$VERBOSE" = "1" ]; then
+    echo "  $*"
+    return
+  fi
+  SPIN_I=$(( (SPIN_I + 1) % 10 ))
+  frame="$(printf '%s' "$SPIN_FRAMES" | cut -c$((SPIN_I + 1)))"
+  printf '\r  %s  %s%-40s' "$frame" "$1" ""
+}
+
+clear_status() {
+  if [ "$VERBOSE" != "1" ]; then
+    printf '\r%-60s\r' ""
+  fi
+}
 
 echo ""
 echo "  voxiva"
-echo "  Installing Voxiva CLI…"
-echo ""
+status "setting up…"
 
 mkdir -p "$VOXIVA_HOME" "$RUNTIME_DIR" "$PREFIX_DIR" "$BIN_DIR"
 
@@ -155,47 +174,45 @@ download_node() {
   local base="node-v${version}-${platform}-${arch}"
   local tmp url
   tmp="$(mktemp -d)"
-  echo "→ Downloading Node.js v${version}…"
+  status "downloading Node.js…"
   local ok=0
   while IFS= read -r url; do
-    echo "  trying $url"
-    if curl_get "$url" "$tmp/node.tar.gz"; then
+    if curl_get "$url" "$tmp/node.tar.gz" 2>/dev/null; then
       ok=1
       break
     fi
   done < <(node_tarball_urls "$version")
   if [ "$ok" -ne 1 ]; then
+    clear_status
     echo "Failed to download Node.js from all mirrors."
     rm -rf "$tmp"
     exit 1
   fi
-  echo "→ Extracting…"
+  status "unpacking Node.js…"
   tar -xzf "$tmp/node.tar.gz" -C "$tmp"
   rm -rf "$RUNTIME_DIR/$base"
   mv "$tmp/$base" "$RUNTIME_DIR/$base"
   ln -sfn "$RUNTIME_DIR/$base" "$RUNTIME_DIR/current"
   rm -rf "$tmp"
-  echo "✓ Node.js v${version} → $RUNTIME_DIR/current"
 }
 
 ensure_node() {
   local node_bin=""
   if node_bin="$(resolve_bundled_node)"; then
-    echo "✓ Node.js $($node_bin -v) (bundled)" >&2
     printf '%s\n' "$node_bin"
     return
   fi
   if node_bin="$(resolve_system_node)"; then
-    echo "✓ Node.js $($node_bin -v) (system)" >&2
     printf '%s\n' "$node_bin"
     return
   fi
   local ver
   ver="$(latest_lts_version)"
-  download_node "$ver" >&2
+  download_node "$ver"
   resolve_bundled_node
 }
 
+status "checking Node.js…"
 NODE_BIN="$(ensure_node)"
 export PATH="$(dirname "$NODE_BIN"):$PATH"
 
@@ -203,13 +220,13 @@ if ! command -v npm >/dev/null 2>&1; then
   if [ -x "$(dirname "$NODE_BIN")/npm" ]; then
     export PATH="$(dirname "$NODE_BIN"):$PATH"
   else
+    clear_status
     echo "npm missing next to Node at $NODE_BIN"
     exit 1
   fi
 fi
 
 NPM_BIN="$(command -v npm)"
-echo "✓ npm $($NPM_BIN -v)"
 
 METHOD="${VOXIVA_METHOD:-auto}"
 VERSION="${VERSION:-latest}"
@@ -227,9 +244,9 @@ npm_registries() {
 install_pkg_with_registry() {
   local spec="$1"
   local registry="$2"
-  echo "→ npm install --prefix $PREFIX_DIR ($registry) $spec"
-  npm_config_registry="$registry" \
-    "$NPM_BIN" install --prefix "$PREFIX_DIR" --no-fund --no-audit --fetch-retries=3 --fetch-retry-mintimeout=2000 "$spec"
+  status "installing CLI…"
+  npm_config_registry="$registry" npm_config_loglevel=error \
+    "$NPM_BIN" install --prefix "$PREFIX_DIR" --no-fund --no-audit --fetch-retries=3 --fetch-retry-mintimeout=2000 --silent "$spec" >/dev/null 2>&1
 }
 
 install_pkg() {
@@ -267,12 +284,11 @@ install_cli() {
   esac
 
   while IFS= read -r spec; do
-    echo "→ Trying package source: $spec"
     if install_pkg "$spec"; then
       return 0
     fi
-    echo "  failed, next source…"
   done < <(pkg_specs_auto)
+  clear_status
   echo "All package sources failed."
   exit 1
 }
@@ -292,15 +308,15 @@ do
 done
 
 if [ -n "$PKG_ROOT" ] && [ ! -f "$PKG_ROOT/dist/index.js" ]; then
-  echo "→ Building CLI (dist missing)…"
+  status "building…"
   (
     cd "$PKG_ROOT"
     if [ -f package-lock.json ]; then
-      "$NPM_BIN" ci --no-fund --no-audit || "$NPM_BIN" install --no-fund --no-audit
+      "$NPM_BIN" ci --no-fund --no-audit --silent >/dev/null 2>&1 || "$NPM_BIN" install --no-fund --no-audit --silent >/dev/null 2>&1
     else
-      "$NPM_BIN" install --no-fund --no-audit
+      "$NPM_BIN" install --no-fund --no-audit --silent >/dev/null 2>&1
     fi
-    "$NPM_BIN" run build
+    "$NPM_BIN" run build --silent >/dev/null 2>&1
   )
 fi
 
@@ -365,19 +381,28 @@ done
 
 export PATH="$BIN_DIR:$LOCAL_BIN:$PATH"
 
+status "finishing…"
+VER_OUT="$("$BIN_DIR/voxiva" --version 2>/dev/null || true)"
+ELAPSED="$(( $(date +%s) - STARTED_AT ))"
+FAKE_TOKENS="$((1200 + ELAPSED * 37 + RANDOM % 400))"
+JOKES=(
+  "Tokens burned by this install: 0. Tokens we pretended to burn: ${FAKE_TOKENS}."
+  "Your wallet lost \$0.00. Your dignity: still buffering."
+  "Free models unlocked. Paid anxiety: optional."
+  "Context window used for install logs: intentionally tiny."
+)
+JOKE="${JOKES[$((RANDOM % ${#JOKES[@]}))]}"
+
+clear_status
 echo ""
-echo "✓ Installed"
+echo "  ✓  ready  ·  ${ELAPSED}s"
+echo "  $JOKE"
 echo ""
-"$BIN_DIR/voxiva" --version
+echo "  Open a new terminal and type:"
 echo ""
-echo "Smoke check…"
-"$BIN_DIR/voxiva" doctor || true
+echo "    voxiva"
 echo ""
-echo "Next (new terminal if needed):"
-echo "  voxiva"
-echo "  then /models  (free)  or  /connect  (API keys)"
-echo ""
-echo "Files: $VOXIVA_HOME"
-echo "If 'voxiva' is not found, open a new terminal or:"
-echo "  export PATH=\"$BIN_DIR:\$PATH\""
-echo ""
+if [ -n "$VER_OUT" ]; then
+  echo "  $VER_OUT"
+  echo ""
+fi
