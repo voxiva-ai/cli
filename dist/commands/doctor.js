@@ -1,6 +1,8 @@
 import { execSync } from "node:child_process";
 import { c, vMark } from "../brand/index.js";
 import { configDir, loadAuth, loadConfig } from "../config/store.js";
+import { VERSION } from "../tui/copy.js";
+import { checkForUpdate } from "../update/check.js";
 function hasCommand(name) {
     try {
         if (process.platform === "win32") {
@@ -35,6 +37,15 @@ export async function doctorCheck() {
     console.log(`${providers.length ? c.ok("✓") : c.ok("✓")} Providers ${providers.length ? providers.join(", ") : "free · no key"}`);
     console.log(`${c.muted("·")} Config ${configDir()}`);
     console.log(`${c.muted("·")} Plan ${config.plan}`);
+    console.log(`${c.muted("·")} Version v${VERSION}`);
+    const update = await checkForUpdate(true);
+    if (update) {
+        console.log(`${c.ok("↑")} Update v${update.latest} available`);
+        console.log(c.muted(`  run: voxiva update`));
+    }
+    else {
+        console.log(`${c.ok("✓")} Up to date`);
+    }
     console.log("");
     if (!ok) {
         console.log(c.danger("Fix install:"));
@@ -46,6 +57,6 @@ export async function doctorCheck() {
         }
         return 1;
     }
-    console.log(c.ok("Ready."), c.brand("voxiva"), c.muted("— free models work without keys. Missing Node? re-run the one-line installer."));
+    console.log(c.ok("Ready."), c.brand("voxiva"), c.muted("— free models work without keys. Update anytime: voxiva update"));
     return 0;
 }

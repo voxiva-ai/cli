@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { configDir, ensureDir } from "../config/store.js";
 import { VERSION } from "../tui/copy.js";
@@ -7,13 +7,17 @@ export type UpdateInfo = {
   latest: string;
   current: string;
   url: string;
+  /** Short hint for the banner */
   installHint: string;
+  /** Full one-liner if /update isn't used */
+  reinstallHint: string;
 };
 
 const CACHE_PATH = join(configDir(), "update-check.json");
 const REPO = "voxiva-ai/cli";
 const NPM = "@voxiva/cli";
-const DAY_MS = 24 * 60 * 60 * 1000;
+/** Check more often so GitHub pushes show up quickly for users. */
+const CACHE_MS = 6 * 60 * 60 * 1000;
 
 type Cache = { checkedAt: number; latest?: string; url?: string };
 
@@ -35,6 +39,12 @@ export function compareVersions(a: string, b: string): number {
   return 0;
 }
 
+export function reinstallHint(): string {
+  return process.platform === "win32"
+    ? "irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex"
+    : "curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash";
+}
+
 async function readCache(): Promise<Cache | null> {
   try {
     return JSON.parse(await readFile(CACHE_PATH, "utf8")) as Cache;
@@ -48,66 +58,113 @@ async function writeCache(cache: Cache): Promise<void> {
   await writeFile(CACHE_PATH, JSON.stringify(cache, null, 2) + "\n", "utf8");
 }
 
-async function fetchLatest(): Promise<{ latest: string; url: string } | null> {
+/** Clear cache so the next check hits the network. */
+export async function clearUpdateCache(): Promise<void> {
   try {
-    const gh = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+    await unlink(CACHE_PATH);
+  } catch {
+    // ignore
+  }
+}
+
+async function fetchJson(url: string, ms = 5000): Promise<unknown | null> {
+  try {
+    const res = await fetch(url, {
       headers: {
-        accept: "application/vnd.github+json",
+        accept: "application/json",
         "user-agent": `voxiva-cli/${VERSION}`,
       },
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(ms),
     });
-    if (gh.ok) {
-      const data = (await gh.json()) as { tag_name?: string; html_url?: string };
-      if (data.tag_name) {
-        return {
-          latest: normalizeVersion(data.tag_name),
-          url: data.html_url ?? `https://github.com/${REPO}/releases`,
-        };
-      }
-    }
+    if (!res.ok) return null;
+    return await res.json();
   } catch {
-    // fall through to npm
+    return null;
+  }
+}
+
+async function fetchText(url: string, ms = 5000): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "user-agent": `voxiva-cli/${VERSION}` },
+      signal: AbortSignal.timeout(ms),
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve latest published version from (in order):
+ * 1) GitHub Releases
+ * 2) package.json on main (raw + jsDelivr) — works even without a Release
+ * 3) npm registry (when published)
+ */
+async function fetchLatest(): Promise<{ latest: string; url: string } | null> {
+  const release = (await fetchJson(
+    `https://api.github.com/repos/${REPO}/releases/latest`,
+  )) as { tag_name?: string; html_url?: string } | null;
+  if (release?.tag_name) {
+    return {
+      latest: normalizeVersion(release.tag_name),
+      url: release.html_url ?? `https://github.com/${REPO}/releases`,
+    };
   }
 
-  try {
-    const npm = await fetch(`https://registry.npmjs.org/${NPM}/latest`, {
-      headers: { accept: "application/json", "user-agent": `voxiva-cli/${VERSION}` },
-      signal: AbortSignal.timeout(4000),
-    });
-    if (npm.ok) {
-      const data = (await npm.json()) as { version?: string };
-      if (data.version) {
+  const pkgUrls = [
+    `https://raw.githubusercontent.com/${REPO}/main/package.json`,
+    `https://cdn.jsdelivr.net/gh/${REPO}@main/package.json`,
+  ];
+  for (const url of pkgUrls) {
+    const text = await fetchText(url);
+    if (!text) continue;
+    try {
+      const pkg = JSON.parse(text) as { version?: string };
+      if (pkg.version) {
         return {
-          latest: normalizeVersion(data.version),
-          url: `https://www.npmjs.com/package/${NPM}`,
+          latest: normalizeVersion(pkg.version),
+          url: `https://github.com/${REPO}`,
         };
       }
+    } catch {
+      // next
     }
-  } catch {
-    // offline — ignore
   }
+
+  const npm = (await fetchJson(`https://registry.npmjs.org/${NPM}/latest`)) as {
+    version?: string;
+  } | null;
+  if (npm?.version) {
+    return {
+      latest: normalizeVersion(npm.version),
+      url: `https://www.npmjs.com/package/${NPM}`,
+    };
+  }
+
   return null;
+}
+
+function toInfo(latest: string, current: string, url: string): UpdateInfo {
+  return {
+    latest,
+    current,
+    url,
+    installHint: "voxiva update   or   /update",
+    reinstallHint: reinstallHint(),
+  };
 }
 
 /**
  * Non-blocking update check. Returns info only when a newer release exists.
- * Cached for 24h so startups stay fast and installs never break.
  */
 export async function checkForUpdate(force = false): Promise<UpdateInfo | null> {
   const current = normalizeVersion(VERSION);
   const cache = await readCache();
-  if (!force && cache && Date.now() - cache.checkedAt < DAY_MS && cache.latest) {
+  if (!force && cache && Date.now() - cache.checkedAt < CACHE_MS && cache.latest) {
     if (compareVersions(cache.latest, current) > 0) {
-      return {
-        latest: cache.latest,
-        current,
-        url: cache.url ?? `https://github.com/${REPO}/releases`,
-        installHint:
-          process.platform === "win32"
-            ? "irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex"
-            : "curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash",
-      };
+      return toInfo(cache.latest, current, cache.url ?? `https://github.com/${REPO}`);
     }
     return null;
   }
@@ -120,14 +177,5 @@ export async function checkForUpdate(force = false): Promise<UpdateInfo | null> 
   });
   if (!remote) return null;
   if (compareVersions(remote.latest, current) <= 0) return null;
-
-  return {
-    latest: remote.latest,
-    current,
-    url: remote.url,
-    installHint:
-      process.platform === "win32"
-        ? "irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex"
-        : "curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash",
-  };
+  return toInfo(remote.latest, current, remote.url);
 }

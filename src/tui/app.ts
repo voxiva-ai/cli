@@ -205,7 +205,7 @@ function nextCodePointIndex(text: string, index: number): number {
   return Math.min(text.length, index + (current > 0xffff ? 2 : 1));
 }
 
-export async function runTui(): Promise<void> {
+export async function runTui(): Promise<"update" | undefined> {
   const snapshot = process.env.VOXIVA_TUI_SNAPSHOT === "1";
   if (
     !snapshot &&
@@ -311,6 +311,7 @@ export async function runTui(): Promise<void> {
   };
 
   let running = true;
+  let exitAction: "update" | undefined;
   let renderQueued = false;
   let lastRenderAt = 0;
   let streamAbort: AbortController | null = null;
@@ -707,7 +708,8 @@ export async function runTui(): Promise<void> {
   // Soft update banner — never blocks startup; cache keeps installs stable offline.
   void checkForUpdate().then((info) => {
     if (!info || !running) return;
-    state.updateBanner = `v${info.latest} · ${info.installHint}`;
+    state.updateBanner = `v${info.latest} · press u or /update`;
+    toast(`Update v${info.latest} ready — press u or /update`, "info");
     queueRender();
   });
 
@@ -1682,6 +1684,11 @@ export async function runTui(): Promise<void> {
       case "reject":
         rejectPendingEdits();
         return;
+      case "update":
+        toast("Updating… leaving chat.", "info");
+        exitAction = "update";
+        running = false;
+        return;
       case "editor": {
         leaveAltScreen();
         showCursor();
@@ -2508,6 +2515,17 @@ export async function runTui(): Promise<void> {
       running = false;
       return;
     }
+    // u — accept update when banner is showing and input is empty
+    if (
+      !state.overlay &&
+      !state.busy &&
+      state.updateBanner &&
+      !state.input &&
+      (key === "u" || key === "U")
+    ) {
+      void runAction("update");
+      return;
+    }
     // Ctrl+R — Voxiva Voice listen toggle (Hold · Speak · Land into input)
     if (key === "\u0012") {
       toggleVoice();
@@ -2646,7 +2664,9 @@ export async function runTui(): Promise<void> {
         process.stdin.setRawMode(false);
         leaveAltScreen();
         process.stdout.write("\x1b[?2004l");
-        process.stdout.write(tc().muted("Bye.\n"));
+        if (exitAction !== "update") {
+          process.stdout.write(tc().muted("Bye.\n"));
+        }
         resolve();
         return;
       }
@@ -2662,4 +2682,6 @@ export async function runTui(): Promise<void> {
       }
     }, 130);
   });
+
+  return exitAction;
 }

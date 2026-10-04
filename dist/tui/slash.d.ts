@@ -17,7 +17,7 @@ export type SlashResult = {
     type: "help";
 } | {
     type: "action";
-    action: "compact" | "undo" | "redo" | "export" | "editor" | "init" | "details" | "thinking" | "voice" | "cost" | "diff" | "copy" | "stop" | "retry" | "reload" | "pwd" | "explain" | "review" | "test" | "fix" | "memory-add" | "memory-clear" | "queue-clear" | "continue" | "apply" | "reject";
+    action: "compact" | "undo" | "redo" | "export" | "editor" | "init" | "details" | "thinking" | "voice" | "cost" | "diff" | "copy" | "stop" | "retry" | "reload" | "pwd" | "explain" | "review" | "test" | "fix" | "memory-add" | "memory-clear" | "queue-clear" | "continue" | "apply" | "reject" | "update";
     args?: string;
 };
 export type OverlayMode = "help" | "connect" | "models" | "plans" | "palette" | "providers" | "themes" | "sessions" | "connect-key" | "languages" | "files" | "context" | "shortcuts" | "settings" | "history" | "branch" | "queue" | "memory" | "workspaces" | "approve";

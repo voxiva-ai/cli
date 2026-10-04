@@ -8,6 +8,7 @@ import { runPrompt } from "./commands/run.js";
 import { shipTask } from "./commands/ship.js";
 import { doctorCheck } from "./commands/doctor.js";
 import { installLocal } from "./commands/install.js";
+import { runUpdate } from "./commands/update.js";
 import { configDir } from "./config/store.js";
 import { VERSION } from "./tui/copy.js";
 const pkg = { version: VERSION };
@@ -87,6 +88,14 @@ export function buildProgram() {
         .description("Install or repair the global voxiva command")
         .action(() => {
         process.exitCode = installLocal();
+    });
+    program
+        .command("update")
+        .alias("upgrade")
+        .description("Update Voxiva from GitHub to the latest version")
+        .option("-f, --force", "Reinstall even if already latest")
+        .action(async (opts) => {
+        process.exitCode = await runUpdate({ force: Boolean(opts.force) });
     });
     program
         .command("config")

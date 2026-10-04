@@ -88,7 +88,19 @@ voxiva
 
 ## 命令
 
-`/model` · `/plans` · `/continue` · `/sessions` · `/workspaces` · `/files` · `/history` · `/copy` · `/undo` · `/memory` · `/init` · `/diff` · `/cost` · `/themes` · `/lang` · `/shortcuts` · `/help`
+`/model` · `/update` · `/plans` · `/continue` · `/sessions` · `/workspaces` · `/files` · `/history` · `/copy` · `/undo` · `/memory` · `/init` · `/diff` · `/cost` · `/themes` · `/lang` · `/shortcuts` · `/help`
+
+---
+
+## 更新
+
+GitHub 有新版本时，应用会提示：`↑ Update · press u or /update`
+
+```bash
+voxiva update
+```
+
+也可重新跑安装命令。要让别人收到更新：同时提高 `package.json` 与 `src/tui/copy.ts` 的 `VERSION`，然后 `git push` 到 `main`。
 
 ---
 

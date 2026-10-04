@@ -41,7 +41,8 @@ export type SlashResult =
         | "queue-clear"
         | "continue"
         | "apply"
-        | "reject";
+        | "reject"
+        | "update";
       args?: string;
     };
 
@@ -383,6 +384,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     aliases: ["status"],
     description: "Runtime status",
     handler: async () => ({ type: "overlay", mode: "providers" }),
+  },
+  {
+    name: "update",
+    aliases: ["upgrade"],
+    description: "Update Voxiva from GitHub",
+    handler: async () => ({ type: "action", action: "update" }),
   },
   {
     name: "exit",

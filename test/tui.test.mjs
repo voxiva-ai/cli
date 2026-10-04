@@ -153,10 +153,10 @@ test("themes include ember forest mono", () => {
   assert.equal(THEMES.length, 7);
 });
 
-test("version is beta 0.1.0", () => {
-  assert.equal(VERSION, "0.1.0");
+test("version is beta 0.1.1", () => {
+  assert.equal(VERSION, "0.1.1");
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.1.0");
+  assert.equal(pkg.version, "0.1.1");
 });
 
 test("plan system injects language and agents context", async () => {

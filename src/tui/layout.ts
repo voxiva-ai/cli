@@ -224,7 +224,7 @@ export function renderHeader(info: HeaderInfo, cols: number): string[] {
   const bottom = t.border("└" + "─".repeat(boxWidth - 2) + "┘");
   const out = [top, ...body, bottom];
   if (info.updateBanner) {
-    out.unshift(t.ok(truncate(`↑ Update available · ${info.updateBanner}`, cols - 2)), "");
+    out.unshift(t.ok(truncate(`↑ Update · ${info.updateBanner}`, cols - 2)), "");
   }
   if (info.tip) {
     out.push("");

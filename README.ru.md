@@ -88,7 +88,19 @@ voxiva
 
 ## Команды
 
-`/model` · `/plans` · `/continue` · `/sessions` · `/workspaces` · `/files` · `/history` · `/copy` · `/undo` · `/memory` · `/init` · `/diff` · `/cost` · `/themes` · `/lang` · `/shortcuts` · `/help`
+`/model` · `/update` · `/plans` · `/continue` · `/sessions` · `/workspaces` · `/files` · `/history` · `/copy` · `/undo` · `/memory` · `/init` · `/diff` · `/cost` · `/themes` · `/lang` · `/shortcuts` · `/help`
+
+---
+
+## Обновление
+
+Когда на GitHub выходит новая версия, в приложении баннер: `↑ Update · press u or /update`
+
+```bash
+voxiva update
+```
+
+Или снова одна команда установки. Чтобы другие увидели обновление — подними `version` в `package.json` + `src/tui/copy.ts` и сделай `git push` на `main`.
 
 ---
 

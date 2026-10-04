@@ -1,1 +1,1 @@
-export declare function runTui(): Promise<void>;
+export declare function runTui(): Promise<"update" | undefined>;

@@ -174,6 +174,7 @@ export async function runTui() {
         updateBanner: undefined,
     };
     let running = true;
+    let exitAction;
     let renderQueued = false;
     let lastRenderAt = 0;
     let streamAbort = null;
@@ -552,7 +553,8 @@ export async function runTui() {
     void checkForUpdate().then((info) => {
         if (!info || !running)
             return;
-        state.updateBanner = `v${info.latest} · ${info.installHint}`;
+        state.updateBanner = `v${info.latest} · press u or /update`;
+        toast(`Update v${info.latest} ready — press u or /update`, "info");
         queueRender();
     });
     function clampOverlayIndex() {
@@ -1469,6 +1471,11 @@ export async function runTui() {
             case "reject":
                 rejectPendingEdits();
                 return;
+            case "update":
+                toast("Updating… leaving chat.", "info");
+                exitAction = "update";
+                running = false;
+                return;
             case "editor": {
                 leaveAltScreen();
                 showCursor();
@@ -2284,6 +2291,15 @@ export async function runTui() {
             running = false;
             return;
         }
+        // u — accept update when banner is showing and input is empty
+        if (!state.overlay &&
+            !state.busy &&
+            state.updateBanner &&
+            !state.input &&
+            (key === "u" || key === "U")) {
+            void runAction("update");
+            return;
+        }
         // Ctrl+R — Voxiva Voice listen toggle (Hold · Speak · Land into input)
         if (key === "\u0012") {
             toggleVoice();
@@ -2423,7 +2439,9 @@ export async function runTui() {
                 process.stdin.setRawMode(false);
                 leaveAltScreen();
                 process.stdout.write("\x1b[?2004l");
-                process.stdout.write(tc().muted("Bye.\n"));
+                if (exitAction !== "update") {
+                    process.stdout.write(tc().muted("Bye.\n"));
+                }
                 resolve();
                 return;
             }
@@ -2439,4 +2457,5 @@ export async function runTui() {
             }
         }, 130);
     });
+    return exitAction;
 }

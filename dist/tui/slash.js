@@ -305,6 +305,12 @@ export const SLASH_COMMANDS = [
         handler: async () => ({ type: "overlay", mode: "providers" }),
     },
     {
+        name: "update",
+        aliases: ["upgrade"],
+        description: "Update Voxiva from GitHub",
+        handler: async () => ({ type: "action", action: "update" }),
+    },
+    {
         name: "exit",
         aliases: ["quit", "q"],
         description: "Quit",

@@ -90,7 +90,38 @@ Free model works with **no API key**. Type → Enter.
 
 ## Commands
 
-`/model` · `/plans` · `/continue` · `/sessions` · `/workspaces` · `/files` · `/history` · `/copy` · `/undo` · `/memory` · `/init` · `/diff` · `/cost` · `/themes` · `/lang` · `/shortcuts` · `/help`
+`/model` · `/update` · `/plans` · `/continue` · `/sessions` · `/workspaces` · `/files` · `/history` · `/copy` · `/undo` · `/memory` · `/init` · `/diff` · `/cost` · `/themes` · `/lang` · `/shortcuts` · `/help`
+
+---
+
+## Update
+
+When a newer version is on GitHub, the app shows a banner:
+
+```text
+↑ Update · v0.1.1 · press u or /update
+```
+
+**Users**
+```bash
+voxiva update
+# or inside chat: /update   (or press u)
+```
+
+Same as reinstall:
+```powershell
+irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
+```
+
+**Maintainers (so others get the banner)** — bump version, push `main`:
+```bash
+# edit package.json + src/tui/copy.ts VERSION together (e.g. 0.1.1 → 0.1.2)
+git add -A && git commit -m "Release 0.1.2" && git push
+# optional GitHub Release tag:
+gh release create v0.1.2 -t "v0.1.2" -n "What's new"
+```
+
+Users pick up the new `package.json` version from `main` (no npm publish required).
 
 ---
 
@@ -98,7 +129,8 @@ Free model works with **no API key**. Type → Enter.
 
 - **Free** models = OpenCode Zen names, keyless streaming (dual gateway race + warm-up)
 - **API keys** via `/connect` — OpenAI / Anthropic / Google / OpenRouter
-- New PC: installer downloads Node (official / npmmirror / winget) + CLI, then runs `doctor`
+- New PC: installer downloads Node (official / npmmirror / winget) + CLI
+- Update: `voxiva update` · app offers it automatically
 - Files under `~/.voxiva/` (`runtime/`, `prefix/`, `bin/`, config, sessions)
 - Uninstall: delete `~/.voxiva` and remove it from PATH
 
