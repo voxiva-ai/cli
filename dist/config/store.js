@@ -92,4 +92,10 @@ export async function patchConfig(patch) {
     await saveConfig(next);
     return next;
 }
+/** Persist default model + recent list so a new terminal keeps the same choice. */
+export async function rememberModel(ref) {
+    const current = await loadConfig();
+    const recent = [ref, ...(current.recentModels ?? []).filter((m) => m !== ref)].slice(0, 8);
+    return patchConfig({ defaultModel: ref, recentModels: recent });
+}
 export { dirname, join };

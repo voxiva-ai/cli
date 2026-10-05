@@ -164,6 +164,81 @@ export function modelRef(info: ModelInfo): ModelRef {
   return `${info.provider}/${info.id}`;
 }
 
+/** Old short free ids → current OpenCode-style free catalog. */
+const LEGACY_MODEL_MAP: Record<string, ModelRef> = {
+  "voxiva/code": DEFAULT_FREE_MODEL,
+  "voxiva/fast": DEFAULT_FREE_MODEL,
+  "voxiva/space-bunny": "voxiva/space-bunny-free",
+  "voxiva/ling-3.0-flash": "voxiva/ling-3.0-flash-free",
+  "voxiva/mimo-v2.5": "voxiva/mimo-v2.5-free",
+  "voxiva/mimo-v2.6-flash": "voxiva/mimo-v2.6-flash-free",
+  "voxiva/longcat-2.5": "voxiva/longcat-2.5-preview-free",
+  "voxiva/muse-spark": "voxiva/muse-spark-1.3-contributor-free",
+  "voxiva/north-mini-code": "voxiva/north-mini-code-free",
+  "voxiva/qwen3.8-27b": "voxiva/qwen3.6-plus-free",
+  "voxiva/gemma-4-31b": DEFAULT_FREE_MODEL,
+  "voxiva/glm-5.2": "voxiva/glm-5-free",
+  "voxiva/nemotron-3.5-lightning": "voxiva/nemotron-3.5-lightning-free",
+  "voxiva/nemotron-3-ultra": "voxiva/nemotron-3-ultra-free",
+};
+
+/** Migrate renamed free ids; leave everything else intact. */
+export function migrateModelRef(ref: string | undefined): ModelRef | undefined {
+  if (!ref) return undefined;
+  const mapped = LEGACY_MODEL_MAP[ref];
+  if (mapped) return mapped;
+  if (!parseModelRef(ref)) return undefined;
+  return ref as ModelRef;
+}
+
+/**
+ * True when we can actually call this model now:
+ * - built-in / free catalog → always
+ * - catalog paid → needs that provider key
+ * - custom OpenRouter / BYOK id not in catalog → needs provider key (keep user's choice)
+ */
+export function isUsableModelRef(ref: string | undefined, auth: AuthStore): ref is ModelRef {
+  const migrated = migrateModelRef(ref);
+  if (!migrated) return false;
+  const parsed = parseModelRef(migrated);
+  if (!parsed) return false;
+  if (canUseWithoutKey(migrated)) return true;
+  const catalog = findCatalog(migrated);
+  if (catalog?.free && !catalog.builtin) {
+    return providerReady(auth, parsed.provider);
+  }
+  if (catalog) return providerReady(auth, parsed.provider);
+  // Not in catalog (e.g. openrouter/… or a new deepseek id) — keep if keyed.
+  if (parsed.provider === "voxiva") return false;
+  return providerReady(auth, parsed.provider);
+}
+
+/**
+ * Pick model for a new terminal / workspace:
+ * workspace last → global default → Big Pickle.
+ * Never silently wipe a still-usable choice (DeepSeek Flash, OpenRouter, BYOK, …).
+ */
+export function resolvePreferredModel(opts: {
+  auth: AuthStore;
+  workspaceModel?: string;
+  configModel?: string;
+  fallback?: ModelRef;
+}): { model: ModelRef; migrated: boolean } {
+  const fallback = opts.fallback ?? DEFAULT_FREE_MODEL;
+  const originals = [opts.workspaceModel, opts.configModel, fallback].filter(
+    (ref): ref is string => Boolean(ref),
+  );
+  const seen = new Set<string>();
+  for (const original of originals) {
+    const candidate = migrateModelRef(original);
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+    if (!isUsableModelRef(candidate, opts.auth)) continue;
+    return { model: candidate, migrated: candidate !== original };
+  }
+  return { model: fallback, migrated: true };
+}
+
 function requireKey(auth: AuthStore, provider: ProviderId): string {
   const key = auth[provider]?.apiKey?.trim();
   if (!key) {
@@ -192,19 +267,26 @@ export function warmFreeGateway(): void {
   }
 }
 
-/** Keep recent turns so free/API models stay fast. */
+const CASUAL_RE =
+  /^(hi|hello|hey|yo|sup|thanks|thank you|ok|okay|да|нет|ок|привет|здравств[а-я]*|хай|你好|hola|bonjour|merci)[\s!.?…]*$/i;
+
+/** Keep recent turns so free/API models stay fast (OpenCode-like TTFT). */
 function prepareMessages(messages: ChatMessage[], maxChars = 40_000): ChatMessage[] {
   const system = messages.filter((m) => m.role === "system");
   const rest = messages.filter((m) => m.role !== "system");
   const lastUser = [...rest].reverse().find((m) => m.role === "user");
-  const shortChat = (lastUser?.content.length ?? 0) < 100;
+  const lastText = (lastUser?.content ?? "").trim();
+  const casual = CASUAL_RE.test(lastText);
+  const shortChat = casual || lastText.length < 80;
 
   const kept: ChatMessage[] = [];
-  let budget = shortChat ? 12_000 : maxChars;
+  let budget = casual ? 2_000 : shortChat ? 8_000 : maxChars;
+  const maxKept = casual ? 1 : shortChat ? 2 : 40;
   for (let i = rest.length - 1; i >= 0; i--) {
     const msg = rest[i];
     const cost = msg.content.length + 24;
-    if (kept.length >= 2 && cost > budget) break;
+    if (kept.length >= maxKept) break;
+    if (kept.length >= 1 && cost > budget) break;
     kept.unshift(msg);
     budget -= cost;
   }
@@ -214,12 +296,15 @@ function prepareMessages(messages: ChatMessage[], maxChars = 40_000): ChatMessag
 
   let sysText = sys.content;
   if (shortChat) {
-    // Drop heavy workspace / FILE protocol for greetings & tiny asks — huge TTFT win.
+    // Drop heavy workspace / FILE / memory for greetings & tiny asks — huge TTFT win.
     sysText = sysText
-      .replace(/\nWorkspace:[\s\S]*$/, "")
+      .replace(/\nWorkspace:[\s\S]*$/i, "")
+      .replace(/\nUser memory[\s\S]*$/i, "")
+      .replace(/\n## AGENTS\.md[\s\S]*$/i, "")
+      .replace(/\nAGENTS\.md[\s\S]*$/i, "")
       .replace(/\nWhen you need to create or change project files[\s\S]*$/i, "")
       .replace(/\n<<<FILE[\s\S]*$/i, "");
-    sysText = sysText.slice(0, 3_500);
+    sysText = sysText.slice(0, casual ? 1_600 : 2_800);
   } else if (sysText.length > 10_000) {
     sysText = `${sysText.slice(0, 10_000)}\n…(system truncated for speed)`;
   }

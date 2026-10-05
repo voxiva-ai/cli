@@ -40,6 +40,29 @@ export declare function parseModelRef(ref: string): {
     model: string;
 } | null;
 export declare function modelRef(info: ModelInfo): ModelRef;
+/** Migrate renamed free ids; leave everything else intact. */
+export declare function migrateModelRef(ref: string | undefined): ModelRef | undefined;
+/**
+ * True when we can actually call this model now:
+ * - built-in / free catalog → always
+ * - catalog paid → needs that provider key
+ * - custom OpenRouter / BYOK id not in catalog → needs provider key (keep user's choice)
+ */
+export declare function isUsableModelRef(ref: string | undefined, auth: AuthStore): ref is ModelRef;
+/**
+ * Pick model for a new terminal / workspace:
+ * workspace last → global default → Big Pickle.
+ * Never silently wipe a still-usable choice (DeepSeek Flash, OpenRouter, BYOK, …).
+ */
+export declare function resolvePreferredModel(opts: {
+    auth: AuthStore;
+    workspaceModel?: string;
+    configModel?: string;
+    fallback?: ModelRef;
+}): {
+    model: ModelRef;
+    migrated: boolean;
+};
 /** Warm TLS/DNS so the first free reply feels instant (OpenCode-like). */
 export declare function warmFreeGateway(): void;
 export declare function streamChat(auth: AuthStore, modelRefStr: ModelRef, messages: ChatMessage[], handlers: StreamHandlers): Promise<string>;

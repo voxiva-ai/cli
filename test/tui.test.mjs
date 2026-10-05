@@ -10,15 +10,29 @@ import {
   inputBox,
   renderHeader,
   statusFooter,
+  thoughtLine,
+  THOUGHT_FRAMES,
+  THOUGHT_STATUSES,
 } from "../dist/tui/layout.js";
 import { matchesPaletteFilter, resolveSlash, slashSuggestions, paletteItems } from "../dist/tui/slash.js";
 import { themeIds, THEMES } from "../dist/tui/themes.js";
 import { planSystem, planSystemAsync } from "../dist/plans/index.js";
-import { estimateTokens, formatUsage, emptyUsage } from "../dist/usage/tokens.js";
+import { estimateTokens, formatUsage, emptyUsage, usagePanelLines } from "../dist/usage/tokens.js";
 import { withAgentsContext } from "../dist/project/agents.js";
 import { VERSION } from "../dist/tui/copy.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+test("thoughtLine is one quiet spinner + status row", () => {
+  const line = thoughtLine(0, "thinking", 80);
+  assert.ok(line.includes(THOUGHT_FRAMES[0]));
+  assert.ok(line.includes("thinking"));
+  assert.ok(!line.includes("\n"));
+  assert.ok(stringWidth(line) <= 80);
+  const next = thoughtLine(1, THOUGHT_STATUSES[1], 40);
+  assert.ok(next.includes(THOUGHT_FRAMES[1]));
+  assert.ok(next.includes(THOUGHT_STATUSES[1]));
+});
 
 test("input bar draws a blinking caret when empty", () => {
   const on = inputBar(80, "", 0, "Type here", { blink: true });
@@ -133,6 +147,12 @@ test("slash aliases resolve and suggestions filter", async () => {
   assert.equal(resolveSlash("/cost")?.cmd.name, "cost");
   assert.equal(resolveSlash("/diff")?.cmd.name, "diff");
   assert.equal(resolveSlash("/usage")?.cmd.name, "cost");
+  const usageHit = resolveSlash("/usage");
+  assert.ok(usageHit);
+  assert.deepEqual(await usageHit.cmd.handler("", /** @type {any} */ ({})), {
+    type: "overlay",
+    mode: "usage",
+  });
   assert.ok(slashSuggestions("/th").some((command) => command.name === "themes"));
   assert.ok(slashSuggestions("/au").some((command) => command.name === "connect"));
 });
@@ -153,10 +173,10 @@ test("themes include ember forest mono", () => {
   assert.equal(THEMES.length, 7);
 });
 
-test("version is beta 0.1.1", () => {
-  assert.equal(VERSION, "0.1.1");
+test("version is beta 0.1.2", () => {
+  assert.equal(VERSION, "0.1.2");
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.1.1");
+  assert.equal(pkg.version, "0.1.2");
 });
 
 test("plan system injects language and agents context", async () => {
@@ -176,6 +196,26 @@ test("token usage helpers", () => {
   usage.outputTokens = 50;
   usage.turns = 2;
   assert.ok(formatUsage(usage).includes("150"));
+  const panel = usagePanelLines({
+    session: usage,
+    today: {
+      date: "2026-10-05",
+      inputTokens: 200,
+      outputTokens: 80,
+      turns: 3,
+      byModel: { "voxiva/openai-fast": { inputTokens: 200, outputTokens: 80, turns: 3 } },
+    },
+    model: "voxiva/openai-fast",
+    plan: "build",
+    cwd: "~/proj",
+    contextTokens: 1200,
+    free: true,
+    locale: "en",
+  });
+  assert.ok(panel.some((line) => line.includes("Session")));
+  assert.ok(panel.some((line) => line.includes("Today")));
+  assert.ok(panel.some((line) => line.includes("voxiva/openai-fast")));
+  assert.ok(panel.some((line) => /build/.test(line)));
 });
 
 test("new overlays resolve from slash", () => {
@@ -281,6 +321,60 @@ test("plan voice does not brand as Voxiva Check", async () => {
     assert.ok(!/I am Voxiva/i.test(sys), id);
     assert.ok(!/Voxiva Check/i.test(sys), id);
   }
+});
+
+test("preferred model sticks across restarts", async () => {
+  const {
+    migrateModelRef,
+    isUsableModelRef,
+    resolvePreferredModel,
+    DEFAULT_FREE_MODEL,
+  } = await import("../dist/providers/chat.js");
+
+  assert.equal(migrateModelRef("voxiva/mimo-v2.6-flash"), "voxiva/mimo-v2.6-flash-free");
+  assert.equal(migrateModelRef("voxiva/deepseek-v4-flash-free"), "voxiva/deepseek-v4-flash-free");
+
+  // Free DeepSeek Flash must survive a new terminal with no key.
+  const flash = resolvePreferredModel({
+    auth: {},
+    workspaceModel: "voxiva/deepseek-v4-flash-free",
+    configModel: DEFAULT_FREE_MODEL,
+  });
+  assert.equal(flash.model, "voxiva/deepseek-v4-flash-free");
+  assert.equal(flash.migrated, false);
+
+  // Legacy short id migrates instead of wiping to Big Pickle blindly.
+  const legacy = resolvePreferredModel({
+    auth: {},
+    configModel: "voxiva/mimo-v2.6-flash",
+  });
+  assert.equal(legacy.model, "voxiva/mimo-v2.6-flash-free");
+  assert.equal(legacy.migrated, true);
+
+  // OpenRouter / BYOK kept when key present — never force-reset on launch.
+  assert.equal(
+    isUsableModelRef("openrouter/qwen/qwen3-32b:free", { openrouter: { apiKey: "sk-test" } }),
+    true,
+  );
+  assert.equal(isUsableModelRef("openrouter/qwen/qwen3-32b:free", {}), false);
+  assert.equal(
+    isUsableModelRef("deepseek/deepseek-chat", { deepseek: { apiKey: "sk-test" } }),
+    true,
+  );
+
+  const byok = resolvePreferredModel({
+    auth: { deepseek: { apiKey: "sk-test" } },
+    configModel: "deepseek/deepseek-chat",
+  });
+  assert.equal(byok.model, "deepseek/deepseek-chat");
+
+  // Workspace preference beats global default.
+  const folder = resolvePreferredModel({
+    auth: {},
+    workspaceModel: "voxiva/grok-code",
+    configModel: "voxiva/big-pickle",
+  });
+  assert.equal(folder.model, "voxiva/grok-code");
 });
 
 test("free models never require a key", async () => {

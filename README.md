@@ -99,7 +99,7 @@ Free model works with **no API key**. Type → Enter.
 When a newer version is on GitHub, the app shows a banner:
 
 ```text
-↑ Update · v0.1.1 · press u or /update
+↑ Update · v0.1.2 · press u or /update
 ```
 
 **Users**
@@ -115,7 +115,7 @@ irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 
 **Maintainers (so others get the banner)** — bump version, push `main`:
 ```bash
-# edit package.json + src/tui/copy.ts VERSION together (e.g. 0.1.1 → 0.1.2)
+# edit package.json + src/tui/copy.ts VERSION together (e.g. 0.1.2 → 0.1.3)
 git add -A && git commit -m "Release 0.1.2" && git push
 # optional GitHub Release tag:
 gh release create v0.1.2 -t "v0.1.2" -n "What's new"

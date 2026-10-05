@@ -1,5 +1,5 @@
 import { c } from "../brand/index.js";
-import { loadAuth, loadConfig, patchConfig, parseModelRef } from "../config/store.js";
+import { loadAuth, loadConfig, parseModelRef, rememberModel } from "../config/store.js";
 import { DEFAULT_FREE_MODEL, listFreeCatalog, modelRef } from "../providers/chat.js";
 
 export async function modelsList(): Promise<void> {
@@ -56,7 +56,7 @@ export async function modelsUse(ref: string): Promise<void> {
     console.log(c.muted(`Note: ${ref} may need an API key — will still be saved.`));
   }
 
-  await patchConfig({ defaultModel: ref as `${typeof parsed.provider}/${string}` });
+  await rememberModel(ref as `${typeof parsed.provider}/${string}`);
   console.log(c.ok(`Default model → ${c.brand(ref)}`));
 }
 

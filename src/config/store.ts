@@ -32,6 +32,8 @@ export type ModelRef = `${ProviderId}/${string}`;
 export type VoxivaConfig = {
   version: 1;
   defaultModel?: ModelRef;
+  /** Recently chosen models (newest first), kept across terminals. */
+  recentModels?: ModelRef[];
   plan: PlanId;
   theme?: ThemeId;
   locale?: LocaleId;
@@ -130,6 +132,13 @@ export async function patchConfig(patch: Partial<VoxivaConfig>): Promise<VoxivaC
   const next = { ...current, ...patch };
   await saveConfig(next);
   return next;
+}
+
+/** Persist default model + recent list so a new terminal keeps the same choice. */
+export async function rememberModel(ref: ModelRef): Promise<VoxivaConfig> {
+  const current = await loadConfig();
+  const recent = [ref, ...(current.recentModels ?? []).filter((m) => m !== ref)].slice(0, 8);
+  return patchConfig({ defaultModel: ref, recentModels: recent });
 }
 
 export { dirname, join };

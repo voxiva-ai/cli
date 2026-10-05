@@ -228,8 +228,8 @@ export const SLASH_COMMANDS = [
     {
         name: "cost",
         aliases: ["usage", "tokens"],
-        description: "Session token estimate",
-        handler: async () => ({ type: "action", action: "cost" }),
+        description: "Tokens, model, plan, today — scrollable",
+        handler: async () => ({ type: "overlay", mode: "usage" }),
     },
     {
         name: "explain",

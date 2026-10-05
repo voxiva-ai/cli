@@ -176,6 +176,28 @@ export function statusFooter(parts, width) {
     const gap = width - stringWidth(left) - stringWidth(right);
     return left + " ".repeat(Math.max(1, gap)) + right;
 }
+/** Braille frames for the pre-stream thought line. */
+export const THOUGHT_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+/** Soft verbs while waiting for the first token (Codex / Thought Line vibe). */
+export const THOUGHT_STATUSES = [
+    "thinking",
+    "drafting",
+    "reading",
+    "wiring",
+    "checking",
+    "shaping",
+];
+/**
+ * One quiet line shown instead of a static "…" before the first stream token.
+ * Example: `  ⠋  thinking`
+ */
+export function thoughtLine(frame, status, cols) {
+    const t = c();
+    const spin = THOUGHT_FRAMES[((frame % THOUGHT_FRAMES.length) + THOUGHT_FRAMES.length) % THOUGHT_FRAMES.length];
+    const word = (status || "thinking").trim() || "thinking";
+    const line = `  ${t.accent(spin)}  ${t.dim(word)}`;
+    return truncate(line, Math.max(12, cols));
+}
 export function horizontalRule(width) {
     return c().dim("─".repeat(width));
 }

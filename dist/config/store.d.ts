@@ -8,6 +8,8 @@ export type ModelRef = `${ProviderId}/${string}`;
 export type VoxivaConfig = {
     version: 1;
     defaultModel?: ModelRef;
+    /** Recently chosen models (newest first), kept across terminals. */
+    recentModels?: ModelRef[];
     plan: PlanId;
     theme?: ThemeId;
     locale?: LocaleId;
@@ -30,4 +32,6 @@ export declare function parseModelRef(ref: string): {
 export declare function configDir(): string;
 export declare function configPath(): string;
 export declare function patchConfig(patch: Partial<VoxivaConfig>): Promise<VoxivaConfig>;
+/** Persist default model + recent list so a new terminal keeps the same choice. */
+export declare function rememberModel(ref: ModelRef): Promise<VoxivaConfig>;
 export { dirname, join };

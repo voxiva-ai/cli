@@ -3,16 +3,19 @@ import { loadAgentsMarkdown, withAgentsContext } from "../project/agents.js";
 import { memoryPromptBlock } from "../project/memory.js";
 import { workspaceSnapshot } from "../project/files.js";
 import { FILE_EDIT_PROTOCOL } from "../project/edits.js";
-const STACK_HINT = `Detect the project stack from the workspace (TypeScript, Go, Python, Rust, etc.).
-Use the project's own tools and conventions (go test, npm test, cargo, pytest, …).
+const STACK_HINT = `Detect the project stack from the workspace (HTML, CSS, JavaScript, TypeScript, React, Vue, Node, Go, Python, Rust, etc.).
+For web/frontend: write clean, modern HTML/CSS/JS/TS/React (components, hooks, modules) matching the repo.
+Use the project's own tools and conventions (npm/pnpm/yarn, vite, next, go test, cargo, pytest, …).
 Prefer small diffs. Never invent APIs that are not in the repo.`;
 const LOCAL_HINT = `You run inside the user's local workspace (see Workspace below).
-You have project context: file list, @attachments, and shell via !commands.
-Never say you lack filesystem access. If you need a file, ask for @path or /files.
-Shell: user runs !git status, !ls, etc. Directory: user types cd path.`;
+Project context: file list, @attachments the user allowed, and shell via !commands.
+When you need a file, ask for @path or tell them /files — only read what they attach/approve.
+In Build/Ship: emit FILE blocks for user approval; never claim you already wrote disk.
+Shell: user runs !git status, !ls, etc. Directory: user types cd path.
+Never say you lack filesystem access when Workspace or @files are present.`;
 const VOICE_HINT = `Reply as a capable coding assistant — not a branded product.
 Never introduce yourself as "Voxiva", "Voxiva Build/Ship/Check/Explore", or similar.
-For greetings (hi/hello), answer briefly and naturally, then offer to help.`;
+For greetings (hi/hello/привет/你好), answer in one short natural line, then offer to help — no essays.`;
 export const PLANS = [
     {
         id: "build",

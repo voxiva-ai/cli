@@ -25,7 +25,6 @@ export type SlashResult =
         | "details"
         | "thinking"
         | "voice"
-        | "cost"
         | "diff"
         | "copy"
         | "stop"
@@ -66,7 +65,8 @@ export type OverlayMode =
   | "queue"
   | "memory"
   | "workspaces"
-  | "approve";
+  | "approve"
+  | "usage";
 
 export type SlashContext = {
   cwd: string;
@@ -310,8 +310,8 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     name: "cost",
     aliases: ["usage", "tokens"],
-    description: "Session token estimate",
-    handler: async () => ({ type: "action", action: "cost" }),
+    description: "Tokens, model, plan, today — scrollable",
+    handler: async () => ({ type: "overlay", mode: "usage" }),
   },
   {
     name: "explain",

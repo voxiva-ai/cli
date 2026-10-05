@@ -1,4 +1,14 @@
-import { loadAuth, patchConfig, saveAuth, type AuthStore, type ModelRef, type PlanId, type ProviderId } from "../config/store.js";
+import {
+  loadAuth,
+  loadConfig,
+  patchConfig,
+  rememberModel,
+  saveAuth,
+  type AuthStore,
+  type ModelRef,
+  type PlanId,
+  type ProviderId,
+} from "../config/store.js";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { execSync, spawnSync } from "node:child_process";
 import chalk from "chalk";
@@ -14,6 +24,8 @@ import {
   canUseWithoutKey,
   findCatalog,
   isFreeModelRef,
+  isUsableModelRef,
+  resolvePreferredModel,
   streamChat,
   warmFreeGateway,
   type ChatMessage,
@@ -39,7 +51,7 @@ import {
   saveSession,
   type SessionRecord,
 } from "../sessions/store.js";
-import { listWorkspaces, touchWorkspace, type WorkspaceRecord } from "../workspaces/store.js";
+import { getWorkspace, listWorkspaces, touchWorkspace, type WorkspaceRecord } from "../workspaces/store.js";
 import { LOCALES, t as ui, type LocaleId } from "../i18n/index.js";
 import {
   assistantBubble,
@@ -63,6 +75,8 @@ import {
   suggestionRows,
   systemNote,
   termSize,
+  thoughtLine,
+  THOUGHT_STATUSES,
   truncate,
   userBubble,
   wrapText,
@@ -74,7 +88,17 @@ import type { ThemeId } from "../config/store.js";
 import { paletteItems, resolveSlash, slashSuggestions, matchesPaletteFilter, FILTER_OVERLAYS, INFO_OVERLAYS, type SlashResult, type SlashContext } from "./slash.js";
 import { VERSION } from "./copy.js";
 import { setVoiceListening, setVoiceSink } from "../voice/bridge.js";
-import { emptyUsage, estimateMessagesTokens, estimateTokens, formatUsage, type SessionUsage } from "../usage/tokens.js";
+import {
+  emptyUsage,
+  estimateMessagesTokens,
+  estimateTokens,
+  formatUsage,
+  recordTurnUsage,
+  todayUsage,
+  usagePanelLines,
+  type DayUsage,
+  type SessionUsage,
+} from "../usage/tokens.js";
 import { listProjectFiles } from "../project/files.js";
 import { addMemory, clearMemory, listMemory, type MemoryNote } from "../project/memory.js";
 import { readGitSnapshot } from "../project/gitinfo.js";
@@ -106,6 +130,7 @@ const KEY_CONNECT: { id: ProviderId; label: string; description: string }[] = [
   { id: "openai", label: "OpenAI", description: "ChatGPT · paste OPENAI_API_KEY" },
   { id: "anthropic", label: "Anthropic", description: "Claude · paste ANTHROPIC_API_KEY" },
   { id: "google", label: "Google", description: "Gemini · paste GEMINI_API_KEY" },
+  { id: "deepseek", label: "DeepSeek", description: "V3 / R1 · paste DEEPSEEK_API_KEY" },
 ];
 
 type ModelPickerItem =
@@ -166,6 +191,10 @@ type AppState = {
   draftAttachments: DraftAttachment[];
   /** Shown above header when a newer GitHub/npm release exists. */
   updateBanner?: string;
+  /** Braille spinner frame while waiting for first token. */
+  thoughtFrame: number;
+  /** Soft status verb for the thought line. */
+  thoughtStatus: string;
 };
 
 function shortCwd(cwd: string): string {
@@ -215,7 +244,6 @@ export async function runTui(): Promise<"update" | undefined> {
     return;
   }
 
-  const { loadConfig } = await import("../config/store.js");
   const config = await loadConfig();
   const auth = await loadAuth();
   const savedSessions = await listSessions();
@@ -228,38 +256,23 @@ export async function runTui(): Promise<"update" | undefined> {
     .map(([key]) => key as ProviderId);
 
   const cwd = process.cwd();
-  let defaultModel = config.defaultModel ?? DEFAULT_FREE_MODEL;
-  if (!defaultModel || !parseModelRef(defaultModel) || !findCatalog(defaultModel)) {
-    defaultModel = DEFAULT_FREE_MODEL;
-  }
-  // Legacy free ids / OpenRouter-without-key → Big Pickle.
-  const legacyFree = new Set([
-    "voxiva/code",
-    "voxiva/fast",
-    "voxiva/space-bunny",
-    "voxiva/nemotron-3.5-lightning",
-    "voxiva/nemotron-3-ultra",
-    "voxiva/ling-3.0-flash",
-    "voxiva/mimo-v2.5",
-    "voxiva/mimo-v2.6-flash",
-    "voxiva/longcat-2.5",
-    "voxiva/muse-spark",
-    "voxiva/north-mini-code",
-    "voxiva/qwen3.8-27b",
-    "voxiva/gemma-4-31b",
-    "voxiva/glm-5.2",
-  ]);
-  if (defaultModel.startsWith("openrouter/") || legacyFree.has(defaultModel)) {
-    defaultModel = DEFAULT_FREE_MODEL;
-  }
-  if (!config.defaultModel || config.defaultModel !== defaultModel) {
-    await patchConfig({ defaultModel });
-  }
+  const workspace = await getWorkspace(cwd);
+  const preferred = resolvePreferredModel({
+    auth,
+    workspaceModel: workspace?.lastModel,
+    configModel: config.defaultModel,
+  });
+  const defaultModel = preferred.model;
 
+  // Persist restored/migrated choice so the next terminal matches this one.
+  if (config.defaultModel !== defaultModel || preferred.migrated) {
+    await rememberModel(defaultModel);
+  }
   await touchWorkspace(cwd, {
     lastModel: defaultModel,
     lastPlan: config.plan,
-    lastSessionId: config.lastSessionId,
+    // Keep existing session pointer for this folder; only seed from global if missing.
+    lastSessionId: workspace?.lastSessionId ?? config.lastSessionId,
   });
   await patchConfig({ cwd });
 
@@ -308,6 +321,8 @@ export async function runTui(): Promise<"update" | undefined> {
     pendingEdits: [],
     draftAttachments: [],
     updateBanner: undefined,
+    thoughtFrame: 0,
+    thoughtStatus: THOUGHT_STATUSES[0],
   };
 
   let running = true;
@@ -320,10 +335,47 @@ export async function runTui(): Promise<"update" | undefined> {
   const RENDER_MIN_MS = 16;
   let leaderUntil = 0;
   let usage: SessionUsage = emptyUsage();
+  let todayCache: DayUsage | null = null;
 
   // Warm free-model TLS/DNS in background — first reply starts faster.
   if (canUseWithoutKey(state.model)) {
     warmFreeGateway();
+  }
+
+  function buildUsageLines(): string[] {
+    return usagePanelLines({
+      session: usage,
+      today: todayCache ?? {
+        date: new Date().toISOString().slice(0, 10),
+        inputTokens: 0,
+        outputTokens: 0,
+        turns: 0,
+        byModel: {},
+      },
+      model: state.model,
+      plan: state.plan,
+      cwd: shortCwd(state.cwd),
+      contextTokens: estimateMessagesTokens(state.history),
+      free: canUseWithoutKey(state.model) || isFreeModelRef(state.model),
+      locale: state.locale,
+    });
+  }
+
+  async function noteTurn(inputTok: number, outputTok: number): Promise<void> {
+    usage.inputTokens += inputTok;
+    usage.outputTokens += outputTok;
+    usage.turns += 1;
+    usage.lastModel = state.model;
+    usage.lastPlan = state.plan;
+    try {
+      todayCache = await recordTurnUsage({
+        inputTokens: inputTok,
+        outputTokens: outputTok,
+        model: state.model,
+      });
+    } catch {
+      // non-fatal — session totals still update
+    }
   }
 
   async function refreshSystemPrompt() {
@@ -348,6 +400,13 @@ export async function runTui(): Promise<"update" | undefined> {
     }
     if (mode === "workspaces") {
       state.workspaces = await listWorkspaces();
+    }
+    if (mode === "usage") {
+      try {
+        todayCache = await todayUsage();
+      } catch {
+        todayCache = null;
+      }
     }
     queueRender();
   }
@@ -440,10 +499,21 @@ export async function runTui(): Promise<"update" | undefined> {
       state.plan = id;
       await refreshSystemPrompt();
       await patchConfig({ plan: id });
+      await touchWorkspace(state.cwd, {
+        lastPlan: id,
+        lastModel: state.model,
+        lastSessionId: state.sessionId,
+      });
     },
     setModel: async (ref) => {
       state.model = ref as ModelRef;
-      await patchConfig({ defaultModel: ref as ModelRef });
+      await rememberModel(ref as ModelRef);
+      await touchWorkspace(state.cwd, {
+        lastModel: ref as ModelRef,
+        lastPlan: state.plan,
+        lastSessionId: state.sessionId,
+      });
+      if (canUseWithoutKey(ref)) warmFreeGateway();
     },
     setTheme: async (id) => {
       state.theme = id;
@@ -458,7 +528,12 @@ export async function runTui(): Promise<"update" | undefined> {
     refresh: async () => {
       const fresh = await loadConfig();
       const freshAuth = await loadAuth();
-      state.model = fresh.defaultModel;
+      // After setModel, disk defaultModel is canonical for this process.
+      state.model = resolvePreferredModel({
+        auth: freshAuth,
+        workspaceModel: fresh.defaultModel,
+        configModel: state.model,
+      }).model;
       state.plan = fresh.plan;
       state.theme = fresh.theme ?? "voxiva";
       state.locale = (fresh.locale ?? "en") as LocaleId;
@@ -553,10 +628,10 @@ export async function runTui(): Promise<"update" | undefined> {
       lastModel: state.model,
       lastPlan: state.plan,
     });
+    if (state.model) await rememberModel(state.model);
     await patchConfig({
       cwd: state.cwd,
       lastSessionId: state.sessionId,
-      defaultModel: state.model,
       plan: state.plan,
     });
     state.workspaces = await listWorkspaces();
@@ -576,18 +651,30 @@ export async function runTui(): Promise<"update" | undefined> {
     state.redoStack = [];
     state.scrollOffset = 0;
     usage = emptyUsage();
+    const authNow = await loadAuth();
+    if (session.model && isUsableModelRef(session.model, authNow)) {
+      state.model = session.model;
+    } else {
+      const cfg = await loadConfig();
+      state.model = resolvePreferredModel({
+        auth: authNow,
+        workspaceModel: state.model,
+        configModel: cfg.defaultModel,
+      }).model;
+    }
+    if (state.model) await rememberModel(state.model);
     await patchConfig({
       plan: session.plan,
-      defaultModel: session.model,
       lastSessionId: session.id,
       cwd: state.cwd,
     });
     await touchWorkspace(state.cwd, {
       lastSessionId: session.id,
-      lastModel: session.model,
+      lastModel: state.model,
       lastPlan: session.plan,
     });
     await ctx.refresh();
+    if (canUseWithoutKey(state.model)) warmFreeGateway();
     toast(toastMsg ?? `Resumed: ${session.title}`, "ok");
   }
 
@@ -672,9 +759,19 @@ export async function runTui(): Promise<"update" | undefined> {
     state.fileCache = [];
     usage = emptyUsage();
     const ws = await touchWorkspace(state.cwd);
-    await patchConfig({ cwd: state.cwd });
+    const authNow = await loadAuth();
+    const picked = resolvePreferredModel({
+      auth: authNow,
+      workspaceModel: ws.lastModel,
+      configModel: state.model ?? (await loadConfig()).defaultModel,
+    });
+    state.model = picked.model;
+    if (ws.lastPlan) state.plan = ws.lastPlan;
+    await rememberModel(picked.model);
+    await patchConfig({ cwd: state.cwd, plan: state.plan });
     state.workspaces = await listWorkspaces();
     state.savedSessions = await listSessions();
+    if (canUseWithoutKey(state.model)) warmFreeGateway();
     if (ws.lastSessionId) {
       const session = await getSession(ws.lastSessionId);
       if (session) {
@@ -975,7 +1072,30 @@ export async function runTui(): Promise<"update" | undefined> {
         out.push(`  ${t.muted("Queue")}     ${state.promptQueue.length}`);
         out.push(`  ${t.muted("Session")}   ${formatUsage(usage)}`);
         out.push("");
-        out.push(t.dim("  /files · /memory · /reload   esc · back"));
+        out.push(t.dim("  /usage · /files · /memory · /reload   esc · back"));
+        break;
+      }
+      case "usage": {
+        const lines = buildUsageLines();
+        const viewH = Math.max(12, Math.min(18, termSize().rows - 10));
+        const maxStart = Math.max(0, lines.length - viewH);
+        const start = Math.min(state.overlayIndex, maxStart);
+        for (const line of lines.slice(start, start + viewH)) {
+          if (line === "Usage") out.push(t.muted(line));
+          else if (line.startsWith("──")) out.push(t.dim(line));
+          else if (line.startsWith("↑↓") || line.startsWith("Estimates") || line.startsWith("Free ")) {
+            out.push(t.dim(line));
+          } else {
+            out.push(t.text(line));
+          }
+        }
+        if (maxStart > 0) {
+          out.push(
+            t.dim(
+              `  ${start + 1}–${Math.min(start + viewH, lines.length)} / ${lines.length}  ·  ↑↓ PgUp/PgDn`,
+            ),
+          );
+        }
         break;
       }
       case "shortcuts":
@@ -1265,15 +1385,25 @@ export async function runTui(): Promise<"update" | undefined> {
             });
           }
         } else if (msg.role === "assistant") {
-          const wrapped = wrapText(text, wrapW);
-          wrapped.forEach((line, index) => {
+          const waiting =
+            state.busy &&
+            (!text || text === "…" || text === "...") &&
+            msg === state.messages[state.messages.length - 1];
+          if (waiting) {
             messageRows.push(
-              truncate(
-                pad + (index === 0 ? t.dim("  ") : "  ") + assistantBubble(line),
-                cols,
-              ),
+              truncate(pad + thoughtLine(state.thoughtFrame, state.thoughtStatus, wrapW), cols),
             );
-          });
+          } else {
+            const wrapped = wrapText(text, wrapW);
+            wrapped.forEach((line, index) => {
+              messageRows.push(
+                truncate(
+                  pad + (index === 0 ? t.dim("  ") : "  ") + assistantBubble(line),
+                  cols,
+                ),
+              );
+            });
+          }
         } else {
           const kind =
             text.startsWith("applied ·")
@@ -1483,14 +1613,6 @@ export async function runTui(): Promise<"update" | undefined> {
           })),
         ];
         toast("Conversation compacted.", "ok");
-        return;
-      }
-      case "cost": {
-        const contextTokens = estimateMessagesTokens(state.history);
-        toast(
-          `Session: ${formatUsage(usage)} · context ~${contextTokens.toLocaleString()} tok`,
-          "info",
-        );
         return;
       }
       case "diff": {
@@ -1909,6 +2031,8 @@ export async function runTui(): Promise<"update" | undefined> {
     const responseIndex = state.messages.length;
     state.messages.push({ role: "assistant", text: "…" });
     state.busy = true;
+    state.thoughtFrame = 0;
+    state.thoughtStatus = THOUGHT_STATUSES[Math.floor(Math.random() * THOUGHT_STATUSES.length)];
     queueRender(true);
 
     const inputTokens = estimateMessagesTokens(state.history);
@@ -1919,7 +2043,10 @@ export async function runTui(): Promise<"update" | undefined> {
       reply = await streamChat(authNow, state.model, state.history, {
         signal: streamAbort.signal,
         onToken: (chunk) => {
-          if (state.messages[responseIndex].text === "…") {
+          if (
+            state.messages[responseIndex].text === "…" ||
+            state.messages[responseIndex].text === "..."
+          ) {
             state.messages[responseIndex].text = "";
           }
           state.messages[responseIndex].text += chunk;
@@ -1929,18 +2056,14 @@ export async function runTui(): Promise<"update" | undefined> {
       if (streamAbort.signal.aborted) {
         if (reply) {
           state.history.push({ role: "assistant", content: reply });
-          usage.inputTokens += inputTokens;
-          usage.outputTokens += estimateTokens(reply);
-          usage.turns += 1;
+          await noteTurn(inputTokens, estimateTokens(reply));
         }
         toast("Generation stopped.", "info");
       } else {
         const clean = stripFileBlocks(reply);
         state.messages[responseIndex].text = clean || reply;
         state.history.push({ role: "assistant", content: reply });
-        usage.inputTokens += inputTokens;
-        usage.outputTokens += estimateTokens(reply);
-        usage.turns += 1;
+        await noteTurn(inputTokens, estimateTokens(reply));
         state.redoStack = [];
         await persistSession();
         await offerEditsFromReply(reply);
@@ -2034,6 +2157,7 @@ export async function runTui(): Promise<"update" | undefined> {
             openai: "openai/gpt-4o-mini",
             anthropic: "anthropic/claude-3-5-haiku-20241022",
             google: "google/gemini-2.5-flash",
+            deepseek: "deepseek/deepseek-chat",
           };
           state.pendingModel = defaults[item.id];
           if (state.authKeys.includes(item.id) && state.pendingModel) {
@@ -2226,6 +2350,11 @@ export async function runTui(): Promise<"update" | undefined> {
         return SETTINGS_ITEMS.length;
       case "queue":
         return state.promptQueue.length ? state.promptQueue.length + 1 : 0;
+      case "usage": {
+        const lines = buildUsageLines();
+        const viewH = Math.max(12, Math.min(18, termSize().rows - 10));
+        return Math.max(1, lines.length - viewH + 1);
+      }
       default:
         return 1;
     }
@@ -2420,6 +2549,19 @@ export async function runTui(): Promise<"update" | undefined> {
       }
       if (key === "\r" || key === "\n") {
         void overlayEnter();
+        return;
+      }
+      if (state.overlay === "usage" && key === "\u001b[5~") {
+        state.overlayIndex = Math.max(0, state.overlayIndex - 8);
+        queueRender();
+        return;
+      }
+      if (state.overlay === "usage" && key === "\u001b[6~") {
+        state.overlayIndex = Math.min(
+          Math.max(0, overlayItemCount() - 1),
+          state.overlayIndex + 8,
+        );
+        queueRender();
         return;
       }
       if (key === "\u001b[A" || key.toLowerCase() === "k") {
@@ -2675,6 +2817,23 @@ export async function runTui(): Promise<"update" | undefined> {
       if (blinkPhase % 4 === 0 && !state.overlay) {
         state.caretBlink = !state.caretBlink;
         queueRender();
+      }
+      // Thought line: spinner every tick, rotate verb ~every 2s while waiting for first token
+      if (state.busy) {
+        const last = state.messages[state.messages.length - 1];
+        const waiting =
+          last?.role === "assistant" && (!last.text || last.text === "…" || last.text === "...");
+        if (waiting) {
+          state.thoughtFrame += 1;
+          if (blinkPhase % 16 === 0) {
+            const idx = Math.max(
+              0,
+              THOUGHT_STATUSES.findIndex((s) => s === state.thoughtStatus),
+            );
+            state.thoughtStatus = THOUGHT_STATUSES[(idx + 1) % THOUGHT_STATUSES.length];
+          }
+          queueRender();
+        }
       }
       if (state.toast && state.toastUntil && Date.now() >= state.toastUntil) {
         state.toast = undefined;
