@@ -12,7 +12,7 @@ import { checkForUpdate } from "../update/check.js";
 import { getSession, getContinuableSession, listSessions, listSessionsForCwd, saveSession, } from "../sessions/store.js";
 import { getWorkspace, listWorkspaces, touchWorkspace } from "../workspaces/store.js";
 import { LOCALES, t as ui } from "../i18n/index.js";
-import { assistantBubble, clearScreen, composeFrame, enterAltScreen, errorNote, fullWidth, hideCursor, horizontalRule, inputBar, leaveAltScreen, mediaCard, okNote, paintFrame, panel, pasteCard, renderHeader, showCursor, statusFooter, suggestionRows, systemNote, termSize, thoughtLine, THOUGHT_STATUSES, truncate, userBubble, wrapText, fileChangeCard, } from "./layout.js";
+import { assistantBubble, clearScreen, composeFrame, enterAltScreen, errorNote, fullWidth, hideCursor, horizontalRule, inputBar, leaveAltScreen, mediaCard, paintFrame, panel, pasteCard, renderHeader, showCursor, statusFooter, suggestionRows, systemNote, termSize, thoughtLine, THOUGHT_STATUSES, truncate, userBubble, wrapText, fileChangeCard, } from "./layout.js";
 import { setActiveTheme, tc } from "./logo.js";
 import { PLAN_COLORS, THEMES } from "./themes.js";
 import { paletteItems, resolveSlash, slashSuggestions, matchesPaletteFilter, FILTER_OVERLAYS, INFO_OVERLAYS } from "./slash.js";
@@ -1157,7 +1157,7 @@ export async function runTui() {
             // Left-aligned like Codex — never center+wrap past terminal width.
             const pad = "  ";
             const prefixW = 2;
-            const wrapW = Math.max(20, cols - pad.length - prefixW - 1);
+            const wrapW = Math.max(10, cols - pad.length - prefixW - 1);
             for (const msg of state.messages) {
                 const display = msg.role === "assistant" ? stripFileBlocks(msg.text) || msg.text : msg.text;
                 const text = display || (state.busy && msg.role === "assistant" ? (state.thinking ? "…" : "…") : "");
@@ -1258,7 +1258,7 @@ export async function runTui() {
         if (state.toast && state.toastUntil && Date.now() < state.toastUntil) {
             body.push("");
             const toastText = state.toast.tone === "ok"
-                ? okNote(state.toast.text)
+                ? systemNote(state.toast.text)
                 : state.toast.tone === "error"
                     ? errorNote(state.toast.text)
                     : systemNote(state.toast.text);

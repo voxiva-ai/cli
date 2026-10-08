@@ -188,13 +188,6 @@ function requireKey(auth, provider) {
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
-let freeReadyAt = 0;
-async function waitForFreeSlot() {
-    const wait = freeReadyAt - Date.now();
-    if (wait > 0)
-        await sleep(wait);
-    freeReadyAt = Date.now() + 15_000;
-}
 function withTimeout(signal, ms) {
     const timeout = AbortSignal.timeout(ms);
     return signal ? AbortSignal.any([signal, timeout]) : timeout;
@@ -313,16 +306,13 @@ async function streamKeylessFree(upstream, messages, handlers) {
     };
     let lastError = "Free model unavailable.";
     // Race endpoints: first token claims the stream (no interleaved junk).
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 1; attempt++) {
         if (handlers.signal?.aborted)
             break;
-        if (attempt > 0)
-            await sleep(100);
         const raceAbort = new AbortController();
-        const signal = withTimeout(handlers.signal ? AbortSignal.any([handlers.signal, raceAbort.signal]) : raceAbort.signal, attempt === 0 ? 28_000 : 45_000);
+        const signal = withTimeout(handlers.signal ? AbortSignal.any([handlers.signal, raceAbort.signal]) : raceAbort.signal, 35_000);
         let claimedBy = null;
         const runners = FREE_ENDPOINTS.map(async (url) => {
-            await waitForFreeSlot();
             const response = await fetch(url, {
                 method: "POST",
                 headers,
@@ -403,7 +393,6 @@ async function streamKeylessFree(upstream, messages, handlers) {
     if (!handlers.signal?.aborted) {
         for (const url of FREE_ENDPOINTS) {
             try {
-                await waitForFreeSlot();
                 const response = await fetch(url, {
                     method: "POST",
                     headers: {
@@ -439,7 +428,7 @@ export async function streamChat(auth, modelRefStr, messages, handlers) {
     const provider = modelRefStr.slice(0, slash);
     const model = modelRefStr.slice(slash + 1);
     const catalog = findCatalog(modelRefStr);
-    const prepared = prepareMessages(messages);
+    const prepared = prepareMessages(messages, provider === "voxiva" && !providerReady(auth, "opencode") ? 12_000 : 40_000);
     // Built-in free — real OpenCode model when connected, anonymous fallback otherwise.
     if (provider === "voxiva" || catalog?.builtin) {
         const upstream = catalog?.upstream ?? "openai-fast";

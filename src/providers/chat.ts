@@ -223,14 +223,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-let freeReadyAt = 0;
-
-async function waitForFreeSlot(): Promise<void> {
-  const wait = freeReadyAt - Date.now();
-  if (wait > 0) await sleep(wait);
-  freeReadyAt = Date.now() + 15_000;
-}
-
 function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
   const timeout = AbortSignal.timeout(ms);
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
@@ -367,19 +359,17 @@ async function streamKeylessFree(
   let lastError = "Free model unavailable.";
 
   // Race endpoints: first token claims the stream (no interleaved junk).
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 1; attempt++) {
     if (handlers.signal?.aborted) break;
-    if (attempt > 0) await sleep(100);
 
     const raceAbort = new AbortController();
     const signal = withTimeout(
       handlers.signal ? AbortSignal.any([handlers.signal, raceAbort.signal]) : raceAbort.signal,
-      attempt === 0 ? 28_000 : 45_000,
+      35_000,
     );
 
     let claimedBy: string | null = null;
     const runners = FREE_ENDPOINTS.map(async (url) => {
-      await waitForFreeSlot();
       const response = await fetch(url, {
         method: "POST",
         headers,
@@ -456,7 +446,6 @@ async function streamKeylessFree(
   if (!handlers.signal?.aborted) {
     for (const url of FREE_ENDPOINTS) {
       try {
-        await waitForFreeSlot();
         const response = await fetch(url, {
           method: "POST",
           headers: {
@@ -499,7 +488,10 @@ export async function streamChat(
   const provider = modelRefStr.slice(0, slash) as ProviderId;
   const model = modelRefStr.slice(slash + 1);
   const catalog = findCatalog(modelRefStr);
-  const prepared = prepareMessages(messages);
+  const prepared = prepareMessages(
+    messages,
+    provider === "voxiva" && !providerReady(auth, "opencode") ? 12_000 : 40_000,
+  );
 
   // Built-in free — real OpenCode model when connected, anonymous fallback otherwise.
   if (provider === "voxiva" || catalog?.builtin) {

@@ -11,6 +11,7 @@ import {
   renderHeader,
   statusFooter,
   thoughtLine,
+  wrapText,
   THOUGHT_FRAMES,
   THOUGHT_STATUSES,
 } from "../dist/tui/layout.js";
@@ -63,6 +64,13 @@ test("long Unicode input keeps cursor inside the bar", () => {
   const result = inputBar(80, input, input.length, "placeholder");
   assert.ok(result.inputCol > 0);
   assert.ok(result.inputCol < 80);
+});
+
+test("long words wrap without disappearing", () => {
+  const text = "averyveryverylongidentifier";
+  const lines = wrapText(text, 10);
+  assert.equal(lines.join(""), text);
+  assert.ok(lines.every((line) => stringWidth(line) <= 10));
 });
 
 test("header is compact Codex-style with model plan directory", () => {

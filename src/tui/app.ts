@@ -65,7 +65,6 @@ import {
   inputBar,
   leaveAltScreen,
   mediaCard,
-  okNote,
   paintFrame,
   panel,
   pasteCard,
@@ -1347,7 +1346,7 @@ export async function runTui(): Promise<"update" | undefined> {
       // Left-aligned like Codex — never center+wrap past terminal width.
       const pad = "  ";
       const prefixW = 2;
-      const wrapW = Math.max(20, cols - pad.length - prefixW - 1);
+      const wrapW = Math.max(10, cols - pad.length - prefixW - 1);
       for (const msg of state.messages) {
         const display =
           msg.role === "assistant" ? stripFileBlocks(msg.text) || msg.text : msg.text;
@@ -1478,7 +1477,7 @@ export async function runTui(): Promise<"update" | undefined> {
       body.push("");
       const toastText =
         state.toast.tone === "ok"
-          ? okNote(state.toast.text)
+          ? systemNote(state.toast.text)
           : state.toast.tone === "error"
             ? errorNote(state.toast.text)
             : systemNote(state.toast.text);
