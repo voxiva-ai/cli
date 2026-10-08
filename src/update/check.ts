@@ -54,8 +54,12 @@ async function readCache(): Promise<Cache | null> {
 }
 
 async function writeCache(cache: Cache): Promise<void> {
-  await ensureDir();
-  await writeFile(CACHE_PATH, JSON.stringify(cache, null, 2) + "\n", "utf8");
+  try {
+    await ensureDir();
+    await writeFile(CACHE_PATH, JSON.stringify(cache, null, 2) + "\n", "utf8");
+  } catch {
+    // Read-only profiles can still check for updates without caching.
+  }
 }
 
 /** Clear cache so the next check hits the network. */

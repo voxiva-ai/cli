@@ -1,5 +1,5 @@
 import { dirname, join } from "node:path";
-export type ProviderId = "voxiva" | "openai" | "anthropic" | "openrouter" | "groq" | "google" | "deepseek";
+export type ProviderId = "voxiva" | "openai" | "anthropic" | "opencode" | "openrouter" | "groq" | "google" | "deepseek";
 export declare const PROVIDER_IDS: ProviderId[];
 export type PlanId = "build" | "ship" | "check" | "explore";
 export type ThemeId = "voxiva" | "slate" | "midnight" | "arctic" | "ember" | "forest" | "mono";

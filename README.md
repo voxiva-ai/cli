@@ -29,6 +29,8 @@ curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
+Or download and extract the ZIP, then double-click `install.cmd`. It installs into the current user profile and does not require administrator rights.
+
 **If GitHub is blocked/slow (often China)** — same installer via jsDelivr:
 ```bash
 curl -fsSL https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install | bash
@@ -58,11 +60,11 @@ npm install -g github:voxiva-ai/cli
 voxiva
 ```
 
-Free model works with **no API key**. Type → Enter.
+A limited **keyless fallback** works immediately. For reliable free chat, connect an OpenCode Zen key with `/connect`.
 
 | | |
 |--|--|
-| Free models | `/models` — Big Pickle, Space Bunny, Nemotron… **no key** |
+| OpenCode Zen free models | `/connect` → OpenCode Zen → key from `opencode.ai/auth` |
 | Paid (GPT / Claude / Gemini) | `/models` → provider → paste key |
 | More free (OpenRouter) | `/connect` → OpenRouter → free key unlocks real free endpoints |
 | Plan | `Tab` or `/plans` |
@@ -127,8 +129,8 @@ Users pick up the new `package.json` version from `main` (no npm publish require
 
 ## Notes
 
-- **Free** models = OpenCode Zen names, keyless streaming (dual gateway race + warm-up)
-- **API keys** via `/connect` — OpenAI / Anthropic / Google / OpenRouter
+- **Free** models use OpenCode Zen directly; a rate-limited anonymous fallback remains available
+- **API keys** via `/connect` — OpenCode Zen / OpenAI / Anthropic / Google / OpenRouter
 - New PC: installer downloads Node (official / npmmirror / winget) + CLI
 - Update: `voxiva update` · app offers it automatically
 - Files under `~/.voxiva/` (`runtime/`, `prefix/`, `bin/`, config, sessions)

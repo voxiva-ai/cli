@@ -29,6 +29,8 @@ curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
+Или скачай ZIP, распакуй и запусти `install.cmd` двойным кликом. Установка идет в профиль пользователя и не требует прав администратора.
+
 **Если GitHub тормозит / недоступен** (зеркало jsDelivr):
 ```bash
 curl -fsSL https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install | bash
@@ -56,11 +58,11 @@ npm install -g github:voxiva-ai/cli
 voxiva
 ```
 
-Сразу работает **бесплатная модель** без API-ключа. Пишешь → Enter.
+Сразу доступен резервный **бесплатный режим без ключа**. Для стабильной переписки подключи бесплатный ключ OpenCode Zen через `/connect`.
 
 | | |
 |--|--|
-| Модель | `/models` — Big Pickle, Space Bunny, Nemotron… **без ключа** |
+| Free-модели OpenCode Zen | `/connect` → OpenCode Zen → ключ с `opencode.ai/auth` |
 | Платные (GPT / Claude / Gemini) | `/models` → провайдер → вставить ключ |
 | Ещё free (OpenRouter) | `/connect` → OpenRouter → бесплатный ключ |
 | План | `Tab` или `/plans` |
@@ -106,7 +108,7 @@ voxiva update
 
 ## Важно
 
-- **Free**-модели как в OpenCode Zen, без ключа; API — `/connect`
+- **Free**-модели идут напрямую через OpenCode Zen; без ключа остается ограниченный резервный шлюз
 - Новый ПК: установщик сам качает Node + CLI и гоняет `doctor`
 - Всё лежит в `~/.voxiva/` — удалить папку + PATH
 

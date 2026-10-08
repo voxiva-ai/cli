@@ -18,8 +18,6 @@ export type ModelInfo = {
     builtin?: boolean;
     /** Upstream id for the keyless gateway. */
     upstream?: string;
-    /** Prefer this OpenRouter id when an OpenRouter key is present. */
-    openrouterId?: string;
 };
 /**
  * Default after install — OpenCode-style free model, no key.
@@ -40,7 +38,7 @@ export declare function parseModelRef(ref: string): {
     model: string;
 } | null;
 export declare function modelRef(info: ModelInfo): ModelRef;
-/** Migrate renamed free ids; leave everything else intact. */
+/** Migrate renamed or retired built-in ids; leave external providers intact. */
 export declare function migrateModelRef(ref: string | undefined): ModelRef | undefined;
 /**
  * True when we can actually call this model now:

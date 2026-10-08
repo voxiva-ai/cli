@@ -5,6 +5,7 @@ export const PROVIDER_IDS = [
     "voxiva",
     "openai",
     "anthropic",
+    "opencode",
     "openrouter",
     "google",
     "groq",
@@ -47,6 +48,7 @@ export async function loadAuth() {
     const environment = {
         openai: process.env.OPENAI_API_KEY,
         anthropic: process.env.ANTHROPIC_API_KEY,
+        opencode: process.env.OPENCODE_API_KEY,
         openrouter: process.env.OPENROUTER_API_KEY,
         groq: process.env.GROQ_API_KEY,
         google: process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY,

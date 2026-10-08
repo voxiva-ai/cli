@@ -3,6 +3,7 @@ import { c, vMark } from "../brand/index.js";
 import { loadAuth, saveAuth, type ProviderId } from "../config/store.js";
 
 const PROVIDERS: { id: ProviderId; label: string; hint: string }[] = [
+  { id: "opencode", label: "OpenCode Zen (free models)", hint: "opencode.ai/auth — free models $0" },
   { id: "openrouter", label: "OpenRouter (free models)", hint: "openrouter.ai/keys — free tier $0" },
   { id: "openai", label: "OpenAI", hint: "platform.openai.com/api-keys" },
   { id: "anthropic", label: "Anthropic", hint: "console.anthropic.com" },

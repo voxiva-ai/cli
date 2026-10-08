@@ -29,6 +29,7 @@ export async function modelsList(): Promise<void> {
   console.log("");
   console.log(c.muted("API key (paid / more free)"));
   for (const p of [
+    { id: "opencode", label: "OpenCode Zen" },
     { id: "openrouter", label: "OpenRouter" },
     { id: "openai", label: "OpenAI" },
     { id: "anthropic", label: "Anthropic" },

@@ -173,10 +173,10 @@ test("themes include ember forest mono", () => {
   assert.equal(THEMES.length, 7);
 });
 
-test("version is beta 0.1.2", () => {
-  assert.equal(VERSION, "0.1.2");
+test("version is beta 0.1.3", () => {
+  assert.equal(VERSION, "0.1.3");
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.1.2");
+  assert.equal(pkg.version, "0.1.3");
 });
 
 test("plan system injects language and agents context", async () => {
@@ -295,6 +295,7 @@ test("catalog includes deepseek and gemini flash", async () => {
   assert.ok(catalog.some((m) => m.provider === "deepseek" && m.id === "deepseek-chat"));
   assert.ok(catalog.some((m) => m.provider === "google" && m.id === "gemini-2.5-flash"));
   assert.ok(parseModelRef("deepseek/deepseek-reasoner"));
+  assert.ok(parseModelRef("opencode/big-pickle"));
   const free = listFreeCatalog();
   assert.ok(free.length >= 1);
   assert.ok(free.every((m) => m.free), "picker shows free models");
@@ -302,15 +303,16 @@ test("catalog includes deepseek and gemini flash", async () => {
   assert.ok(isFreeModelRef(DEFAULT_FREE_MODEL));
   assert.ok(isBuiltinFree(DEFAULT_FREE_MODEL));
   assert.equal(providerReady({}, "voxiva"), true);
+  assert.equal(providerReady({}, "opencode"), false);
+  assert.equal(providerReady({ opencode: { apiKey: "sk-test" } }, "opencode"), true);
   assert.ok(catalog.some((m) => m.builtin));
   assert.ok(free.some((m) => m.label.includes("Big Pickle")));
   assert.ok(free.some((m) => m.label.includes("Space Bunny")));
   assert.ok(free.some((m) => m.id === "nemotron-3-ultra-free"));
-  assert.ok(free.some((m) => m.id === "fledge-alpha-free"));
+  assert.ok(free.some((m) => m.id === "step-5-preview-free"));
   assert.ok(free.some((m) => m.id === "ling-3.1-flash-free"));
-  assert.ok(free.some((m) => m.id === "deepseek-v4-flash-free"));
-  assert.ok(free.some((m) => m.id === "minimax-m2.5-free"));
-  assert.ok(free.length >= 30, `expected OpenCode-sized free catalog, got ${free.length}`);
+  assert.ok(free.some((m) => m.id === "exo-free"));
+  assert.ok(free.length >= 10, `expected current OpenCode free catalog, got ${free.length}`);
 });
 
 test("plan voice does not brand as Voxiva Check", async () => {
@@ -332,16 +334,16 @@ test("preferred model sticks across restarts", async () => {
   } = await import("../dist/providers/chat.js");
 
   assert.equal(migrateModelRef("voxiva/mimo-v2.6-flash"), "voxiva/mimo-v2.6-flash-free");
-  assert.equal(migrateModelRef("voxiva/deepseek-v4-flash-free"), "voxiva/deepseek-v4-flash-free");
+  assert.equal(migrateModelRef("voxiva/deepseek-v4-flash-free"), DEFAULT_FREE_MODEL);
 
-  // Free DeepSeek Flash must survive a new terminal with no key.
+  // Retired built-in ids migrate instead of breaking chat after an update.
   const flash = resolvePreferredModel({
     auth: {},
     workspaceModel: "voxiva/deepseek-v4-flash-free",
     configModel: DEFAULT_FREE_MODEL,
   });
-  assert.equal(flash.model, "voxiva/deepseek-v4-flash-free");
-  assert.equal(flash.migrated, false);
+  assert.equal(flash.model, DEFAULT_FREE_MODEL);
+  assert.equal(flash.migrated, true);
 
   // Legacy short id migrates instead of wiping to Big Pickle blindly.
   const legacy = resolvePreferredModel({
@@ -371,10 +373,10 @@ test("preferred model sticks across restarts", async () => {
   // Workspace preference beats global default.
   const folder = resolvePreferredModel({
     auth: {},
-    workspaceModel: "voxiva/grok-code",
+    workspaceModel: "voxiva/mimo-v2.6-flash-free",
     configModel: "voxiva/big-pickle",
   });
-  assert.equal(folder.model, "voxiva/grok-code");
+  assert.equal(folder.model, "voxiva/mimo-v2.6-flash-free");
 });
 
 test("free models never require a key", async () => {
@@ -389,8 +391,10 @@ test("free models never require a key", async () => {
 
 test("one-line install scripts bootstrap official Node", () => {
   assert.ok(existsSync(join(root, "install")));
+  assert.ok(existsSync(join(root, "install.cmd")));
   assert.ok(existsSync(join(root, "install.ps1")));
   const sh = readFileSync(join(root, "install"), "utf8");
+  const cmd = readFileSync(join(root, "install.cmd"), "utf8");
   const ps = readFileSync(join(root, "install.ps1"), "utf8");
   assert.ok(sh.includes("nodejs.org/dist"));
   assert.ok(sh.includes("npmmirror.com") || sh.includes("cdn.npmmirror.com"));
@@ -400,6 +404,8 @@ test("one-line install scripts bootstrap official Node", () => {
   assert.ok(ps.includes("npmmirror.com") || ps.includes("cdn.npmmirror.com"));
   assert.ok(ps.includes("github:$Repo") || ps.includes("github:voxiva-ai/cli"));
   assert.ok(ps.includes(".voxiva"));
+  assert.ok(cmd.includes("ExecutionPolicy Bypass"));
+  assert.ok(cmd.includes("%USERPROFILE%\\.voxiva\\bin\\voxiva.cmd"));
 });
 
 test("built dist is shipped for github installs", () => {

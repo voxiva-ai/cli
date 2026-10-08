@@ -5,54 +5,28 @@ import { randomUUID } from "node:crypto";
  * Default after install — OpenCode-style free model, no key.
  */
 export const DEFAULT_FREE_MODEL = "voxiva/big-pickle";
-/** Keyless OpenAI-compatible gateways (tried in order / raced). */
+/** Anonymous OpenAI-compatible gateway. */
 const FREE_ENDPOINTS = [
-    "https://gen.pollinations.ai/v1/chat/completions",
     "https://text.pollinations.ai/openai",
 ];
 /**
  * Free picker mirrors OpenCode Zen zero-cost models (models.dev / opencode).
- * All `builtin` entries work keyless. Optional `openrouterId` when keyed.
+ * All `builtin` entries work keyless, with an OpenCode Zen key preferred when present.
  * @see https://github.com/anomalyco/opencode
  * @see https://models.dev/providers/opencode
  */
 const OPENCODE_FREE = [
     { id: "big-pickle", label: "Big Pickle" },
-    { id: "space-bunny-free", label: "Space Bunny Free", openrouterId: "stealth/space-bunny-alpha" },
-    { id: "deepseek-v4-flash-free", label: "DeepSeek V4 Flash Free" },
-    { id: "fledge-alpha-free", label: "Fledge Alpha Free" },
-    { id: "glm-4.7-free", label: "GLM-4.7 Free" },
-    { id: "glm-5-free", label: "GLM-5 Free" },
-    { id: "grok-code", label: "Grok Code Fast 1" },
-    { id: "hy3-free", label: "Hy3 Free" },
-    { id: "hy3-preview-free", label: "Hy3 Preview Free" },
-    { id: "kimi-k2.5-free", label: "Kimi K2.5 Free" },
-    { id: "laguna-s-2.1-free", label: "Laguna S 2.1 Free" },
-    { id: "ling-2.6-flash-free", label: "Ling 2.6 Flash Free" },
-    { id: "ling-3.0-flash-fin-free", label: "Ling 3.0 Flash Fin Free", openrouterId: "inclusionai/ling-3.0-flash-sante:free" },
-    { id: "ling-3.0-flash-free", label: "Ling 3.0 Flash Free", openrouterId: "inclusionai/ling-3.0-flash-sante:free" },
-    { id: "ling-3.0-tiny-free", label: "Ling 3.0 Tiny Free" },
-    { id: "ling-3.1-flash-free", label: "Ling 3.1 Flash Free", openrouterId: "inclusionai/ling-3.0-flash-sante:free" },
-    { id: "longcat-2.0-free", label: "LongCat 2.0 Free" },
+    { id: "space-bunny-free", label: "Space Bunny Free" },
     { id: "longcat-2.5-preview-free", label: "LongCat 2.5 Preview Free" },
-    { id: "mimo-v2-flash-free", label: "MiMo V2 Flash Free" },
-    { id: "mimo-v2-omni-free", label: "MiMo V2 Omni Free" },
-    { id: "mimo-v2-pro-free", label: "MiMo V2 Pro Free" },
+    { id: "step-5-preview-free", label: "Step 5 Preview Free" },
+    { id: "exo-free", label: "Exo Free" },
     { id: "mimo-v2.5-free", label: "MiMo V2.5 Free" },
     { id: "mimo-v2.6-flash-free", label: "MiMo-V2.6-Flash Free" },
-    { id: "minimax-m2.1-free", label: "MiniMax M2.1 Free" },
-    { id: "minimax-m2.5-free", label: "MiniMax M2.5 Free" },
-    { id: "minimax-m3-free", label: "MiniMax M3 Free" },
-    { id: "muse-spark-1.2-contributor-free", label: "Muse Spark 1.2 Free" },
-    { id: "muse-spark-1.3-contributor-free", label: "Muse Spark 1.3 Free" },
-    { id: "nemotron-3-super-free", label: "Nemotron 3 Super Free", openrouterId: "nvidia/nemotron-3-super-120b-a12b:free" },
-    { id: "nemotron-3-ultra-free", label: "Nemotron 3 Ultra Free", openrouterId: "nvidia/nemotron-3-ultra-550b-a55b:free" },
-    { id: "nemotron-3.5-lightning-free", label: "Nemotron 3.5 Lightning Free", openrouterId: "nvidia/nemotron-3.5-lightning:free" },
-    { id: "north-mini-code-free", label: "North Mini Code Free", openrouterId: "cohere/north-mini-code:free" },
-    { id: "qwen3.6-plus-free", label: "Qwen3.6 Plus Free" },
-    { id: "ring-2.6-1t-free", label: "Ring 2.6 1T Free" },
-    { id: "trinity-large-preview-free", label: "Trinity Large Preview Free" },
-    { id: "x-preview-f-free", label: "Ox Alpha Free" },
+    { id: "ling-3.1-flash-free", label: "Ling 3.1 Flash Free" },
+    { id: "ling-3.0-flash-fin-free", label: "Ling 3.0 Flash Fin Free" },
+    { id: "nemotron-3-ultra-free", label: "Nemotron 3 Ultra Free" },
+    { id: "nemotron-3.5-lightning-free", label: "Nemotron 3.5 Lightning Free" },
 ];
 const CATALOG = [
     ...OPENCODE_FREE.map((m) => ({
@@ -62,7 +36,6 @@ const CATALOG = [
         free: true,
         builtin: true,
         upstream: "openai-fast",
-        openrouterId: m.openrouterId,
     })),
     // ——— Paid / BYOK ———
     { provider: "openai", id: "gpt-4.1", label: "GPT-4.1" },
@@ -138,21 +111,23 @@ const LEGACY_MODEL_MAP = {
     "voxiva/mimo-v2.5": "voxiva/mimo-v2.5-free",
     "voxiva/mimo-v2.6-flash": "voxiva/mimo-v2.6-flash-free",
     "voxiva/longcat-2.5": "voxiva/longcat-2.5-preview-free",
-    "voxiva/muse-spark": "voxiva/muse-spark-1.3-contributor-free",
-    "voxiva/north-mini-code": "voxiva/north-mini-code-free",
-    "voxiva/qwen3.8-27b": "voxiva/qwen3.6-plus-free",
+    "voxiva/muse-spark": DEFAULT_FREE_MODEL,
+    "voxiva/north-mini-code": DEFAULT_FREE_MODEL,
+    "voxiva/qwen3.8-27b": DEFAULT_FREE_MODEL,
     "voxiva/gemma-4-31b": DEFAULT_FREE_MODEL,
-    "voxiva/glm-5.2": "voxiva/glm-5-free",
+    "voxiva/glm-5.2": DEFAULT_FREE_MODEL,
     "voxiva/nemotron-3.5-lightning": "voxiva/nemotron-3.5-lightning-free",
     "voxiva/nemotron-3-ultra": "voxiva/nemotron-3-ultra-free",
 };
-/** Migrate renamed free ids; leave everything else intact. */
+/** Migrate renamed or retired built-in ids; leave external providers intact. */
 export function migrateModelRef(ref) {
     if (!ref)
         return undefined;
     const mapped = LEGACY_MODEL_MAP[ref];
     if (mapped)
         return mapped;
+    if (ref.startsWith("voxiva/") && !findCatalog(ref))
+        return DEFAULT_FREE_MODEL;
     if (!parseModelRef(ref))
         return undefined;
     return ref;
@@ -212,6 +187,13 @@ function requireKey(auth, provider) {
 }
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+let freeReadyAt = 0;
+async function waitForFreeSlot() {
+    const wait = freeReadyAt - Date.now();
+    if (wait > 0)
+        await sleep(wait);
+    freeReadyAt = Date.now() + 15_000;
 }
 function withTimeout(signal, ms) {
     const timeout = AbortSignal.timeout(ms);
@@ -277,15 +259,17 @@ async function getOpenAIClient(auth, provider) {
     const hit = openaiClients.get(cacheKey);
     if (hit)
         return hit;
-    const baseURL = provider === "openrouter"
-        ? "https://openrouter.ai/api/v1"
-        : provider === "groq"
-            ? "https://api.groq.com/openai/v1"
-            : provider === "google"
-                ? "https://generativelanguage.googleapis.com/v1beta/openai"
-                : provider === "deepseek"
-                    ? "https://api.deepseek.com"
-                    : undefined;
+    const baseURL = provider === "opencode"
+        ? "https://opencode.ai/zen/v1"
+        : provider === "openrouter"
+            ? "https://openrouter.ai/api/v1"
+            : provider === "groq"
+                ? "https://api.groq.com/openai/v1"
+                : provider === "google"
+                    ? "https://generativelanguage.googleapis.com/v1beta/openai"
+                    : provider === "deepseek"
+                        ? "https://api.deepseek.com"
+                        : undefined;
     const { default: OpenAI } = await import("openai");
     const client = new OpenAI({
         apiKey: key,
@@ -338,6 +322,7 @@ async function streamKeylessFree(upstream, messages, handlers) {
         const signal = withTimeout(handlers.signal ? AbortSignal.any([handlers.signal, raceAbort.signal]) : raceAbort.signal, attempt === 0 ? 28_000 : 45_000);
         let claimedBy = null;
         const runners = FREE_ENDPOINTS.map(async (url) => {
+            await waitForFreeSlot();
             const response = await fetch(url, {
                 method: "POST",
                 headers,
@@ -418,6 +403,7 @@ async function streamKeylessFree(upstream, messages, handlers) {
     if (!handlers.signal?.aborted) {
         for (const url of FREE_ENDPOINTS) {
             try {
+                await waitForFreeSlot();
                 const response = await fetch(url, {
                     method: "POST",
                     headers: {
@@ -446,16 +432,7 @@ async function streamKeylessFree(upstream, messages, handlers) {
             }
         }
     }
-    throw new Error(lastError);
-}
-async function streamOpenRouterOrKeyless(auth, openrouterId, upstream, messages, handlers) {
-    // OpenRouter first (real free model quality); keyless if it errors.
-    try {
-        return await streamOpenAICompat(auth, "openrouter", openrouterId, messages, handlers);
-    }
-    catch {
-        return streamKeylessFree(upstream, messages, handlers);
-    }
+    throw new Error(`Free gateway is busy (${lastError}). Use /connect → OpenCode Zen for reliable free models.`);
 }
 export async function streamChat(auth, modelRefStr, messages, handlers) {
     const slash = modelRefStr.indexOf("/");
@@ -463,11 +440,11 @@ export async function streamChat(auth, modelRefStr, messages, handlers) {
     const model = modelRefStr.slice(slash + 1);
     const catalog = findCatalog(modelRefStr);
     const prepared = prepareMessages(messages);
-    // Built-in free — OpenRouter when key+mapping, else keyless gateway.
+    // Built-in free — real OpenCode model when connected, anonymous fallback otherwise.
     if (provider === "voxiva" || catalog?.builtin) {
         const upstream = catalog?.upstream ?? "openai-fast";
-        if (catalog?.openrouterId && providerReady(auth, "openrouter")) {
-            return streamOpenRouterOrKeyless(auth, catalog.openrouterId, upstream, prepared, handlers);
+        if (catalog && providerReady(auth, "opencode")) {
+            return streamOpenAICompat(auth, "opencode", catalog.id, prepared, handlers);
         }
         return streamKeylessFree(upstream, prepared, handlers);
     }

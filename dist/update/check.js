@@ -39,8 +39,13 @@ async function readCache() {
     }
 }
 async function writeCache(cache) {
-    await ensureDir();
-    await writeFile(CACHE_PATH, JSON.stringify(cache, null, 2) + "\n", "utf8");
+    try {
+        await ensureDir();
+        await writeFile(CACHE_PATH, JSON.stringify(cache, null, 2) + "\n", "utf8");
+    }
+    catch {
+        // Read-only profiles can still check for updates without caching.
+    }
 }
 /** Clear cache so the next check hits the network. */
 export async function clearUpdateCache() {

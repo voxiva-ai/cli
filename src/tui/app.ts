@@ -113,6 +113,11 @@ import {
 
 const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
   {
+    id: "opencode",
+    label: "OpenCode Zen (recommended)",
+    description: "Reliable $0 coding models · opencode.ai/auth",
+  },
+  {
     id: "openrouter",
     label: "OpenRouter (more free models)",
     description: "Extra free models · openrouter.ai/keys · optional",
@@ -126,6 +131,7 @@ const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
 
 /** Paid / extra free via API key under free models in /models. */
 const KEY_CONNECT: { id: ProviderId; label: string; description: string }[] = [
+  { id: "opencode", label: "OpenCode Zen", description: "Reliable free coding models · paste key" },
   { id: "openrouter", label: "OpenRouter", description: "More free models · paste free key" },
   { id: "openai", label: "OpenAI", description: "ChatGPT · paste OPENAI_API_KEY" },
   { id: "anthropic", label: "Anthropic", description: "Claude · paste ANTHROPIC_API_KEY" },
@@ -861,7 +867,7 @@ export async function runTui(): Promise<"update" | undefined> {
       }
       case "connect":
         out.push(t.text("Connect a provider"));
-        out.push(t.dim("Tip: OpenRouter unlocks free models (like OpenCode) — $0 usage."));
+        out.push(t.dim("Tip: OpenCode Zen makes the free coding models reliable — $0 usage."));
         out.push("");
         PROVIDERS.forEach((p, i) => {
           const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
@@ -877,8 +883,10 @@ export async function runTui(): Promise<"update" | undefined> {
         out.push(t.text(`API key for ${provider ?? "provider"}`));
         out.push(
           t.dim(
-            provider === "openrouter"
-              ? "Free account at openrouter.ai/keys · free models cost $0"
+            provider === "opencode"
+              ? "Free key at opencode.ai/auth · select a $0 model"
+              : provider === "openrouter"
+                ? "Free account at openrouter.ai/keys · free models cost $0"
               : "Stored locally in ~/.voxiva/auth.json",
           ),
         );
@@ -894,7 +902,7 @@ export async function runTui(): Promise<"update" | undefined> {
       case "models": {
         const items = modelPickerItems();
         out.push(t.text("Select model") + " ".repeat(Math.max(1, inner - 16)) + t.dim("esc"));
-        out.push(t.dim("Free models work with no key · OpenRouter / OpenAI / Anthropic / Google = API key"));
+        out.push(t.dim("Free fallback needs no key · OpenCode Zen key recommended for reliability"));
         out.push(
           t.dim("Search") +
             t.dim(": ") +
@@ -2115,7 +2123,7 @@ export async function runTui(): Promise<"update" | undefined> {
     if (state.pendingModel?.startsWith(`${id}/`)) {
       await ctx.setModel(state.pendingModel);
       state.pendingModel = undefined;
-    } else if (id === "openrouter" && !state.model) {
+    } else if ((id === "opencode" || id === "openrouter") && !state.model) {
       await ctx.setModel(DEFAULT_FREE_MODEL);
     }
     state.connectingProvider = null;
@@ -2124,8 +2132,10 @@ export async function runTui(): Promise<"update" | undefined> {
     state.overlay = null;
     state.overlayIndex = 0;
     toast(
-      id === "openrouter"
-        ? "OpenRouter connected · free models ready (/models)"
+      id === "opencode"
+        ? "OpenCode Zen connected · reliable free models ready"
+        : id === "openrouter"
+          ? "OpenRouter connected · free models ready (/models)"
         : `${id} connected`,
       "ok",
     );
@@ -2153,6 +2163,7 @@ export async function runTui(): Promise<"update" | undefined> {
         if (!item) break;
         if (item.kind === "provider") {
           const defaults: Partial<Record<ProviderId, ModelRef>> = {
+            opencode: DEFAULT_FREE_MODEL,
             openrouter: "openrouter/qwen/qwen3.8-27b:free",
             openai: "openai/gpt-4o-mini",
             anthropic: "anthropic/claude-3-5-haiku-20241022",

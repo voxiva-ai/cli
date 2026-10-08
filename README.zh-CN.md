@@ -37,6 +37,8 @@ curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
+也可以下载并解压 ZIP，然后双击 `install.cmd`。它安装到当前用户目录，不需要管理员权限。
+
 然后打开**新**终端：
 
 ```bash
@@ -56,11 +58,11 @@ npm install -g github:voxiva-ai/cli
 voxiva
 ```
 
-默认 **免费模型**，无需 API Key。输入内容后按 Enter。
+默认提供受限的**免密钥备用模式**。要稳定使用免费模型，请通过 `/connect` 连接 OpenCode Zen 免费密钥。
 
 | | |
 |--|--|
-| 切换模型 | `/models` — Big Pickle、Space Bunny、Nemotron… **无需密钥** |
+| OpenCode Zen 免费模型 | `/connect` → OpenCode Zen → `opencode.ai/auth` 获取密钥 |
 | 付费（GPT / Claude / Gemini） | `/models` → 选厂商 → 粘贴密钥 |
 | 更多免费（OpenRouter） | `/connect` → OpenRouter → 粘贴免费密钥 |
 | 切换计划 | `Tab` 或 `/plans` |
