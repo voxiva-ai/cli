@@ -142,7 +142,7 @@ export function renderHeader(info, cols) {
     const planLine = row("plan", chalk.hex(PLAN_COLORS[info.planId])(info.plan), t.dim(`${info.planId === "build"
         ? "writes code"
         : info.planId === "ship"
-            ? "builds + tests"
+            ? "delivery mode"
             : info.planId === "check"
                 ? "review only"
                 : "read only"} · Tab`));

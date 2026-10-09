@@ -210,7 +210,7 @@ export function renderHeader(info: HeaderInfo, cols: number): string[] {
         info.planId === "build"
           ? "writes code"
           : info.planId === "ship"
-            ? "builds + tests"
+            ? "delivery mode"
             : info.planId === "check"
               ? "review only"
               : "read only"
