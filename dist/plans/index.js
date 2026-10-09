@@ -1,15 +1,15 @@
 import { languageDirective } from "../i18n/index.js";
 import { loadAgentsMarkdown, withAgentsContext } from "../project/agents.js";
 import { memoryPromptBlock } from "../project/memory.js";
-import { workspaceSnapshot } from "../project/files.js";
+import { FILE_READ_PROTOCOL, workspaceSnapshot } from "../project/files.js";
 import { FILE_EDIT_PROTOCOL } from "../project/edits.js";
 const STACK_HINT = `Detect the project stack from the workspace (HTML, CSS, JavaScript, TypeScript, React, Vue, Node, Go, Python, Rust, etc.).
 For web/frontend: write clean, modern HTML/CSS/JS/TS/React (components, hooks, modules) matching the repo.
 Use the project's own tools and conventions (npm/pnpm/yarn, vite, next, go test, cargo, pytest, …).
 Prefer small diffs. Never invent APIs that are not in the repo.`;
 const LOCAL_HINT = `You run inside the user's local workspace (see Workspace below).
-Project context: file list, @attachments the user allowed, and shell via !commands.
-When you need a file, ask for @path or tell them /files — only read what they attach/approve.
+Project context: file list, files you request through the READ protocol, @attachments, and shell output.
+Read the files you need yourself through READ requests. Do not ask the user to attach listed project files.
 In Build/Ship: emit FILE blocks for user approval; never claim you already wrote disk.
 Shell: user runs !git status, !ls, etc. Directory: user types cd path.
 Never say you lack filesystem access when Workspace or @files are present.`;
@@ -73,7 +73,7 @@ export function getPlan(id) {
 export function planSystem(id, locale = "en") {
     const plan = getPlan(id);
     const edits = plan.allowEdits ? `\n\n${FILE_EDIT_PROTOCOL}` : "";
-    return `${plan.system}${edits}\n\n${languageDirective(locale)}`;
+    return `${plan.system}\n\n${FILE_READ_PROTOCOL}${edits}\n\n${languageDirective(locale)}`;
 }
 /** System message with AGENTS.md + memory + workspace tree from cwd. */
 export async function planSystemAsync(id, locale = "en", cwd = process.cwd()) {

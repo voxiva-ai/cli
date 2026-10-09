@@ -2,7 +2,7 @@
 export const PLAN_COLORS = {
     build: "#5aa6ff",
     ship: "#c792ea",
-    check: "#3fd49a",
+    check: "#7ad7ff",
     explore: "#7ad7ff",
 };
 export const THEMES = [
@@ -15,7 +15,7 @@ export const THEMES = [
         accent: "#5aa6ff",
         accent2: "#8ec0ff",
         border: "#2a3548",
-        ok: "#3fd49a",
+        ok: "#8ec0ff",
         danger: "#ff7b7b",
         tip: "#8ec0ff",
     },

@@ -263,7 +263,7 @@ export function userBubble(text) {
     return c().text(text);
 }
 export function assistantBubble(text) {
-    return c().muted(text);
+    return c().text(text);
 }
 export function systemNote(text) {
     return c().accent(text);

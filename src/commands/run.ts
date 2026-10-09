@@ -2,8 +2,10 @@ import ora from "ora";
 import { c, promptGlyph } from "../brand/index.js";
 import { loadAuth, loadConfig, type ModelRef } from "../config/store.js";
 import { getPlan, planSystemAsync } from "../plans/index.js";
-import { streamChat } from "../providers/chat.js";
+import { streamChat, type ChatMessage } from "../providers/chat.js";
 import type { LocaleId } from "../i18n/index.js";
+import { extractReadPaths, readRequestedFiles, stripReadBlocks } from "../project/files.js";
+import { stripFileBlocks } from "../project/edits.js";
 
 export type RunOptions = {
   model?: string;
@@ -34,21 +36,46 @@ export async function runPrompt(prompt: string, opts: RunOptions = {}): Promise<
   const spinner = opts.quiet ? null : ora({ text: c.muted("Thinking…"), color: "cyan" }).start();
 
   let started = false;
-  const messages = [
+  const messages: ChatMessage[] = [
     { role: "system" as const, content: await planSystemAsync(planId, locale, process.cwd()) },
     { role: "user" as const, content: prompt },
   ];
 
   try {
-    await streamChat(auth, model as ModelRef, messages, {
-      onToken: (chunk) => {
-        if (spinner && !started) {
-          spinner.stop();
+    for (let round = 0; round < 3; round++) {
+      let reply = "";
+      let pending = "";
+      let hideReadRequest = false;
+      reply = await streamChat(auth, model as ModelRef, messages, {
+        onToken: (chunk) => {
+          reply += chunk;
+          if (hideReadRequest) return;
+          pending += chunk;
+          const candidate = pending.trimStart();
+          if ("<<<READ".startsWith(candidate)) {
+            if (candidate.length >= "<<<READ".length) hideReadRequest = true;
+            return;
+          }
+          if (spinner && !started) spinner.stop();
           started = true;
-        }
-        process.stdout.write(chunk);
-      },
-    });
+          process.stdout.write(pending);
+          pending = "";
+        },
+      });
+      const paths = extractReadPaths(reply);
+      if (paths.length && round < 2) {
+        messages.push({ role: "assistant", content: reply });
+        messages.push({ role: "user", content: await readRequestedFiles(process.cwd(), paths) });
+        if (spinner) spinner.text = c.muted("Reading files…");
+        continue;
+      }
+      if (spinner && !started) {
+        spinner.stop();
+        started = true;
+        process.stdout.write(stripReadBlocks(stripFileBlocks(reply)) || reply);
+      }
+      break;
+    }
     if (!started && spinner) spinner.stop();
     process.stdout.write("\n");
   } catch (err) {

@@ -228,8 +228,8 @@ function prepareMessages(messages, maxChars = 40_000) {
     if (!sys)
         return kept;
     let sysText = sys.content;
-    if (shortChat) {
-        // Drop heavy workspace / FILE / memory for greetings & tiny asks — huge TTFT win.
+    if (casual) {
+        // Greetings need no workspace or agent protocols — huge TTFT win.
         sysText = sysText
             .replace(/\nWorkspace:[\s\S]*$/i, "")
             .replace(/\nUser memory[\s\S]*$/i, "")
@@ -237,7 +237,7 @@ function prepareMessages(messages, maxChars = 40_000) {
             .replace(/\nAGENTS\.md[\s\S]*$/i, "")
             .replace(/\nWhen you need to create or change project files[\s\S]*$/i, "")
             .replace(/\n<<<FILE[\s\S]*$/i, "");
-        sysText = sysText.slice(0, casual ? 1_600 : 2_800);
+        sysText = sysText.slice(0, 1_600);
     }
     else if (sysText.length > 10_000) {
         sysText = `${sysText.slice(0, 10_000)}\n…(system truncated for speed)`;
@@ -428,7 +428,12 @@ export async function streamChat(auth, modelRefStr, messages, handlers) {
     const provider = modelRefStr.slice(0, slash);
     const model = modelRefStr.slice(slash + 1);
     const catalog = findCatalog(modelRefStr);
-    const prepared = prepareMessages(messages, provider === "voxiva" && !providerReady(auth, "opencode") ? 12_000 : 40_000);
+    const hasAgentFiles = messages.some((message) => message.content.includes("<file path="));
+    const prepared = prepareMessages(messages, provider === "voxiva" && !providerReady(auth, "opencode")
+        ? hasAgentFiles
+            ? 28_000
+            : 12_000
+        : 40_000);
     // Built-in free — real OpenCode model when connected, anonymous fallback otherwise.
     if (provider === "voxiva" || catalog?.builtin) {
         const upstream = catalog?.upstream ?? "openai-fast";

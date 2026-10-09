@@ -362,7 +362,7 @@ export function userBubble(text: string): string {
 }
 
 export function assistantBubble(text: string): string {
-  return c().muted(text);
+  return c().text(text);
 }
 
 export function systemNote(text: string): string {

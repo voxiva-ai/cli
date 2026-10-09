@@ -19,7 +19,7 @@ import { paletteItems, resolveSlash, slashSuggestions, matchesPaletteFilter, FIL
 import { VERSION } from "./copy.js";
 import { setVoiceListening, setVoiceSink } from "../voice/bridge.js";
 import { emptyUsage, estimateMessagesTokens, estimateTokens, formatUsage, recordTurnUsage, todayUsage, usagePanelLines, } from "../usage/tokens.js";
-import { listProjectFiles } from "../project/files.js";
+import { extractReadPaths, listProjectFiles, readRequestedFiles, stripReadBlocks, } from "../project/files.js";
 import { addMemory, clearMemory, listMemory } from "../project/memory.js";
 import { readGitSnapshot } from "../project/gitinfo.js";
 import { applyEdits, editSummary, extractFileBlocks, prepareEdits, stripFileBlocks, } from "../project/edits.js";
@@ -1159,7 +1159,9 @@ export async function runTui() {
             const prefixW = 2;
             const wrapW = Math.max(10, cols - pad.length - prefixW - 1);
             for (const msg of state.messages) {
-                const display = msg.role === "assistant" ? stripFileBlocks(msg.text) || msg.text : msg.text;
+                const display = msg.role === "assistant"
+                    ? stripReadBlocks(stripFileBlocks(msg.text)) || msg.text
+                    : msg.text;
                 const text = display || (state.busy && msg.role === "assistant" ? (state.thinking ? "…" : "…") : "");
                 if (!text && msg.role !== "assistant" && !(msg.role === "user" && msg.attachments?.length)) {
                     continue;
@@ -1796,6 +1798,7 @@ export async function runTui() {
         if (!prompt.trim() && drafts.length) {
             prompt = drafts.map((d) => `[${d.kind}: ${d.label}]`).join(" ");
         }
+        const historyStart = state.history.length;
         state.history.push({ role: "user", content: prompt });
         const responseIndex = state.messages.length;
         state.messages.push({ role: "assistant", text: "…" });
@@ -1803,34 +1806,61 @@ export async function runTui() {
         state.thoughtFrame = 0;
         state.thoughtStatus = THOUGHT_STATUSES[Math.floor(Math.random() * THOUGHT_STATUSES.length)];
         queueRender(true);
-        const inputTokens = estimateMessagesTokens(state.history);
+        let inputTokens = 0;
+        let outputTokens = 0;
         let reply = "";
         streamAbort = new AbortController();
         try {
             const authNow = await loadAuth();
-            reply = await streamChat(authNow, state.model, state.history, {
-                signal: streamAbort.signal,
-                onToken: (chunk) => {
-                    if (state.messages[responseIndex].text === "…" ||
-                        state.messages[responseIndex].text === "...") {
-                        state.messages[responseIndex].text = "";
-                    }
-                    state.messages[responseIndex].text += chunk;
-                    queueRender();
-                },
-            });
+            for (let round = 0; round < 3; round++) {
+                inputTokens += estimateMessagesTokens(state.history);
+                let pending = "";
+                let hideReadRequest = false;
+                reply = await streamChat(authNow, state.model, state.history, {
+                    signal: streamAbort.signal,
+                    onToken: (chunk) => {
+                        if (hideReadRequest)
+                            return;
+                        pending += chunk;
+                        const candidate = pending.trimStart();
+                        if ("<<<READ".startsWith(candidate)) {
+                            if (candidate.length >= "<<<READ".length)
+                                hideReadRequest = true;
+                            return;
+                        }
+                        if (state.messages[responseIndex].text === "…" ||
+                            state.messages[responseIndex].text === "...") {
+                            state.messages[responseIndex].text = "";
+                        }
+                        state.messages[responseIndex].text += pending;
+                        pending = "";
+                        queueRender();
+                    },
+                });
+                outputTokens += estimateTokens(reply);
+                if (streamAbort.signal.aborted)
+                    break;
+                const paths = extractReadPaths(reply);
+                if (!paths.length || round === 2)
+                    break;
+                state.history.push({ role: "assistant", content: reply });
+                state.history.push({ role: "user", content: await readRequestedFiles(state.cwd, paths) });
+                state.messages[responseIndex].text = "…";
+                state.thoughtStatus = "reading";
+                queueRender(true);
+            }
             if (streamAbort.signal.aborted) {
                 if (reply) {
                     state.history.push({ role: "assistant", content: reply });
-                    await noteTurn(inputTokens, estimateTokens(reply));
+                    await noteTurn(inputTokens, outputTokens);
                 }
                 toast("Generation stopped.", "info");
             }
             else {
-                const clean = stripFileBlocks(reply);
+                const clean = stripReadBlocks(stripFileBlocks(reply));
                 state.messages[responseIndex].text = clean || reply;
                 state.history.push({ role: "assistant", content: reply });
-                await noteTurn(inputTokens, estimateTokens(reply));
+                await noteTurn(inputTokens, outputTokens);
                 state.redoStack = [];
                 await persistSession();
                 await offerEditsFromReply(reply);
@@ -1844,7 +1874,7 @@ export async function runTui() {
                 const msg = err instanceof Error ? err.message : String(err);
                 state.messages.splice(responseIndex, 1);
                 state.messages.push({ role: "system", text: msg });
-                state.history.pop();
+                state.history.splice(historyStart);
                 toast(msg, "error");
             }
         }

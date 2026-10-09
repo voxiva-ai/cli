@@ -190,11 +190,24 @@ test("version is beta 0.1.3", () => {
 test("plan system injects language and agents context", async () => {
   const en = planSystem("build", "en");
   assert.ok(en.includes("Build"));
+  assert.ok(en.includes('<<<READ path="relative/path.ext">>>'));
   const withAgents = withAgentsContext(en, "# Rules\nUse Go.");
   assert.ok(withAgents.includes("AGENTS.md"));
   assert.ok(withAgents.includes("Use Go."));
   const asyncPrompt = await planSystemAsync("explore", "ru", root);
   assert.ok(asyncPrompt.length > 20);
+});
+
+test("agent file reads stay inside the project and hide secrets", async () => {
+  const { extractReadPaths, readRequestedFiles, stripReadBlocks } =
+    await import("../dist/project/files.js");
+  const reply = 'Checking.\n<<<READ path="package.json">>>\n<<<READ path="../secret.txt">>>';
+  assert.deepEqual(extractReadPaths(reply), ["package.json", "../secret.txt"]);
+  assert.equal(stripReadBlocks(reply), "Checking.");
+  const context = await readRequestedFiles(root, ["package.json", "../secret.txt", ".env"]);
+  assert.ok(context.includes('<file path="package.json">'));
+  assert.ok(context.includes('<file-error path="../secret.txt">Access denied.'));
+  assert.ok(context.includes('<file-error path=".env">Access denied.'));
 });
 
 test("token usage helpers", () => {
