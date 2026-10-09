@@ -39,13 +39,18 @@ export function localeIds(): LocaleId[] {
   return LOCALES.map((locale) => locale.id);
 }
 
+/** Auto-select Russian for a first Cyrillic prompt; explicit locale choices still win. */
+export function detectPromptLocale(text: string): LocaleId | undefined {
+  return /[А-Яа-яЁё]/.test(text) ? "ru" : undefined;
+}
+
 /** Appended to the plan system prompt so the model answers in the chosen language. */
 export function languageDirective(localeId: LocaleId): string {
   const locale = getLocale(localeId);
   if (locale.id === "en") {
-    return "Respond in English unless the user writes in another language or asks otherwise. Keep code identifiers and file paths unchanged.";
+    return "Always answer in the language of the user's latest message. Use English only when that language is unclear. Keep code identifiers and file paths unchanged.";
   }
-  return `Respond in ${locale.label} (${locale.native}) unless the user writes in another language or asks otherwise. Keep code identifiers, APIs, and file paths unchanged.`;
+  return `Always answer in the language of the user's latest message. When unclear, use ${locale.label} (${locale.native}). Keep code identifiers, APIs, and file paths unchanged.`;
 }
 
 type Dict = {

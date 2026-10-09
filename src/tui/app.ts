@@ -52,7 +52,7 @@ import {
   type SessionRecord,
 } from "../sessions/store.js";
 import { getWorkspace, listWorkspaces, touchWorkspace, type WorkspaceRecord } from "../workspaces/store.js";
-import { LOCALES, t as ui, type LocaleId } from "../i18n/index.js";
+import { detectPromptLocale, LOCALES, t as ui, type LocaleId } from "../i18n/index.js";
 import {
   assistantBubble,
   clearScreen,
@@ -2059,6 +2059,13 @@ export async function runTui(): Promise<"update" | undefined> {
     }
     if (!prompt.trim() && drafts.length) {
       prompt = drafts.map((d) => `[${d.kind}: ${d.label}]`).join(" ");
+    }
+    const detectedLocale = detectPromptLocale(line);
+    if (state.locale === "en" && detectedLocale) {
+      state.locale = detectedLocale;
+      ctx.locale = detectedLocale;
+      await refreshSystemPrompt();
+      await patchConfig({ locale: detectedLocale });
     }
     const historyStart = state.history.length;
     state.history.push({ role: "user", content: prompt });

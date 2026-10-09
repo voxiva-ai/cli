@@ -8,6 +8,8 @@ export type LocaleInfo = {
 export declare const LOCALES: readonly LocaleInfo[];
 export declare function getLocale(id: string | undefined): LocaleInfo;
 export declare function localeIds(): LocaleId[];
+/** Auto-select Russian for a first Cyrillic prompt; explicit locale choices still win. */
+export declare function detectPromptLocale(text: string): LocaleId | undefined;
 /** Appended to the plan system prompt so the model answers in the chosen language. */
 export declare function languageDirective(localeId: LocaleId): string;
 type Dict = {

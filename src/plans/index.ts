@@ -38,7 +38,7 @@ export const PLANS: PlanDefinition[] = [
     description: "Implement features, edit files, run commands.",
     allowEdits: true,
     system: `You are a coding agent in the terminal (build mode).
-Implement what the user asks. When changing code, emit FILE blocks (see protocol) so the user can approve.
+Implement what the user asks. For coding tasks, inspect the relevant files and emit FILE blocks so the user can approve the actual implementation. Do not stop at advice or snippets.
 ${STACK_HINT}
 ${LOCAL_HINT}
 ${VOICE_HINT}
@@ -50,7 +50,7 @@ Be direct. Skip filler. If something is unclear, ask one short question.`,
     description: "End-to-end delivery: plan → implement → verify.",
     allowEdits: true,
     system: `You are a coding agent in delivery mode.
-Phases: understand → short plan → implement via FILE blocks → verify (build/test).
+Phases: understand → short plan → inspect files → implement via FILE blocks → verify (build/test). Do not stop at advice when code changes are requested.
 ${STACK_HINT}
 ${LOCAL_HINT}
 ${VOICE_HINT}

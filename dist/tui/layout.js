@@ -126,7 +126,7 @@ export function tipLine(text) {
  */
 export function renderHeader(info, cols) {
     const t = c();
-    const boxWidth = Math.min(48, Math.max(38, Math.min(cols - 2, 50)));
+    const boxWidth = Math.min(72, Math.max(38, cols - 2));
     const inner = boxWidth - 4;
     const noModel = info.noModelLabel ?? "no model";
     const modelName = info.model ?? noModel;
@@ -134,12 +134,18 @@ export function renderHeader(info, cols) {
         const left = `${t.dim(key.padEnd(6))} ${value}`;
         if (!hint)
             return left;
-        const room = Math.max(8, inner - stringWidth(left) - 1);
-        return `${left}  ${truncate(hint, room)}`;
+        const room = inner - stringWidth(left) - 2;
+        return room >= stringWidth(hint) ? `${left}  ${hint}` : left;
     };
     const title = `${t.accent("›")} ${t.text("Voxiva CLI")} ${t.dim(`(v${info.version})`)}`;
-    const modelLine = row("model", t.text(truncate(modelName, Math.max(10, inner - 22))), `${t.accent("/model")} ${t.dim("to change")}`);
-    const planLine = row("plan", chalk.hex(PLAN_COLORS[info.planId])(info.plan), t.dim("Tab to switch"));
+    const modelLine = row("model", t.text(truncate(modelName, Math.max(10, inner - 8))), `${t.accent("/model")} ${t.dim("to change")}`);
+    const planLine = row("plan", chalk.hex(PLAN_COLORS[info.planId])(info.plan), t.dim(`${info.planId === "build"
+        ? "writes code"
+        : info.planId === "ship"
+            ? "builds + tests"
+            : info.planId === "check"
+                ? "review only"
+                : "read only"} · Tab`));
     const dirLine = row("dir", t.text(truncate(info.directory, inner - 8)));
     const rows = [title, modelLine, planLine, dirLine];
     const top = t.border("┌" + "─".repeat(boxWidth - 2) + "┐");

@@ -11,7 +11,7 @@ import { clipboardToDraft, isImagePath, normalizeBracketedPaste, readClipboard, 
 import { checkForUpdate } from "../update/check.js";
 import { getSession, getContinuableSession, listSessions, listSessionsForCwd, saveSession, } from "../sessions/store.js";
 import { getWorkspace, listWorkspaces, touchWorkspace } from "../workspaces/store.js";
-import { LOCALES, t as ui } from "../i18n/index.js";
+import { detectPromptLocale, LOCALES, t as ui } from "../i18n/index.js";
 import { assistantBubble, clearScreen, composeFrame, enterAltScreen, errorNote, fullWidth, hideCursor, horizontalRule, inputBar, leaveAltScreen, mediaCard, paintFrame, panel, pasteCard, renderHeader, showCursor, statusFooter, suggestionRows, systemNote, termSize, thoughtLine, THOUGHT_STATUSES, truncate, userBubble, wrapText, fileChangeCard, } from "./layout.js";
 import { setActiveTheme, tc } from "./logo.js";
 import { PLAN_COLORS, THEMES } from "./themes.js";
@@ -1813,6 +1813,13 @@ export async function runTui() {
         }
         if (!prompt.trim() && drafts.length) {
             prompt = drafts.map((d) => `[${d.kind}: ${d.label}]`).join(" ");
+        }
+        const detectedLocale = detectPromptLocale(line);
+        if (state.locale === "en" && detectedLocale) {
+            state.locale = detectedLocale;
+            ctx.locale = detectedLocale;
+            await refreshSystemPrompt();
+            await patchConfig({ locale: detectedLocale });
         }
         const historyStart = state.history.length;
         state.history.push({ role: "user", content: prompt });

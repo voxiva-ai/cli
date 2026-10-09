@@ -89,7 +89,23 @@ test("header is compact Codex-style with model plan directory", () => {
   assert.ok(lines.some((line) => line.includes("/model")));
   assert.ok(lines.some((line) => line.includes("dir")));
   assert.ok(lines.some((line) => line.includes("~/proj")));
-  assert.ok(stringWidth(lines[0]) < 55);
+  assert.ok(stringWidth(lines[0]) <= 72);
+});
+
+test("narrow header keeps the full model and explains the active plan", () => {
+  const lines = renderHeader(
+    {
+      version: "0.1.3",
+      plan: "Check",
+      planId: "check",
+      model: "Nemotron 3 Ultra Free",
+      directory: "D:/JobHunter",
+    },
+    54,
+  );
+  assert.ok(lines.some((line) => line.includes("Nemotron 3 Ultra Free")));
+  assert.ok(lines.some((line) => line.includes("review only")));
+  assert.ok(lines.every((line) => stringWidth(line) <= 54));
 });
 
 test("header shows update banner and tip", () => {
@@ -196,6 +212,13 @@ test("plan system injects language and agents context", async () => {
   assert.ok(withAgents.includes("Use Go."));
   const asyncPrompt = await planSystemAsync("explore", "ru", root);
   assert.ok(asyncPrompt.length > 20);
+});
+
+test("Russian prompts select Russian and replies follow the latest message", async () => {
+  const { detectPromptLocale, languageDirective } = await import("../dist/i18n/index.js");
+  assert.equal(detectPromptLocale("Напиши код"), "ru");
+  assert.equal(detectPromptLocale("write code"), undefined);
+  assert.ok(languageDirective("ru").includes("latest message"));
 });
 
 test("agent file reads stay inside the project and hide secrets", async () => {
