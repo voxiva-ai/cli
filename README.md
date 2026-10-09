@@ -98,11 +98,13 @@ A limited **keyless fallback** works immediately. For reliable free chat, connec
 
 ## Update
 
-When a newer version is on GitHub, the app shows a banner:
+When a newer version is on GitHub, the app asks before the first task:
 
 ```text
-↑ Update · v0.1.2 · press u or /update
+Update available · Enter/U update now · N/Esc later
 ```
+
+The check runs in the background, is cached for one hour, and never blocks offline startup.
 
 **Users**
 ```bash

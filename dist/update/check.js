@@ -6,7 +6,7 @@ const CACHE_PATH = join(configDir(), "update-check.json");
 const REPO = "voxiva-ai/cli";
 const NPM = "@voxiva/cli";
 /** Check more often so GitHub pushes show up quickly for users. */
-const CACHE_MS = 6 * 60 * 60 * 1000;
+const CACHE_MS = 60 * 60 * 1000;
 function normalizeVersion(v) {
     return v.trim().replace(/^v/i, "");
 }
@@ -87,49 +87,51 @@ async function fetchText(url, ms = 5000) {
         return null;
     }
 }
-/**
- * Resolve latest published version from (in order):
- * 1) GitHub Releases
- * 2) package.json on main (raw + jsDelivr) — works even without a Release
- * 3) npm registry (when published)
- */
+export function newestUpdate(candidates) {
+    return candidates.reduce((newest, item) => (!newest || compareVersions(item.latest, newest.latest) > 0 ? item : newest), null);
+}
+/** Resolve the newest published version across GitHub, main and npm in parallel. */
 async function fetchLatest() {
-    const release = (await fetchJson(`https://api.github.com/repos/${REPO}/releases/latest`));
-    if (release?.tag_name) {
-        return {
-            latest: normalizeVersion(release.tag_name),
-            url: release.html_url ?? `https://github.com/${REPO}/releases`,
-        };
-    }
     const pkgUrls = [
         `https://raw.githubusercontent.com/${REPO}/main/package.json`,
         `https://cdn.jsdelivr.net/gh/${REPO}@main/package.json`,
     ];
-    for (const url of pkgUrls) {
-        const text = await fetchText(url);
+    const [release, npm, ...packages] = await Promise.all([
+        fetchJson(`https://api.github.com/repos/${REPO}/releases/latest`),
+        fetchJson(`https://registry.npmjs.org/${NPM}/latest`),
+        ...pkgUrls.map((url) => fetchText(url)),
+    ]);
+    const mainCandidates = [];
+    for (const text of packages) {
         if (!text)
             continue;
         try {
-            const pkg = JSON.parse(text);
-            if (pkg.version) {
-                return {
-                    latest: normalizeVersion(pkg.version),
+            const version = JSON.parse(text).version;
+            if (version) {
+                mainCandidates.push({
+                    latest: normalizeVersion(version),
                     url: `https://github.com/${REPO}`,
-                };
+                });
             }
         }
         catch {
-            // next
+            // Ignore a broken mirror and use another source.
         }
     }
-    const npm = (await fetchJson(`https://registry.npmjs.org/${NPM}/latest`));
-    if (npm?.version) {
-        return {
-            latest: normalizeVersion(npm.version),
-            url: `https://www.npmjs.com/package/${NPM}`,
-        };
-    }
-    return null;
+    // The updater installs GitHub main, so it is canonical; the others are fallbacks.
+    return (newestUpdate(mainCandidates) ??
+        (release?.tag_name
+            ? {
+                latest: normalizeVersion(release.tag_name),
+                url: release.html_url ?? `https://github.com/${REPO}/releases`,
+            }
+            : null) ??
+        (npm?.version
+            ? {
+                latest: normalizeVersion(npm.version),
+                url: `https://www.npmjs.com/package/${NPM}`,
+            }
+            : null));
 }
 function toInfo(latest, current, url) {
     return {

@@ -65,6 +65,7 @@ export type OverlayMode =
   | "queue"
   | "memory"
   | "workspaces"
+  | "update"
   | "approve"
   | "usage";
 

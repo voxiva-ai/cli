@@ -91,6 +91,7 @@ export async function runTui() {
         process.stdout.write("Voxiva TUI requires an interactive terminal. Run: voxiva\n");
         return;
     }
+    const updateCheck = snapshot ? Promise.resolve(null) : checkForUpdate();
     const config = await loadConfig();
     const auth = await loadAuth();
     const savedSessions = await listSessions();
@@ -163,6 +164,7 @@ export async function runTui() {
         pendingEdits: [],
         draftAttachments: [],
         updateBanner: undefined,
+        updateLatest: undefined,
         thoughtFrame: 0,
         thoughtStatus: THOUGHT_STATUSES[0],
     };
@@ -631,11 +633,15 @@ export async function runTui() {
             draw();
         });
     }
-    // Soft update banner — never blocks startup; cache keeps installs stable offline.
-    void checkForUpdate().then((info) => {
+    // Started before workspace loading, but never blocks offline startup.
+    void updateCheck.then((info) => {
         if (!info || !running)
             return;
         state.updateBanner = `v${info.latest} · press u or /update`;
+        state.updateLatest = info.latest;
+        if (!state.messages.length && !state.input && !state.busy && !state.overlay) {
+            state.overlay = "update";
+        }
         toast(`Update v${info.latest} ready — press u or /update`, "info");
         queueRender();
     });
@@ -653,6 +659,16 @@ export async function runTui() {
         const out = [];
         const t = tc();
         switch (state.overlay) {
+            case "update":
+                out.push(t.text("Update available"));
+                out.push("");
+                out.push(`  ${t.muted(`v${VERSION}`)}  ${t.dim("→")}  ${t.accent(`v${state.updateLatest ?? "latest"}`)}`);
+                out.push("");
+                out.push(t.text("Install it before continuing?"));
+                out.push(t.dim("Your settings, sessions and API keys stay in place."));
+                out.push("");
+                out.push(t.dim("  Enter / U · update now     N / Esc · later"));
+                break;
             case "help":
                 out.push(t.muted("Commands"));
                 out.push("");
@@ -1932,6 +1948,9 @@ export async function runTui() {
     }
     async function overlayEnter() {
         switch (state.overlay) {
+            case "update":
+                await runAction("update");
+                break;
             case "palette": {
                 const q = state.paletteFilter.toLowerCase();
                 const items = paletteItems().filter((c) => matchesPaletteFilter(c, q));
@@ -2144,6 +2163,8 @@ export async function runTui() {
                 return Math.min(12, state.workspaces.length);
             case "approve":
                 return Math.max(1, state.pendingEdits.length);
+            case "update":
+                return 1;
             case "palette": {
                 const query = state.paletteFilter.toLowerCase();
                 return paletteItems().filter((command) => matchesPaletteFilter(command, query)).length;
@@ -2320,6 +2341,23 @@ export async function runTui() {
             return;
         }
         if (state.overlay) {
+            if (state.overlay === "update") {
+                if (key === "\r" ||
+                    key === "\n" ||
+                    key === "u" ||
+                    key === "U" ||
+                    key === "y" ||
+                    key === "Y") {
+                    void runAction("update");
+                    return;
+                }
+                if (key === "\u001b" || key === "n" || key === "N") {
+                    state.overlay = null;
+                    toast("Update postponed. Run /update anytime.", "info");
+                    queueRender(true);
+                }
+                return;
+            }
             if (key === "\u001b") {
                 if (state.overlay === "approve") {
                     rejectPendingEdits();

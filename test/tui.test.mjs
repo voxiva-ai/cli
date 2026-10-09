@@ -434,8 +434,16 @@ test("built dist is shipped for github installs", () => {
   assert.ok(existsSync(join(root, "dist", "cli.js")));
 });
 test("compareVersions detects newer releases", async () => {
-  const { compareVersions } = await import("../dist/update/check.js");
+  const { compareVersions, newestUpdate } = await import("../dist/update/check.js");
   assert.equal(compareVersions("0.0.1", "0.0.0"), 1);
   assert.equal(compareVersions("0.0.0", "0.0.1"), -1);
   assert.equal(compareVersions("v0.0.0", "0.0.0"), 0);
+  assert.deepEqual(
+    newestUpdate([
+      { latest: "0.1.2", source: "release" },
+      { latest: "0.1.4", source: "main" },
+      { latest: "0.1.3", source: "npm" },
+    ]),
+    { latest: "0.1.4", source: "main" },
+  );
 });

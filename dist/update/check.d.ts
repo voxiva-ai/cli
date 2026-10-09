@@ -12,6 +12,9 @@ export declare function compareVersions(a: string, b: string): number;
 export declare function reinstallHint(): string;
 /** Clear cache so the next check hits the network. */
 export declare function clearUpdateCache(): Promise<void>;
+export declare function newestUpdate<T extends {
+    latest: string;
+}>(candidates: T[]): T | null;
 /**
  * Non-blocking update check. Returns info only when a newer release exists.
  */
