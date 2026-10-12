@@ -68,13 +68,8 @@ export type StatusFooterParts = {
 export declare function statusFooter(parts: StatusFooterParts, width: number): string;
 /** Braille frames for the pre-stream thought line. */
 export declare const THOUGHT_FRAMES: readonly ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-/** Soft verbs while waiting for the first token (Codex / Thought Line vibe). */
-export declare const THOUGHT_STATUSES: readonly ["thinking", "drafting", "reading", "wiring", "checking", "shaping"];
-/**
- * One quiet line shown instead of a static "…" before the first stream token.
- * Example: `  ⠋  thinking`
- */
-export declare function thoughtLine(frame: number, status: string, cols: number): string;
+/** Quiet spinner shown while waiting for the first stream token. */
+export declare function thoughtLine(frame: number, _status: string, cols: number): string;
 export declare function horizontalRule(width: number): string;
 /** Aligned slash-command suggestions under the composer. */
 export declare function suggestionRows(items: {

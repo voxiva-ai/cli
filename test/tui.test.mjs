@@ -13,7 +13,6 @@ import {
   thoughtLine,
   wrapText,
   THOUGHT_FRAMES,
-  THOUGHT_STATUSES,
 } from "../dist/tui/layout.js";
 import { matchesPaletteFilter, resolveSlash, slashSuggestions, paletteItems } from "../dist/tui/slash.js";
 import { themeIds, THEMES } from "../dist/tui/themes.js";
@@ -24,15 +23,15 @@ import { VERSION } from "../dist/tui/copy.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-test("thoughtLine is one quiet spinner + status row", () => {
+test("thoughtLine is a quiet spinner without action text", () => {
   const line = thoughtLine(0, "thinking", 80);
   assert.ok(line.includes(THOUGHT_FRAMES[0]));
-  assert.ok(line.includes("thinking"));
+  assert.ok(!line.includes("thinking"));
   assert.ok(!line.includes("\n"));
   assert.ok(stringWidth(line) <= 80);
-  const next = thoughtLine(1, THOUGHT_STATUSES[1], 40);
+  const next = thoughtLine(1, "drafting", 40);
   assert.ok(next.includes(THOUGHT_FRAMES[1]));
-  assert.ok(next.includes(THOUGHT_STATUSES[1]));
+  assert.ok(!next.includes("drafting"));
 });
 
 test("input bar draws a blinking caret when empty", () => {

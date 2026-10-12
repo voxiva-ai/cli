@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 export type FileEdit = {
   path: string;
@@ -39,7 +39,7 @@ export function extractFileBlocks(text: string): { path: string; action: "write"
     const path = match[1].trim().replace(/\\/g, "/");
     const action = match[2].toLowerCase() === "create" ? "create" : "write";
     const content = match[3].replace(/^\r?\n/, "").replace(/\r?\n$/, "");
-    if (!path || path.includes("..")) continue;
+    if (!path || isAbsolute(path) || path.split("/").includes("..")) continue;
     out.push({ path, action, content });
   }
   return out;
@@ -53,7 +53,8 @@ export async function prepareEdits(
   for (const block of blocks) {
     const abs = resolve(cwd, block.path);
     const root = resolve(cwd);
-    if (!abs.startsWith(root)) continue;
+    const rel = relative(root, abs);
+    if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) continue;
     let exists = false;
     try {
       await readFile(abs, "utf8");

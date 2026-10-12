@@ -1,115 +1,89 @@
 <p align="center">
-  <b>Voxiva CLI</b><br/>
-  Терминальный coding-агент · бесплатные модели · правки файлов с подтверждением
+  <img src="brand/voxiva-mark.svg" alt="Voxiva" width="112" />
+</p>
+
+<h1 align="center">Voxiva CLI</h1>
+
+<p align="center">ИИ-агент для терминала. Подключайте свою модель, изучайте проект и проверяйте каждое изменение файлов до его применения.</p>
+
+<p align="center">
+  <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> ·
-  <a href="README.zh-CN.md">简体中文</a> ·
-  <a href="README.ru.md">Русский</a>
+  <a href="https://nodejs.org/">Node.js 20+</a> · <a href="LICENSE">Лицензия MIT</a> · <a href="https://github.com/voxiva-ai/cli/issues">Ошибки и идеи</a>
 </p>
-
-<p align="center">
-  <b>Beta v0.1.0</b> · Node.js 20+
-</p>
-
----
 
 ## Установка
 
-Скопируй **одну** команду. Если нет Node.js — скачает (официал + зеркала), поставит CLI. Открытый код на GitHub — всё публично.
-
 **macOS / Linux**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 ```
 
-**Windows (PowerShell)**
+**Windows PowerShell**
+
 ```powershell
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
-Или скачай ZIP, распакуй и запусти `install.cmd` двойным кликом. Установка идет в профиль пользователя и не требует прав администратора.
-
-**Если GitHub тормозит / недоступен** (зеркало jsDelivr):
-```bash
-curl -fsSL https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install | bash
-```
-```powershell
-irm https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install.ps1 | iex
-```
-
-Открой **новый** терминал:
+Откройте новый терминал и проверьте установку:
 
 ```bash
-voxiva --version && voxiva doctor
+voxiva doctor
 ```
 
-**Уже есть Node 20+?**
-```bash
-npm install -g github:voxiva-ai/cli
-```
+Установщик при необходимости поставит Node.js и установит Voxiva в профиль пользователя. Если GitHub работает медленно, используйте [установщик через jsDelivr](https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install) или скачайте [архив исходного кода](https://github.com/voxiva-ai/cli/archive/refs/heads/main.zip).
 
----
-
-## Запуск
+## Быстрый старт
 
 ```bash
+cd путь/к/проекту
 voxiva
 ```
 
-Сразу доступен резервный **бесплатный режим без ключа**. Для стабильной переписки подключи бесплатный ключ OpenCode Zen через `/connect`.
-
-| | |
-|--|--|
-| Free-модели OpenCode Zen | `/connect` → OpenCode Zen → ключ с `opencode.ai/auth` |
-| Платные (GPT / Claude / Gemini) | `/models` → провайдер → вставить ключ |
-| Ещё free (OpenRouter) | `/connect` → OpenRouter → бесплатный ключ |
-| План | `Tab` или `/plans` |
-| Продолжить чат | `/continue` |
-| Выход | `Ctrl+C` |
-
----
-
-## Клавиши
-
-| | |
-|--|--|
-| Вставить | `Ctrl+V` → карточка для фото / длинного текста |
-| Скопировать ответ | `Ctrl+Y` / `/copy` |
-| Убрать карточку | `Backspace` (если поле пустое) |
-| Листать чат | колёсико · `PgUp`/`PgDn` · `↑`/`↓` (если поле пустое) |
-| Сменить папку | `cd D:\path` |
-| Shell | `!git status` · `!dir` |
-| Файл / фото | `@путь` или скопировать файл → `Ctrl+V` |
-| Команды | `/` → полный список · печатай для фильтра |
-| Стоп | `Esc` |
-| Применить / пропустить правку | `y` / `n` |
-
----
-
-## Команды
-
-`/model` · `/update` · `/plans` · `/continue` · `/sessions` · `/workspaces` · `/files` · `/history` · `/copy` · `/undo` · `/memory` · `/init` · `/diff` · `/cost` · `/themes` · `/lang` · `/shortcuts` · `/help`
-
----
-
-## Обновление
-
-Когда на GitHub выходит новая версия, в приложении баннер: `↑ Update · press u or /update`
+Откроется интерактивный чат. Подключите ключ командой `/connect`, выберите модель через `/models` и опишите задачу. Можно отправить разовый запрос:
 
 ```bash
-voxiva update
+voxiva run "Объясни, как в проекте работает авторизация"
 ```
 
-Или снова одна команда установки. Чтобы другие увидели обновление — подними `version` в `package.json` + `src/tui/copy.ts` и сделай `git push` на `main`.
+## Возможности
 
----
+- Модели OpenAI, Anthropic, Google Gemini, DeepSeek, Groq, OpenRouter и OpenCode Zen.
+- Чтение инструкций проекта из `AGENTS.md` и файлов по запросу.
+- Предложение изменений файлов с подтверждением перед записью.
+- Сохранение сессий, рабочих папок, выбранных моделей и настроек.
+- Режимы разработки, доставки задачи, проверки и чтения.
+- Английский, русский и китайский языки, темы и горячие клавиши.
 
-## Важно
+Доступность и стоимость моделей определяет выбранный провайдер. Без ключа может быть доступен ограниченный анонимный шлюз; для стабильной работы подключите свой ключ.
 
-- **Free**-модели идут напрямую через OpenCode Zen; без ключа остается ограниченный резервный шлюз
-- Новый ПК: установщик сам качает Node + CLI и гоняет `doctor`
-- Всё лежит в `~/.voxiva/` — удалить папку + PATH
+## Команды в чате
 
-MIT · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+| Действие | Команда |
+| --- | --- |
+| Подключить провайдера | `/connect` |
+| Выбрать модель или режим | `/models` · `/plans` · `Tab` |
+| Посмотреть файлы проекта | `/files` · `@путь/к/файлу` |
+| Остановить ответ | `Esc` |
+| Применить или пропустить правки | `y` · `n` |
+| Продолжить сессию | `/continue` |
+| Открыть список команд | `/` |
+
+Введите `!команда`, чтобы выполнить команду оболочки, например `!git status`. Voxiva не запускает команды оболочки, предложенные моделью, автоматически.
+
+## Настройки и данные
+
+Настройки и сессии хранятся в `~/.voxiva/`. Ключи провайдеров находятся локально в `auth.json`; запросы отправляются провайдеру выбранной модели. Перед передачей чувствительных данных изучите правила обработки данных этого провайдера.
+
+`voxiva doctor` проверяет установку, `voxiva update` обновляет CLI.
+
+## Участие в разработке
+
+Будем рады исправлениям, улучшению документации и конкретным идеям функций. Инструкции по настройке, проверкам и pull request — в [CONTRIBUTING.md](CONTRIBUTING.md). Ошибки и предложения можно оформить через [GitHub Issues](https://github.com/voxiva-ai/cli/issues).
+
+## Лицензия
+
+[MIT](LICENSE)

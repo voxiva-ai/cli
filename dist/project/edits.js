@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 const BLOCK_RE = /<<<FILE\s+path="([^"]+)"\s+action="(write|create)"\s*>>>\r?\n([\s\S]*?)<<<END>>>/gi;
 /** Instruct models how to propose disk edits (applied only after user approval). */
 export const FILE_EDIT_PROTOCOL = `When you need to create or change project files, output one or more blocks EXACTLY in this form (no fences around the markers):
@@ -26,7 +26,7 @@ export function extractFileBlocks(text) {
         const path = match[1].trim().replace(/\\/g, "/");
         const action = match[2].toLowerCase() === "create" ? "create" : "write";
         const content = match[3].replace(/^\r?\n/, "").replace(/\r?\n$/, "");
-        if (!path || path.includes(".."))
+        if (!path || isAbsolute(path) || path.split("/").includes(".."))
             continue;
         out.push({ path, action, content });
     }
@@ -37,7 +37,8 @@ export async function prepareEdits(cwd, blocks) {
     for (const block of blocks) {
         const abs = resolve(cwd, block.path);
         const root = resolve(cwd);
-        if (!abs.startsWith(root))
+        const rel = relative(root, abs);
+        if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel))
             continue;
         let exists = false;
         try {

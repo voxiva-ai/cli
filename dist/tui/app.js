@@ -12,7 +12,7 @@ import { checkForUpdate } from "../update/check.js";
 import { getSession, getContinuableSession, listSessions, listSessionsForCwd, saveSession, } from "../sessions/store.js";
 import { getWorkspace, listWorkspaces, touchWorkspace } from "../workspaces/store.js";
 import { detectPromptLocale, LOCALES, t as ui } from "../i18n/index.js";
-import { assistantBubble, clearScreen, composeFrame, enterAltScreen, errorNote, fullWidth, hideCursor, horizontalRule, inputBar, leaveAltScreen, mediaCard, paintFrame, panel, pasteCard, renderHeader, showCursor, statusFooter, suggestionRows, systemNote, termSize, thoughtLine, THOUGHT_STATUSES, truncate, userBubble, wrapText, fileChangeCard, } from "./layout.js";
+import { assistantBubble, clearScreen, composeFrame, enterAltScreen, errorNote, fullWidth, hideCursor, horizontalRule, inputBar, leaveAltScreen, mediaCard, paintFrame, panel, pasteCard, renderHeader, showCursor, statusFooter, suggestionRows, systemNote, termSize, thoughtLine, truncate, userBubble, wrapText, fileChangeCard, } from "./layout.js";
 import { setActiveTheme, tc } from "./logo.js";
 import { PLAN_COLORS, THEMES } from "./themes.js";
 import { paletteItems, resolveSlash, slashSuggestions, matchesPaletteFilter, FILTER_OVERLAYS, INFO_OVERLAYS } from "./slash.js";
@@ -145,7 +145,6 @@ export async function runTui() {
         paletteFilter: "",
         busy: false,
         details: false,
-        thinking: false,
         redoStack: [],
         savedSessions,
         cwd: process.cwd(),
@@ -166,7 +165,6 @@ export async function runTui() {
         updateBanner: undefined,
         updateLatest: undefined,
         thoughtFrame: 0,
-        thoughtStatus: THOUGHT_STATUSES[0],
     };
     let running = true;
     let exitAction;
@@ -312,7 +310,6 @@ export async function runTui() {
     }
     const SETTINGS_ITEMS = [
         "Toggle details line",
-        "Toggle thinking status",
         "Clear prompt queue",
         "Reload AGENTS.md + memory",
         "Open themes…",
@@ -974,8 +971,6 @@ export async function runTui() {
                     if (i === 0)
                         extra = state.details ? t.accent2(" on") : t.dim(" off");
                     if (i === 1)
-                        extra = state.thinking ? t.accent2(" on") : t.dim(" off");
-                    if (i === 2)
                         extra = t.dim(` (${state.promptQueue.length})`);
                     out.push(`${mark}${label}${extra}`);
                 });
@@ -1178,7 +1173,7 @@ export async function runTui() {
                 const display = msg.role === "assistant"
                     ? stripReadBlocks(stripFileBlocks(msg.text)) || msg.text
                     : msg.text;
-                const text = display || (state.busy && msg.role === "assistant" ? (state.thinking ? "…" : "…") : "");
+                const text = display || (state.busy && msg.role === "assistant" ? "…" : "");
                 if (!text && msg.role !== "assistant" && !(msg.role === "user" && msg.attachments?.length)) {
                     continue;
                 }
@@ -1213,7 +1208,7 @@ export async function runTui() {
                         (!text || text === "…" || text === "...") &&
                         msg === state.messages[state.messages.length - 1];
                     if (waiting) {
-                        messageRows.push(truncate(pad + thoughtLine(state.thoughtFrame, state.thoughtStatus, wrapW), cols));
+                        messageRows.push(truncate(pad + thoughtLine(state.thoughtFrame, "", wrapW), cols));
                     }
                     else {
                         const wrapped = wrapText(text, wrapW);
@@ -1470,10 +1465,6 @@ export async function runTui() {
             case "details":
                 state.details = !state.details;
                 toast(`Details ${state.details ? "on" : "off"}.`, "ok");
-                return;
-            case "thinking":
-                state.thinking = !state.thinking;
-                toast(`Thinking status ${state.thinking ? "on" : "off"}.`, "ok");
                 return;
             case "voice":
                 toggleVoice();
@@ -1827,7 +1818,6 @@ export async function runTui() {
         state.messages.push({ role: "assistant", text: "…" });
         state.busy = true;
         state.thoughtFrame = 0;
-        state.thoughtStatus = THOUGHT_STATUSES[Math.floor(Math.random() * THOUGHT_STATUSES.length)];
         queueRender(true);
         let inputTokens = 0;
         let outputTokens = 0;
@@ -1869,7 +1859,6 @@ export async function runTui() {
                 state.history.push({ role: "assistant", content: reply });
                 state.history.push({ role: "user", content: await readRequestedFiles(state.cwd, paths) });
                 state.messages[responseIndex].text = "…";
-                state.thoughtStatus = "reading";
                 queueRender(true);
             }
             if (streamAbort.signal.aborted) {
@@ -2123,21 +2112,17 @@ export async function runTui() {
                         toast(`Details ${state.details ? "on" : "off"}.`, "ok");
                         break;
                     case 1:
-                        state.thinking = !state.thinking;
-                        toast(`Thinking ${state.thinking ? "on" : "off"}.`, "ok");
-                        break;
-                    case 2:
                         state.promptQueue = [];
                         toast("Queue cleared.", "ok");
                         break;
-                    case 3:
+                    case 2:
                         await refreshSystemPrompt();
                         toast("Reloaded AGENTS.md + memory.", "ok");
                         break;
-                    case 4:
+                    case 3:
                         await openOverlay("themes");
                         return;
-                    case 5:
+                    case 4:
                         await openOverlay("languages");
                         return;
                 }
@@ -2653,16 +2638,12 @@ export async function runTui() {
                 state.caretBlink = !state.caretBlink;
                 queueRender();
             }
-            // Thought line: spinner every tick, rotate verb ~every 2s while waiting for first token
+            // Animate the quiet spinner while waiting for the first token.
             if (state.busy) {
                 const last = state.messages[state.messages.length - 1];
                 const waiting = last?.role === "assistant" && (!last.text || last.text === "…" || last.text === "...");
                 if (waiting) {
                     state.thoughtFrame += 1;
-                    if (blinkPhase % 16 === 0) {
-                        const idx = Math.max(0, THOUGHT_STATUSES.findIndex((s) => s === state.thoughtStatus));
-                        state.thoughtStatus = THOUGHT_STATUSES[(idx + 1) % THOUGHT_STATUSES.length];
-                    }
                     queueRender();
                 }
             }

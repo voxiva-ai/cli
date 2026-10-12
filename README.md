@@ -1,141 +1,89 @@
 <p align="center">
-  <b>Voxiva CLI</b><br/>
-  Terminal coding agent · free models · file edits with approval
+  <img src="brand/voxiva-mark.svg" alt="Voxiva" width="112" />
+</p>
+
+<h1 align="center">Voxiva CLI</h1>
+
+<p align="center">A coding agent for your terminal. Bring your own model key, inspect your project, and review every file change before it is applied.</p>
+
+<p align="center">
+  <a href="README.ru.md">Русский</a> · <a href="README.zh-CN.md">简体中文</a>
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> ·
-  <a href="README.zh-CN.md">简体中文</a> ·
-  <a href="README.ru.md">Русский</a>
+  <a href="https://nodejs.org/">Node.js 20+</a> · <a href="LICENSE">MIT License</a> · <a href="https://github.com/voxiva-ai/cli/issues">Issues and ideas</a>
 </p>
-
-<p align="center">
-  <b>Beta v0.1.0</b> · Node.js 20+
-</p>
-
----
 
 ## Install
 
-Copy **one** command. It downloads Node.js (official + mirrors) if missing, then installs the CLI. Works in EN / RU / CN networks — mirrors kick in automatically when GitHub or npmjs is slow.
-
 **macOS / Linux**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 ```
 
-**Windows (PowerShell)**
+**Windows PowerShell**
+
 ```powershell
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
-Or download and extract the ZIP, then double-click `install.cmd`. It installs into the current user profile and does not require administrator rights.
-
-**If GitHub is blocked/slow (often China)** — same installer via jsDelivr:
-```bash
-curl -fsSL https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install | bash
-```
-```powershell
-irm https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install.ps1 | iex
-```
-
-Force China mirrors: `VOXIVA_REGION=cn` (bash) or `$env:VOXIVA_REGION="cn"` (PowerShell) before the command.
-
-Then open a **new** terminal:
+Open a new terminal and run:
 
 ```bash
-voxiva --version && voxiva doctor
+voxiva doctor
 ```
 
-**Already have Node 20+?**
-```bash
-npm install -g github:voxiva-ai/cli
-```
+The installer sets up Node.js when needed and installs Voxiva for your user account. If GitHub is slow or unavailable, use the [jsDelivr installer](https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install) or download the [latest source archive](https://github.com/voxiva-ai/cli/archive/refs/heads/main.zip).
 
----
-
-## Start
+## Quick start
 
 ```bash
+cd path/to/your-project
 voxiva
 ```
 
-A limited **keyless fallback** works immediately. For reliable free chat, connect an OpenCode Zen key with `/connect`.
+Voxiva opens an interactive terminal chat. Connect a provider key with `/connect`, choose a model with `/models`, then describe what you want to do. You can also run a one-shot request:
 
-| | |
-|--|--|
-| OpenCode Zen free models | `/connect` → OpenCode Zen → key from `opencode.ai/auth` |
-| Paid (GPT / Claude / Gemini) | `/models` → provider → paste key |
-| More free (OpenRouter) | `/connect` → OpenRouter → free key unlocks real free endpoints |
-| Plan | `Tab` or `/plans` |
-| Resume | `/continue` |
-| Exit | `Ctrl+C` |
-
----
-
-## Shortcuts
-
-| | |
-|--|--|
-| Paste | `Ctrl+V` → chip for image / long text |
-| Copy last reply | `Ctrl+Y` / `/copy` |
-| Remove chip | `Backspace` (empty input) |
-| Scroll | mouse wheel · `PgUp`/`PgDn` · `↑`/`↓` (empty input) |
-| Change folder | `cd /path/to/project` |
-| Shell | `!git status` · `!ls` |
-| Attach file/image | `@path` or copy file → `Ctrl+V` |
-| Commands | `/` → full list · type to filter |
-| Stop | `Esc` |
-| Apply / skip edit | `y` / `n` |
-
----
-
-## Commands
-
-`/model` · `/update` · `/plans` · `/continue` · `/sessions` · `/workspaces` · `/files` · `/history` · `/copy` · `/undo` · `/memory` · `/init` · `/diff` · `/cost` · `/themes` · `/lang` · `/shortcuts` · `/help`
-
----
-
-## Update
-
-When a newer version is on GitHub, the app asks before the first task:
-
-```text
-Update available · Enter/U update now · N/Esc later
-```
-
-The check runs in the background, is cached for one hour, and never blocks offline startup.
-
-**Users**
 ```bash
-voxiva update
-# or inside chat: /update   (or press u)
+voxiva run "Explain how authentication works in this project"
 ```
 
-Same as reinstall:
-```powershell
-irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
-```
+## What it can do
 
-**Maintainers (so others get the banner)** — bump version, push `main`:
-```bash
-# edit package.json + src/tui/copy.ts VERSION together (e.g. 0.1.2 → 0.1.3)
-git add -A && git commit -m "Release 0.1.2" && git push
-# optional GitHub Release tag:
-gh release create v0.1.2 -t "v0.1.2" -n "What's new"
-```
+- Work with OpenAI, Anthropic, Google Gemini, DeepSeek, Groq, OpenRouter, and OpenCode Zen models.
+- Read project guidance from `AGENTS.md` and inspect files on request.
+- Propose complete file changes for review; apply them only after you approve.
+- Keep sessions, workspaces, model choices, and preferences between runs.
+- Use plans for building, end-to-end delivery, review, and read-only exploration.
+- Work in English, Russian, and Chinese, with themes and keyboard shortcuts.
 
-Users pick up the new `package.json` version from `main` (no npm publish required).
+Model access and pricing come from the provider you choose. A limited anonymous fallback may be available without a key; for reliable use, connect your own provider credentials.
 
----
+## In chat
 
-## Notes
+| Action | How |
+| --- | --- |
+| Connect a provider | `/connect` |
+| Choose a model or plan | `/models` · `/plans` · `Tab` |
+| Inspect project files | `/files` · `@path/to/file` |
+| Stop a response | `Esc` |
+| Approve or skip proposed edits | `y` · `n` |
+| Resume a session | `/continue` |
+| Open commands | `/` |
 
-- **Free** models use OpenCode Zen directly; a rate-limited anonymous fallback remains available
-- **API keys** via `/connect` — OpenCode Zen / OpenAI / Anthropic / Google / OpenRouter
-- New PC: installer downloads Node (official / npmmirror / winget) + CLI
-- Update: `voxiva update` · app offers it automatically
-- Files under `~/.voxiva/` (`runtime/`, `prefix/`, `bin/`, config, sessions)
-- Uninstall: delete `~/.voxiva` and remove it from PATH
+Use `!command` to run a shell command from chat, for example `!git status`. Voxiva does not run model-proposed shell commands automatically.
 
-MIT · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+## Configuration and privacy
+
+Configuration and sessions are stored in `~/.voxiva/`. Provider keys are stored locally in `auth.json`; prompts are sent to the provider serving the selected model. Review that provider's data policy before sending sensitive project content.
+
+Run `voxiva doctor` to check your installation. Run `voxiva update` to install the latest version.
+
+## Contributing
+
+Bug reports, documentation fixes, and focused feature ideas are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, and pull request guidance. Use [GitHub Issues](https://github.com/voxiva-ai/cli/issues) to report a problem or suggest an improvement.
+
+## License
+
+[MIT](LICENSE)

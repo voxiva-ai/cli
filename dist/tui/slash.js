@@ -96,7 +96,7 @@ export const SLASH_COMMANDS = [
     {
         name: "settings",
         aliases: ["config", "prefs"],
-        description: "Toggle details / thinking / …",
+        description: "Open terminal settings",
         handler: async () => ({ type: "overlay", mode: "settings" }),
     },
     {
@@ -267,11 +267,6 @@ export const SLASH_COMMANDS = [
         name: "details",
         description: "Toggle model / theme / usage details",
         handler: async () => ({ type: "action", action: "details" }),
-    },
-    {
-        name: "thinking",
-        description: "Toggle thinking status",
-        handler: async () => ({ type: "action", action: "thinking" }),
     },
     {
         name: "voice",
