@@ -1,7 +1,7 @@
 import { access } from "node:fs/promises";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { configDir, ensureDir, type ModelRef, type PlanId } from "../config/store.js";
+import { configDir, ensureDir, writeFileAtomic, type ModelRef, type PlanId } from "../config/store.js";
 
 export type WorkspaceRecord = {
   path: string;
@@ -34,7 +34,7 @@ async function readAll(): Promise<WorkspaceRecord[]> {
 
 async function writeAll(items: WorkspaceRecord[]): Promise<void> {
   await ensureDir();
-  await writeFile(PATH, JSON.stringify(items.slice(0, MAX), null, 2) + "\n", "utf8");
+  await writeFileAtomic(PATH, JSON.stringify(items.slice(0, MAX), null, 2) + "\n");
 }
 
 export async function listWorkspaces(): Promise<WorkspaceRecord[]> {

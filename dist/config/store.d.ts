@@ -21,6 +21,8 @@ export type AuthStore = Partial<Record<ProviderId, {
     apiKey: string;
 }>>;
 export declare function ensureDir(): Promise<void>;
+/** Replace a persisted file in one step so a crash cannot leave partial JSON. */
+export declare function writeFileAtomic(path: string, content: string, mode?: number): Promise<void>;
 export declare function loadConfig(): Promise<VoxivaConfig>;
 export declare function saveConfig(config: VoxivaConfig): Promise<void>;
 export declare function loadAuth(): Promise<AuthStore>;

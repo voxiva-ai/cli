@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { randomUUID } from "node:crypto";
 
 export type ProviderId =
   | "voxiva"
@@ -62,6 +63,17 @@ export async function ensureDir(): Promise<void> {
   await mkdir(DIR, { recursive: true });
 }
 
+/** Replace a persisted file in one step so a crash cannot leave partial JSON. */
+export async function writeFileAtomic(path: string, content: string, mode?: number): Promise<void> {
+  const temp = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temp, content, { encoding: "utf8", mode });
+    await rename(temp, path);
+  } finally {
+    await unlink(temp).catch(() => {});
+  }
+}
+
 export async function loadConfig(): Promise<VoxivaConfig> {
   try {
     const raw = await readFile(CONFIG_PATH, "utf8");
@@ -74,7 +86,7 @@ export async function loadConfig(): Promise<VoxivaConfig> {
 
 export async function saveConfig(config: VoxivaConfig): Promise<void> {
   await ensureDir();
-  await writeFile(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n", "utf8");
+  await writeFileAtomic(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
 }
 
 export async function loadAuth(): Promise<AuthStore> {
@@ -104,21 +116,15 @@ export async function loadAuth(): Promise<AuthStore> {
 
 export async function saveAuth(auth: AuthStore): Promise<void> {
   await ensureDir();
-  await writeFile(AUTH_PATH, JSON.stringify(auth, null, 2) + "\n", "utf8");
-  try {
-    const { chmod } = await import("node:fs/promises");
-    await chmod(AUTH_PATH, 0o600);
-  } catch {
-    // Windows may not support chmod the same way — ignore.
-  }
+  await writeFileAtomic(AUTH_PATH, JSON.stringify(auth, null, 2) + "\n", 0o600);
 }
 
 export function parseModelRef(ref: string): { provider: ProviderId; model: string } | null {
   const slash = ref.indexOf("/");
   if (slash <= 0) return null;
   const provider = ref.slice(0, slash) as ProviderId;
-  const model = ref.slice(slash + 1);
-  if (!model) return null;
+  const model = ref.slice(slash + 1).trim();
+  if (!PROVIDER_IDS.includes(provider) || !model) return null;
   return { provider, model };
 }
 

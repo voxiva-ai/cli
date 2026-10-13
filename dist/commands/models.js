@@ -14,9 +14,9 @@ export async function modelsList() {
         const mark = active ? c.brand("›") : " ";
         const status = info.builtin
             ? c.ok("free · no key")
-            : connected.has(info.provider)
+            : connected.has("opencode")
                 ? c.ok("free")
-                : c.muted("needs OpenRouter key");
+                : c.muted("needs OpenCode Zen key");
         console.log(`${mark} ${c.text(info.label.padEnd(32))} ${c.muted(ref.padEnd(48))} ${status}`);
     }
     console.log("");
@@ -27,6 +27,8 @@ export async function modelsList() {
         { id: "openai", label: "OpenAI" },
         { id: "anthropic", label: "Anthropic" },
         { id: "google", label: "Google" },
+        { id: "deepseek", label: "DeepSeek" },
+        { id: "groq", label: "Groq" },
     ]) {
         const status = connected.has(p.id) ? c.ok("key ready") : c.muted("paste key via /model");
         console.log(`  ${c.text(p.label.padEnd(12))} ${status}`);
@@ -41,13 +43,14 @@ export async function modelsUse(ref) {
         process.exitCode = 1;
         return;
     }
+    const normalizedRef = `${parsed.provider}/${parsed.model}`;
     const auth = await loadAuth();
-    const known = listFreeCatalog(auth).some((m) => modelRef(m) === ref);
+    const known = listFreeCatalog(auth).some((m) => modelRef(m) === normalizedRef);
     if (!known) {
         console.log(c.muted(`Note: ${ref} may need an API key — will still be saved.`));
     }
-    await rememberModel(ref);
-    console.log(c.ok(`Default model → ${c.brand(ref)}`));
+    await rememberModel(normalizedRef);
+    console.log(c.ok(`Default model → ${c.brand(normalizedRef)}`));
 }
 export async function modelsCurrent() {
     const config = await loadConfig();

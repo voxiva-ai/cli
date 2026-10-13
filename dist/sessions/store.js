@@ -1,7 +1,7 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { configDir, ensureDir } from "../config/store.js";
+import { configDir, ensureDir, writeFileAtomic } from "../config/store.js";
 const PATH = join(configDir(), "sessions.json");
 const MAX = 80;
 function normalize(path) {
@@ -19,7 +19,7 @@ async function readAll() {
 }
 async function writeAll(sessions) {
     await ensureDir();
-    await writeFile(PATH, JSON.stringify(sessions.slice(0, MAX), null, 2) + "\n", "utf8");
+    await writeFileAtomic(PATH, JSON.stringify(sessions.slice(0, MAX), null, 2) + "\n");
 }
 export async function listSessions() {
     return (await readAll()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));

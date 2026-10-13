@@ -1,6 +1,6 @@
-import { readFile, writeFile, unlink } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { configDir, ensureDir } from "../config/store.js";
+import { configDir, ensureDir, writeFileAtomic } from "../config/store.js";
 import { VERSION } from "../tui/copy.js";
 
 export type UpdateInfo = {
@@ -56,7 +56,7 @@ async function readCache(): Promise<Cache | null> {
 async function writeCache(cache: Cache): Promise<void> {
   try {
     await ensureDir();
-    await writeFile(CACHE_PATH, JSON.stringify(cache, null, 2) + "\n", "utf8");
+    await writeFileAtomic(CACHE_PATH, JSON.stringify(cache, null, 2) + "\n");
   } catch {
     // Read-only profiles can still check for updates without caching.
   }
@@ -178,11 +178,7 @@ export async function checkForUpdate(force = false): Promise<UpdateInfo | null> 
   }
 
   const remote = await fetchLatest();
-  await writeCache({
-    checkedAt: Date.now(),
-    latest: remote?.latest ?? current,
-    url: remote?.url,
-  });
+  if (remote) await writeCache({ checkedAt: Date.now(), latest: remote.latest, url: remote.url });
   if (!remote) return null;
   if (compareVersions(remote.latest, current) <= 0) return null;
   return toInfo(remote.latest, current, remote.url);

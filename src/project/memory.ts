@@ -1,6 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { configDir, ensureDir } from "../config/store.js";
+import { configDir, ensureDir, writeFileAtomic } from "../config/store.js";
 
 export type MemoryNote = {
   id: string;
@@ -21,7 +21,7 @@ async function readAll(): Promise<MemoryNote[]> {
 
 async function writeAll(notes: MemoryNote[]): Promise<void> {
   await ensureDir();
-  await writeFile(PATH, JSON.stringify(notes.slice(0, MAX_NOTES), null, 2) + "\n", "utf8");
+  await writeFileAtomic(PATH, JSON.stringify(notes.slice(0, MAX_NOTES), null, 2) + "\n");
 }
 
 export async function listMemory(): Promise<MemoryNote[]> {

@@ -1,5 +1,5 @@
 import { c } from "../brand/index.js";
-import { loadAuth, loadConfig, parseModelRef, rememberModel } from "../config/store.js";
+import { loadAuth, loadConfig, parseModelRef, rememberModel, type ModelRef } from "../config/store.js";
 import { DEFAULT_FREE_MODEL, listFreeCatalog, modelRef } from "../providers/chat.js";
 
 export async function modelsList(): Promise<void> {
@@ -18,9 +18,9 @@ export async function modelsList(): Promise<void> {
     const mark = active ? c.brand("›") : " ";
     const status = info.builtin
       ? c.ok("free · no key")
-      : connected.has(info.provider)
+      : connected.has("opencode")
         ? c.ok("free")
-        : c.muted("needs OpenRouter key");
+        : c.muted("needs OpenCode Zen key");
     console.log(
       `${mark} ${c.text(info.label.padEnd(32))} ${c.muted(ref.padEnd(48))} ${status}`,
     );
@@ -34,6 +34,8 @@ export async function modelsList(): Promise<void> {
     { id: "openai", label: "OpenAI" },
     { id: "anthropic", label: "Anthropic" },
     { id: "google", label: "Google" },
+    { id: "deepseek", label: "DeepSeek" },
+    { id: "groq", label: "Groq" },
   ] as const) {
     const status = connected.has(p.id) ? c.ok("key ready") : c.muted("paste key via /model");
     console.log(`  ${c.text(p.label.padEnd(12))} ${status}`);
@@ -51,14 +53,15 @@ export async function modelsUse(ref: string): Promise<void> {
     return;
   }
 
+  const normalizedRef = `${parsed.provider}/${parsed.model}` as ModelRef;
   const auth = await loadAuth();
-  const known = listFreeCatalog(auth).some((m) => modelRef(m) === ref);
+  const known = listFreeCatalog(auth).some((m) => modelRef(m) === normalizedRef);
   if (!known) {
     console.log(c.muted(`Note: ${ref} may need an API key — will still be saved.`));
   }
 
-  await rememberModel(ref as `${typeof parsed.provider}/${string}`);
-  console.log(c.ok(`Default model → ${c.brand(ref)}`));
+  await rememberModel(normalizedRef);
+  console.log(c.ok(`Default model → ${c.brand(normalizedRef)}`));
 }
 
 export async function modelsCurrent(): Promise<void> {

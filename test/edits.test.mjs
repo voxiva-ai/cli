@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -9,6 +9,7 @@ import {
   applyEdits,
   stripFileBlocks,
 } from "../dist/project/edits.js";
+import { readRequestedFiles } from "../dist/project/files.js";
 
 test("extract and apply file edit blocks", async () => {
   const text = `I'll update the readme.
@@ -44,4 +45,27 @@ test("rejects path traversal in file blocks", async () => {
 x
 <<<END>>>`);
   assert.equal(blocks.length, 0);
+});
+
+test("rejects project symlinks that point outside the workspace", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "voxiva-link-root-"));
+  const outside = await mkdtemp(join(tmpdir(), "voxiva-link-outside-"));
+  const secret = join(outside, "secret.txt");
+  try {
+    await writeFile(secret, "private", "utf8");
+    await symlink(secret, join(root, "linked.txt"));
+    assert.ok((await readRequestedFiles(root, ["linked.txt"])).includes("Access denied."));
+    assert.deepEqual(await prepareEdits(root, [{ path: "linked.txt", action: "write", content: "exposed" }]), []);
+    await assert.rejects(
+      applyEdits(root, [{ path: "linked.txt", action: "write", content: "exposed", exists: true, preview: "" }]),
+      /outside the workspace/,
+    );
+    assert.equal(await readFile(secret, "utf8"), "private");
+  } catch (error) {
+    if (["EPERM", "EACCES"].includes(error?.code)) return t.skip("symlink creation is not permitted");
+    throw error;
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
 });

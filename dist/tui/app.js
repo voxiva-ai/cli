@@ -10,7 +10,7 @@ import { listFreeCatalog, modelRef, parseModelRef, DEFAULT_FREE_MODEL, canUseWit
 import { clipboardToDraft, isImagePath, normalizeBracketedPaste, readClipboard, textToDraft, writeClipboard, } from "../clipboard/index.js";
 import { checkForUpdate } from "../update/check.js";
 import { getSession, getContinuableSession, listSessions, listSessionsForCwd, saveSession, } from "../sessions/store.js";
-import { getWorkspace, listWorkspaces, touchWorkspace } from "../workspaces/store.js";
+import { listWorkspaces, touchWorkspace } from "../workspaces/store.js";
 import { detectPromptLocale, LOCALES, t as ui } from "../i18n/index.js";
 import { assistantBubble, clearScreen, composeFrame, enterAltScreen, errorNote, fullWidth, hideCursor, horizontalRule, inputBar, leaveAltScreen, mediaCard, paintFrame, panel, pasteCard, renderHeader, showCursor, statusFooter, suggestionRows, systemNote, termSize, thoughtLine, truncate, userBubble, wrapText, fileChangeCard, } from "./layout.js";
 import { setActiveTheme, tc } from "./logo.js";
@@ -103,7 +103,7 @@ export async function runTui() {
         .filter(([, value]) => value?.apiKey)
         .map(([key]) => key);
     const cwd = process.cwd();
-    const workspace = await getWorkspace(cwd);
+    const workspace = workspaces.find((item) => normalizePath(item.path) === normalizePath(cwd));
     const preferred = resolvePreferredModel({
         auth,
         workspaceModel: workspace?.lastModel,
@@ -754,7 +754,7 @@ export async function runTui() {
                             const m = item.model;
                             const ref = modelRef(m);
                             const active = state.model === ref;
-                            const status = "Free";
+                            const status = m.builtin ? "No key" : "Zen key";
                             const dot = active ? "● " : "  ";
                             const name = truncate(m.label, Math.max(16, inner - 12));
                             const gap = Math.max(1, inner - 2 - stringWidth(dot + name) - stringWidth(status));
@@ -783,7 +783,7 @@ export async function runTui() {
                     });
                 }
                 out.push("");
-                out.push(t.dim("  ↑↓ enter · type to search · free = no key · OpenAI/Anthropic/Google = API key"));
+                out.push(t.dim("  ↑↓ enter · free models need a provider key except the fallback"));
                 break;
             }
             case "plans":
@@ -1753,7 +1753,8 @@ export async function runTui() {
         // Free models never require /connect.
         if (!canUseWithoutKey(state.model)) {
             const parsed = parseModelRef(state.model);
-            if (parsed && !state.authKeys.includes(parsed.provider)) {
+            const requiredProvider = parsed?.provider === "voxiva" ? "opencode" : parsed?.provider;
+            if (requiredProvider && !state.authKeys.includes(requiredProvider)) {
                 toast(strings().needConnect, "info");
                 await openOverlay("connect");
                 return;
@@ -2439,7 +2440,6 @@ export async function runTui() {
         }
         if (state.busy && (key === "\u001b" || key === "\u0003")) {
             streamAbort?.abort();
-            state.busy = false;
             queueRender(true);
             return;
         }

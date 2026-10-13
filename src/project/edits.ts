@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, relative } from "node:path";
+import { resolveProjectPath } from "./files.js";
 
 export type FileEdit = {
   path: string;
@@ -50,11 +51,10 @@ export async function prepareEdits(
   blocks: { path: string; action: "write" | "create"; content: string }[],
 ): Promise<FileEdit[]> {
   const edits: FileEdit[] = [];
+  const root = await realpath(cwd);
   for (const block of blocks) {
-    const abs = resolve(cwd, block.path);
-    const root = resolve(cwd);
-    const rel = relative(root, abs);
-    if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) continue;
+    const abs = await resolveProjectPath(root, block.path);
+    if (!abs) continue;
     let exists = false;
     try {
       await readFile(abs, "utf8");
@@ -65,7 +65,7 @@ export async function prepareEdits(
     const lines = block.content.split(/\r?\n/);
     const preview = lines.slice(0, 3).join(" ").slice(0, 80);
     edits.push({
-      path: relative(cwd, abs).replace(/\\/g, "/") || block.path,
+      path: relative(root, abs).replace(/\\/g, "/") || block.path,
       action: exists ? "write" : "create",
       content: block.content,
       exists,
@@ -76,9 +76,13 @@ export async function prepareEdits(
 }
 
 export async function applyEdit(cwd: string, edit: FileEdit): Promise<void> {
-  const abs = join(cwd, edit.path);
+  const root = await realpath(cwd);
+  const abs = await resolveProjectPath(root, edit.path);
+  if (!abs) throw new Error(`Refusing to write outside the workspace: ${edit.path}`);
   await mkdir(dirname(abs), { recursive: true });
-  await writeFile(abs, edit.content, "utf8");
+  const safePath = await resolveProjectPath(root, edit.path);
+  if (!safePath) throw new Error(`Refusing to write outside the workspace: ${edit.path}`);
+  await writeFile(safePath, edit.content, "utf8");
 }
 
 export async function applyEdits(cwd: string, edits: FileEdit[]): Promise<string[]> {

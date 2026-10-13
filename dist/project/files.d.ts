@@ -1,3 +1,5 @@
+/** Resolve a project path while rejecting symlinks that leave the workspace. */
+export declare function resolveProjectPath(root: string, requested: string): Promise<string | null>;
 export declare const FILE_READ_PROTOCOL = "To inspect a project file, output one or more requests EXACTLY like this:\n<<<READ path=\"relative/path.ext\">>>\nWhen requesting files, output only READ requests with no explanation. The CLI reads safe project files and calls you again automatically. Request only files you need, up to 6 at a time. Never ask the user to attach a listed project file.";
 export declare function extractReadPaths(text: string): string[];
 export declare function stripReadBlocks(text: string): string;

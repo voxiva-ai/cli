@@ -1,6 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { configDir, ensureDir } from "../config/store.js";
+import { configDir, ensureDir, writeFileAtomic } from "../config/store.js";
 /** Rough token estimate — good enough for /usage until providers return usage. */
 export function estimateTokens(text) {
     if (!text)
@@ -38,7 +38,7 @@ export async function loadLedger() {
 }
 async function saveLedger(ledger) {
     await ensureDir();
-    await writeFile(LEDGER_PATH, JSON.stringify(ledger, null, 2) + "\n", "utf8");
+    await writeFileAtomic(LEDGER_PATH, JSON.stringify(ledger, null, 2) + "\n");
 }
 /** Persist a completed turn into today's ledger (and keep last 60 days). */
 export async function recordTurnUsage(opts) {

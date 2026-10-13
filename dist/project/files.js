@@ -1,5 +1,5 @@
-import { readFile, readdir, stat } from "node:fs/promises";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { readFile, readdir, realpath, stat } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 const IGNORE = new Set([
     "node_modules",
     ".git",
@@ -16,6 +16,34 @@ const IGNORE = new Set([
 ]);
 const MAX_FILES = 250;
 const READ_RE = /<<<READ\s+path="([^"]+)"\s*>>>/gi;
+/** Resolve a project path while rejecting symlinks that leave the workspace. */
+export async function resolveProjectPath(root, requested) {
+    if (isAbsolute(requested))
+        return null;
+    const abs = resolve(root, requested);
+    const rel = relative(root, abs);
+    if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel))
+        return null;
+    let current = abs;
+    while (true) {
+        try {
+            const actual = await realpath(current);
+            const target = current === abs ? actual : resolve(actual, relative(current, abs));
+            const targetRel = relative(root, target);
+            return targetRel && targetRel !== ".." && !targetRel.startsWith(`..${sep}`) && !isAbsolute(targetRel)
+                ? target
+                : null;
+        }
+        catch (error) {
+            if (error.code !== "ENOENT")
+                return null;
+            const parent = dirname(current);
+            if (parent === current)
+                return null;
+            current = parent;
+        }
+    }
+}
 export const FILE_READ_PROTOCOL = `To inspect a project file, output one or more requests EXACTLY like this:
 <<<READ path="relative/path.ext">>>
 When requesting files, output only READ requests with no explanation. The CLI reads safe project files and calls you again automatically. Request only files you need, up to 6 at a time. Never ask the user to attach a listed project file.`;
@@ -35,14 +63,15 @@ export function stripReadBlocks(text) {
 }
 /** Read model-requested files without allowing secrets or paths outside the workspace. */
 export async function readRequestedFiles(cwd, paths) {
-    const root = resolve(cwd);
+    const root = await realpath(cwd);
     const blocks = [];
     let total = 0;
     for (const requested of paths.slice(0, 6)) {
-        const abs = resolve(root, requested);
-        const rel = relative(root, abs);
-        const name = basename(abs).toLowerCase();
-        const denied = !rel ||
+        const abs = await resolveProjectPath(root, requested);
+        const rel = abs ? relative(root, abs) : "";
+        const name = abs ? basename(abs).toLowerCase() : "";
+        const denied = !abs ||
+            !rel ||
             rel.startsWith("..") ||
             isAbsolute(rel) ||
             rel.split(/[\\/]/).some((part) => IGNORE.has(part)) ||

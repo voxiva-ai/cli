@@ -1,6 +1,6 @@
 import { PROVIDER_IDS } from "../config/store.js";
 import { VERSION } from "../tui/copy.js";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 /**
  * Default after install — OpenCode-style free model, no key.
  */
@@ -34,8 +34,8 @@ const CATALOG = [
         id: m.id,
         label: m.label,
         free: true,
-        builtin: true,
-        upstream: "openai-fast",
+        builtin: m.id === "big-pickle",
+        upstream: m.id === "big-pickle" ? "openai-fast" : undefined,
     })),
     // ——— Paid / BYOK ———
     { provider: "openai", id: "gpt-4.1", label: "GPT-4.1" },
@@ -44,12 +44,13 @@ const CATALOG = [
     { provider: "openai", id: "gpt-4o-mini", label: "GPT-4o Mini" },
     { provider: "openai", id: "o3-mini", label: "o3-mini" },
     { provider: "openai", id: "o4-mini", label: "o4-mini" },
-    { provider: "anthropic", id: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
-    { provider: "anthropic", id: "claude-opus-4-20250514", label: "Claude Opus 4" },
-    { provider: "anthropic", id: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku" },
+    { provider: "anthropic", id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+    { provider: "anthropic", id: "claude-opus-4-8", label: "Claude Opus 4.8" },
+    { provider: "anthropic", id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
+    { provider: "google", id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" },
+    { provider: "google", id: "gemini-3.1-pro", label: "Gemini 3.1 Pro" },
     { provider: "google", id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
     { provider: "google", id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-    { provider: "google", id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
     { provider: "deepseek", id: "deepseek-chat", label: "DeepSeek V3" },
     { provider: "deepseek", id: "deepseek-reasoner", label: "DeepSeek R1" },
     { provider: "groq", id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B" },
@@ -58,9 +59,10 @@ const CATALOG = [
 export function listCatalog() {
     return CATALOG;
 }
-/** Free models for /models — always show full free list (all work keyless). */
-export function listFreeCatalog(_auth) {
-    return CATALOG.filter((model) => model.free);
+/** Show the keyless fallback alone until OpenCode Zen credentials are connected. */
+export function listFreeCatalog(auth = {}) {
+    const connected = providerReady(auth, "opencode");
+    return CATALOG.filter((model) => model.free && (connected || model.builtin)).map((model) => connected ? model : { ...model, label: "Anonymous free fallback" });
 }
 export function findCatalog(ref) {
     return CATALOG.find((model) => modelRef(model) === ref);
@@ -85,7 +87,7 @@ export function providerReady(auth, provider) {
 export function canUseWithoutKey(ref) {
     if (!ref)
         return false;
-    return isBuiltinFree(ref) || isFreeModelRef(ref);
+    return isBuiltinFree(ref);
 }
 export function parseModelRef(ref) {
     const slash = ref.indexOf("/");
@@ -104,6 +106,10 @@ export function modelRef(info) {
 }
 /** Old short free ids → current OpenCode-style free catalog. */
 const LEGACY_MODEL_MAP = {
+    "anthropic/claude-sonnet-4-20250514": "anthropic/claude-sonnet-4-6",
+    "anthropic/claude-opus-4-20250514": "anthropic/claude-opus-4-8",
+    "anthropic/claude-3-5-haiku-20241022": "anthropic/claude-haiku-4-5-20251001",
+    "google/gemini-2.0-flash": "google/gemini-3.8-flash",
     "voxiva/code": DEFAULT_FREE_MODEL,
     "voxiva/fast": DEFAULT_FREE_MODEL,
     "voxiva/space-bunny": "voxiva/space-bunny-free",
@@ -149,7 +155,7 @@ export function isUsableModelRef(ref, auth) {
         return true;
     const catalog = findCatalog(migrated);
     if (catalog?.free && !catalog.builtin) {
-        return providerReady(auth, parsed.provider);
+        return providerReady(auth, catalog.provider === "voxiva" ? "opencode" : parsed.provider);
     }
     if (catalog)
         return providerReady(auth, parsed.provider);
@@ -174,7 +180,7 @@ export function resolvePreferredModel(opts) {
         seen.add(candidate);
         if (!isUsableModelRef(candidate, opts.auth))
             continue;
-        return { model: candidate, migrated: candidate !== original };
+        return { model: candidate, migrated: candidate !== originals[0] };
     }
     return { model: fallback, migrated: true };
 }
@@ -184,9 +190,6 @@ function requireKey(auth, provider) {
         throw new Error(`No API key for ${provider}. Use /connect in chat.`);
     }
     return key;
-}
-function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 function withTimeout(signal, ms) {
     const timeout = AbortSignal.timeout(ms);
@@ -248,7 +251,7 @@ const openaiClients = new Map();
 const anthropicClients = new Map();
 async function getOpenAIClient(auth, provider) {
     const key = requireKey(auth, provider);
-    const cacheKey = `${provider}:${key.slice(0, 12)}`;
+    const cacheKey = `${provider}:${createHash("sha256").update(key).digest("hex")}`;
     const hit = openaiClients.get(cacheKey);
     if (hit)
         return hit;
@@ -282,7 +285,7 @@ async function getOpenAIClient(auth, provider) {
     return client;
 }
 async function getAnthropicClient(apiKey) {
-    const cacheKey = apiKey.slice(0, 12);
+    const cacheKey = createHash("sha256").update(apiKey).digest("hex");
     const hit = anthropicClients.get(cacheKey);
     if (hit)
         return hit;
@@ -436,10 +439,12 @@ export async function streamChat(auth, modelRefStr, messages, handlers) {
         : 40_000);
     // Built-in free — real OpenCode model when connected, anonymous fallback otherwise.
     if (provider === "voxiva" || catalog?.builtin) {
-        const upstream = catalog?.upstream ?? "openai-fast";
-        if (catalog && providerReady(auth, "opencode")) {
-            return streamOpenAICompat(auth, "opencode", catalog.id, prepared, handlers);
+        if (providerReady(auth, "opencode")) {
+            return streamOpenAICompat(auth, "opencode", catalog?.id ?? model, prepared, handlers);
         }
+        if (!catalog?.builtin)
+            throw new Error("Connect OpenCode Zen to use this model.");
+        const upstream = catalog.upstream ?? "openai-fast";
         return streamKeylessFree(upstream, prepared, handlers);
     }
     // Legacy openrouter free without key → keyless so chat still works.
@@ -465,7 +470,7 @@ async function streamOpenAICompat(auth, provider, model, messages, handlers) {
         model,
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
         stream: true,
-        temperature: 0.2,
+        ...(/^o\d/.test(model) ? {} : { temperature: 0.2 }),
     }, { signal: handlers.signal });
     let full = "";
     for await (const chunk of stream) {
@@ -487,7 +492,6 @@ async function streamAnthropic(apiKey, model, messages, handlers) {
     const stream = client.messages.stream({
         model,
         max_tokens: 8192,
-        temperature: 0.2,
         system: system || undefined,
         messages: rest.map((m) => ({
             role: m.role === "assistant" ? "assistant" : "user",

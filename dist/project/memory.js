@@ -1,6 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { configDir, ensureDir } from "../config/store.js";
+import { configDir, ensureDir, writeFileAtomic } from "../config/store.js";
 const PATH = join(configDir(), "memory.json");
 const MAX_NOTES = 40;
 async function readAll() {
@@ -13,7 +13,7 @@ async function readAll() {
 }
 async function writeAll(notes) {
     await ensureDir();
-    await writeFile(PATH, JSON.stringify(notes.slice(0, MAX_NOTES), null, 2) + "\n", "utf8");
+    await writeFileAtomic(PATH, JSON.stringify(notes.slice(0, MAX_NOTES), null, 2) + "\n");
 }
 export async function listMemory() {
     return (await readAll()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));

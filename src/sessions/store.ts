@@ -1,7 +1,7 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { configDir, ensureDir, type ModelRef, type PlanId } from "../config/store.js";
+import { configDir, ensureDir, writeFileAtomic, type ModelRef, type PlanId } from "../config/store.js";
 import type { ChatMessage } from "../providers/chat.js";
 
 export type SessionRecord = {
@@ -33,7 +33,7 @@ async function readAll(): Promise<SessionRecord[]> {
 
 async function writeAll(sessions: SessionRecord[]): Promise<void> {
   await ensureDir();
-  await writeFile(PATH, JSON.stringify(sessions.slice(0, MAX), null, 2) + "\n", "utf8");
+  await writeFileAtomic(PATH, JSON.stringify(sessions.slice(0, MAX), null, 2) + "\n");
 }
 
 export async function listSessions(): Promise<SessionRecord[]> {

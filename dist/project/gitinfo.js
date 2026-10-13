@@ -10,7 +10,7 @@ export function readGitSnapshot(cwd) {
     try {
         const branch = run(cwd, "git rev-parse --abbrev-ref HEAD");
         const status = run(cwd, "git status -sb");
-        const dirty = status.split("\n").length > 1 || status.includes("...");
+        const dirty = status.split("\n").slice(1).some(Boolean);
         let recent = [];
         try {
             recent = run(cwd, "git log -5 --oneline")
@@ -21,7 +21,7 @@ export function readGitSnapshot(cwd) {
         catch {
             recent = [];
         }
-        return { branch, dirty: status.includes(" M") || status.includes("??") || status.includes("A "), status, recent };
+        return { branch, dirty, status, recent };
     }
     catch {
         return null;

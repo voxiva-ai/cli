@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdtempSync, writeFileSync, unlinkSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import stringWidth from "string-width";
@@ -261,6 +263,21 @@ test("token usage helpers", () => {
   assert.ok(panel.some((line) => /build/.test(line)));
 });
 
+test("git snapshot marks deleted tracked files as dirty", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "voxiva-gitinfo-"));
+  try {
+    execFileSync("git", ["init", "-q"], { cwd: dir });
+    writeFileSync(join(dir, "tracked.txt"), "content");
+    execFileSync("git", ["add", "tracked.txt"], { cwd: dir });
+    execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "init", "-q"], { cwd: dir });
+    unlinkSync(join(dir, "tracked.txt"));
+    const { readGitSnapshot } = await import("../dist/project/gitinfo.js");
+    assert.equal(readGitSnapshot(dir)?.dirty, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("new overlays resolve from slash", () => {
   assert.equal(resolveSlash("/files")?.cmd.name, "files");
   assert.equal(resolveSlash("/open")?.cmd.name, "files");
@@ -328,6 +345,7 @@ test("catalog includes deepseek and gemini flash", async () => {
   const {
     listCatalog,
     parseModelRef,
+    migrateModelRef,
     listFreeCatalog,
     DEFAULT_FREE_MODEL,
     isFreeModelRef,
@@ -337,25 +355,37 @@ test("catalog includes deepseek and gemini flash", async () => {
   const catalog = listCatalog();
   assert.ok(catalog.some((m) => m.provider === "deepseek" && m.id === "deepseek-chat"));
   assert.ok(catalog.some((m) => m.provider === "google" && m.id === "gemini-2.5-flash"));
+  assert.ok(catalog.some((m) => m.provider === "anthropic" && m.id === "claude-opus-4-8"));
+  assert.ok(catalog.some((m) => m.provider === "google" && m.id === "gemini-3.8-flash"));
+  assert.ok(!catalog.some((m) => m.id === "gemini-2.0-flash"));
   assert.ok(parseModelRef("deepseek/deepseek-reasoner"));
   assert.ok(parseModelRef("opencode/big-pickle"));
+  assert.equal(migrateModelRef("anthropic/claude-sonnet-4-20250514"), "anthropic/claude-sonnet-4-6");
+  assert.equal(migrateModelRef("google/gemini-2.0-flash"), "google/gemini-3.8-flash");
   const free = listFreeCatalog();
   assert.ok(free.length >= 1);
   assert.ok(free.every((m) => m.free), "picker shows free models");
   assert.equal(DEFAULT_FREE_MODEL, "voxiva/big-pickle");
   assert.ok(isFreeModelRef(DEFAULT_FREE_MODEL));
   assert.ok(isBuiltinFree(DEFAULT_FREE_MODEL));
+  assert.equal(free.length, 1);
+  assert.equal(free[0].label, "Anonymous free fallback");
+  const connectedFree = listFreeCatalog({ opencode: { apiKey: "sk-test" } });
+  assert.ok(connectedFree.length >= 10);
+  assert.ok(connectedFree.some((m) => m.label.includes("Big Pickle")));
+  assert.ok(connectedFree.some((m) => m.label.includes("Space Bunny")));
   assert.equal(providerReady({}, "voxiva"), true);
   assert.equal(providerReady({}, "opencode"), false);
   assert.equal(providerReady({ opencode: { apiKey: "sk-test" } }, "opencode"), true);
+  const { parseModelRef: parseConfigModelRef } = await import("../dist/config/store.js");
+  assert.equal(parseConfigModelRef("unknown/model"), null);
+  assert.deepEqual(parseConfigModelRef("openai/ gpt-4.1-mini "), { provider: "openai", model: "gpt-4.1-mini" });
   assert.ok(catalog.some((m) => m.builtin));
-  assert.ok(free.some((m) => m.label.includes("Big Pickle")));
-  assert.ok(free.some((m) => m.label.includes("Space Bunny")));
-  assert.ok(free.some((m) => m.id === "nemotron-3-ultra-free"));
-  assert.ok(free.some((m) => m.id === "step-5-preview-free"));
-  assert.ok(free.some((m) => m.id === "ling-3.1-flash-free"));
-  assert.ok(free.some((m) => m.id === "exo-free"));
-  assert.ok(free.length >= 10, `expected current OpenCode free catalog, got ${free.length}`);
+  assert.ok(connectedFree.some((m) => m.id === "nemotron-3-ultra-free"));
+  assert.ok(connectedFree.some((m) => m.id === "step-5-preview-free"));
+  assert.ok(connectedFree.some((m) => m.id === "ling-3.1-flash-free"));
+  assert.ok(connectedFree.some((m) => m.id === "exo-free"));
+  assert.ok(connectedFree.length >= 10, `expected current OpenCode free catalog, got ${connectedFree.length}`);
 });
 
 test("plan voice does not brand as Voxiva Check", async () => {
@@ -388,13 +418,20 @@ test("preferred model sticks across restarts", async () => {
   assert.equal(flash.model, DEFAULT_FREE_MODEL);
   assert.equal(flash.migrated, true);
 
-  // Legacy short id migrates instead of wiping to Big Pickle blindly.
+  // Old OpenCode choices need a key; migrate and keep them when it is present.
   const legacy = resolvePreferredModel({
-    auth: {},
+    auth: { opencode: { apiKey: "sk-test" } },
     configModel: "voxiva/mimo-v2.6-flash",
   });
   assert.equal(legacy.model, "voxiva/mimo-v2.6-flash-free");
   assert.equal(legacy.migrated, true);
+
+  const noKey = resolvePreferredModel({
+    auth: {},
+    configModel: "voxiva/mimo-v2.6-flash",
+  });
+  assert.equal(noKey.model, DEFAULT_FREE_MODEL);
+  assert.equal(noKey.migrated, true);
 
   // OpenRouter / BYOK kept when key present — never force-reset on launch.
   assert.equal(
@@ -415,21 +452,26 @@ test("preferred model sticks across restarts", async () => {
 
   // Workspace preference beats global default.
   const folder = resolvePreferredModel({
-    auth: {},
+    auth: { opencode: { apiKey: "sk-test" } },
     workspaceModel: "voxiva/mimo-v2.6-flash-free",
     configModel: "voxiva/big-pickle",
   });
   assert.equal(folder.model, "voxiva/mimo-v2.6-flash-free");
 });
 
-test("free models never require a key", async () => {
-  const { canUseWithoutKey, DEFAULT_FREE_MODEL, listFreeCatalog, modelRef } =
+test("only the anonymous fallback works without a provider key", async () => {
+  const { canUseWithoutKey, DEFAULT_FREE_MODEL, listFreeCatalog, modelRef, streamChat } =
     await import("../dist/providers/chat.js");
   assert.ok(canUseWithoutKey(DEFAULT_FREE_MODEL));
   for (const model of listFreeCatalog()) {
     assert.ok(canUseWithoutKey(modelRef(model)), model.label);
   }
+  assert.equal(canUseWithoutKey("voxiva/mimo-v2.6-flash-free"), false);
   assert.equal(canUseWithoutKey("openai/gpt-4.1"), false);
+  await assert.rejects(
+    streamChat({}, "voxiva/mimo-v2.6-flash-free", [], { onToken() {} }),
+    /Connect OpenCode Zen/,
+  );
 });
 
 test("one-line install scripts bootstrap official Node", () => {

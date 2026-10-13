@@ -24,8 +24,8 @@ export type ModelInfo = {
  */
 export declare const DEFAULT_FREE_MODEL: ModelRef;
 export declare function listCatalog(): ModelInfo[];
-/** Free models for /models — always show full free list (all work keyless). */
-export declare function listFreeCatalog(_auth?: AuthStore): ModelInfo[];
+/** Show the keyless fallback alone until OpenCode Zen credentials are connected. */
+export declare function listFreeCatalog(auth?: AuthStore): ModelInfo[];
 export declare function findCatalog(ref: string): ModelInfo | undefined;
 export declare function isFreeModelRef(ref: string | undefined): boolean;
 export declare function isBuiltinFree(ref: string | undefined): boolean;
