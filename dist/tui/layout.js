@@ -126,7 +126,7 @@ export function tipLine(text) {
  */
 export function renderHeader(info, cols) {
     const t = c();
-    const boxWidth = Math.min(72, Math.max(38, cols - 2));
+    const boxWidth = Math.min(56, Math.max(38, cols - 2));
     const inner = boxWidth - 4;
     const noModel = info.noModelLabel ?? "no model";
     const modelName = info.model ?? noModel;

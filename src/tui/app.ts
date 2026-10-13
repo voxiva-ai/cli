@@ -197,9 +197,10 @@ type AppState = {
   pendingEdits: FileEdit[];
   /** Composer attachments (images / long paste / files) — shown as chips. */
   draftAttachments: DraftAttachment[];
-  /** Shown above header when a newer GitHub/npm release exists. */
+  /** Shown above header when a newer version or GitHub commit exists. */
   updateBanner?: string;
   updateLatest?: string;
+  updateRevision?: string;
   /** Braille spinner frame while waiting for first token. */
   thoughtFrame: number;
 };
@@ -811,8 +812,10 @@ export async function runTui(): Promise<"update" | undefined> {
   // Started before workspace loading, but never blocks offline startup.
   void updateCheck.then((info) => {
     if (!info || !running) return;
-    state.updateBanner = `v${info.latest} · press u or /update`;
+    const revision = info.revision ? ` · GitHub ${info.revision.slice(0, 7)}` : "";
+    state.updateBanner = `v${info.latest}${revision} · press u or /update`;
     state.updateLatest = info.latest;
+    state.updateRevision = info.revision?.slice(0, 7);
     if (!state.messages.length && !state.input && !state.busy && !state.overlay) {
       state.overlay = "update";
     }
@@ -840,7 +843,8 @@ export async function runTui(): Promise<"update" | undefined> {
         out.push(t.text("Update available"));
         out.push("");
         out.push(
-          `  ${t.muted(`v${VERSION}`)}  ${t.dim("→")}  ${t.accent(`v${state.updateLatest ?? "latest"}`)}`,
+          `  ${t.muted(`v${VERSION}`)}  ${t.dim("→")}  ${t.accent(`v${state.updateLatest ?? "latest"}`)}` +
+            (state.updateRevision ? t.dim(` · ${state.updateRevision}`) : ""),
         );
         out.push("");
         out.push(t.text("Install it before continuing?"));

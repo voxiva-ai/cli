@@ -634,8 +634,10 @@ export async function runTui() {
     void updateCheck.then((info) => {
         if (!info || !running)
             return;
-        state.updateBanner = `v${info.latest} · press u or /update`;
+        const revision = info.revision ? ` · GitHub ${info.revision.slice(0, 7)}` : "";
+        state.updateBanner = `v${info.latest}${revision} · press u or /update`;
         state.updateLatest = info.latest;
+        state.updateRevision = info.revision?.slice(0, 7);
         if (!state.messages.length && !state.input && !state.busy && !state.overlay) {
             state.overlay = "update";
         }
@@ -659,7 +661,8 @@ export async function runTui() {
             case "update":
                 out.push(t.text("Update available"));
                 out.push("");
-                out.push(`  ${t.muted(`v${VERSION}`)}  ${t.dim("→")}  ${t.accent(`v${state.updateLatest ?? "latest"}`)}`);
+                out.push(`  ${t.muted(`v${VERSION}`)}  ${t.dim("→")}  ${t.accent(`v${state.updateLatest ?? "latest"}`)}` +
+                    (state.updateRevision ? t.dim(` · ${state.updateRevision}`) : ""));
                 out.push("");
                 out.push(t.text("Install it before continuing?"));
                 out.push(t.dim("Your settings, sessions and API keys stay in place."));

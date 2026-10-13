@@ -6,9 +6,11 @@ export type UpdateInfo = {
     installHint: string;
     /** Full one-liner if /update isn't used */
     reinstallHint: string;
+    revision?: string;
 };
 /** Semver-ish compare: 1 if a>b, -1 if a<b, 0 if equal/unknown. */
 export declare function compareVersions(a: string, b: string): number;
+export declare function hasUpdate(current: string, latest: string, localRevision: string, remoteRevision?: string): boolean;
 export declare function reinstallHint(): string;
 /** Clear cache so the next check hits the network. */
 export declare function clearUpdateCache(): Promise<void>;

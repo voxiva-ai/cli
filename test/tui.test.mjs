@@ -90,7 +90,7 @@ test("header is compact Codex-style with model plan directory", () => {
   assert.ok(lines.some((line) => line.includes("/model")));
   assert.ok(lines.some((line) => line.includes("dir")));
   assert.ok(lines.some((line) => line.includes("~/proj")));
-  assert.ok(stringWidth(lines[0]) <= 72);
+  assert.ok(stringWidth(lines[0]) <= 56);
 });
 
 test("narrow header keeps the full model and explains the active plan", () => {
@@ -198,10 +198,10 @@ test("themes include ember forest mono", () => {
   assert.equal(THEMES.length, 7);
 });
 
-test("version is beta 0.1.3", () => {
-  assert.equal(VERSION, "0.1.3");
+test("version is beta 0.1.4", () => {
+  assert.equal(VERSION, "0.1.4");
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.1.3");
+  assert.equal(pkg.version, "0.1.4");
 });
 
 test("plan system injects language and agents context", async () => {
@@ -496,12 +496,15 @@ test("one-line install scripts bootstrap official Node", () => {
 test("built dist is shipped for github installs", () => {
   assert.ok(existsSync(join(root, "dist", "index.js")));
   assert.ok(existsSync(join(root, "dist", "cli.js")));
+  assert.ok(existsSync(join(root, "dist", "build.json")));
 });
 test("compareVersions detects newer releases", async () => {
-  const { compareVersions, newestUpdate } = await import("../dist/update/check.js");
+  const { compareVersions, hasUpdate, newestUpdate } = await import("../dist/update/check.js");
   assert.equal(compareVersions("0.0.1", "0.0.0"), 1);
   assert.equal(compareVersions("0.0.0", "0.0.1"), -1);
   assert.equal(compareVersions("v0.0.0", "0.0.0"), 0);
+  assert.equal(hasUpdate("0.1.3", "0.1.3", "abc", "def"), true);
+  assert.equal(hasUpdate("0.1.3", "0.1.3", "abc", "abc"), false);
   assert.deepEqual(
     newestUpdate([
       { latest: "0.1.2", source: "release" },
