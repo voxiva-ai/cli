@@ -60,6 +60,8 @@ voxiva run "Explain how authentication works in this project"
 
 Model access and pricing come from the provider you choose. A limited anonymous fallback may be available without a key; for reliable use, connect your own provider credentials.
 
+To use DeepSeek through OpenCode Zen, connect OpenCode Zen with `/connect`, open `/models`, and select a DeepSeek V4 model. Zen model usage may be billed by OpenCode.
+
 ## In chat
 
 | Action | How |

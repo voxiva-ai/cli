@@ -347,6 +347,7 @@ test("catalog includes deepseek and gemini flash", async () => {
     parseModelRef,
     migrateModelRef,
     listFreeCatalog,
+    listOpenCodeCatalog,
     DEFAULT_FREE_MODEL,
     isFreeModelRef,
     isBuiltinFree,
@@ -360,6 +361,7 @@ test("catalog includes deepseek and gemini flash", async () => {
   assert.ok(!catalog.some((m) => m.id === "gemini-2.0-flash"));
   assert.ok(parseModelRef("deepseek/deepseek-reasoner"));
   assert.ok(parseModelRef("opencode/big-pickle"));
+  assert.ok(catalog.some((m) => m.provider === "opencode" && m.id === "deepseek-v4.1-flash" && m.zen));
   assert.equal(migrateModelRef("anthropic/claude-sonnet-4-20250514"), "anthropic/claude-sonnet-4-6");
   assert.equal(migrateModelRef("google/gemini-2.0-flash"), "google/gemini-3.8-flash");
   const free = listFreeCatalog();
@@ -370,6 +372,10 @@ test("catalog includes deepseek and gemini flash", async () => {
   assert.ok(isBuiltinFree(DEFAULT_FREE_MODEL));
   assert.equal(free.length, 1);
   assert.equal(free[0].label, "Anonymous free fallback");
+  assert.equal(listOpenCodeCatalog().length, 0);
+  const connectedZen = listOpenCodeCatalog({ opencode: { apiKey: "sk-test" } });
+  assert.deepEqual(connectedZen.map((m) => m.id), ["deepseek-v4.1-flash", "deepseek-v4-pro", "deepseek-v4-flash"]);
+  assert.ok(connectedZen.every((m) => m.zen && !m.free));
   const connectedFree = listFreeCatalog({ opencode: { apiKey: "sk-test" } });
   assert.ok(connectedFree.length >= 10);
   assert.ok(connectedFree.some((m) => m.label.includes("Big Pickle")));
@@ -443,12 +449,23 @@ test("preferred model sticks across restarts", async () => {
     isUsableModelRef("deepseek/deepseek-chat", { deepseek: { apiKey: "sk-test" } }),
     true,
   );
+  assert.equal(isUsableModelRef("opencode/deepseek-v4.1-flash", {}), false);
+  assert.equal(
+    isUsableModelRef("opencode/deepseek-v4.1-flash", { opencode: { apiKey: "sk-test" } }),
+    true,
+  );
 
   const byok = resolvePreferredModel({
     auth: { deepseek: { apiKey: "sk-test" } },
     configModel: "deepseek/deepseek-chat",
   });
   assert.equal(byok.model, "deepseek/deepseek-chat");
+
+  const zenModel = resolvePreferredModel({
+    auth: { opencode: { apiKey: "sk-test" } },
+    configModel: "opencode/deepseek-v4.1-flash",
+  });
+  assert.equal(zenModel.model, "opencode/deepseek-v4.1-flash");
 
   // Workspace preference beats global default.
   const folder = resolvePreferredModel({

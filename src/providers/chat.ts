@@ -24,6 +24,8 @@ export type ModelInfo = {
   builtin?: boolean;
   /** Upstream id for the keyless gateway. */
   upstream?: string;
+  /** Curated OpenCode Zen model billed by usage. */
+  zen?: boolean;
 };
 
 /**
@@ -37,8 +39,7 @@ const FREE_ENDPOINTS = [
 ] as const;
 
 /**
- * Free picker mirrors OpenCode Zen zero-cost models (models.dev / opencode).
- * All `builtin` entries work keyless, with an OpenCode Zen key preferred when present.
+ * Legacy free catalog plus the one anonymous fallback.
  * @see https://github.com/anomalyco/opencode
  * @see https://models.dev/providers/opencode
  */
@@ -83,6 +84,9 @@ const CATALOG: ModelInfo[] = [
   { provider: "google", id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
   { provider: "deepseek", id: "deepseek-chat", label: "DeepSeek V3" },
   { provider: "deepseek", id: "deepseek-reasoner", label: "DeepSeek R1" },
+  { provider: "opencode", id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", zen: true },
+  { provider: "opencode", id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", zen: true },
+  { provider: "opencode", id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", zen: true },
   { provider: "groq", id: "llama-3.3-70b-versatile", label: "Llama 3.3 70B" },
   { provider: "groq", id: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
 ];
@@ -97,6 +101,10 @@ export function listFreeCatalog(auth: AuthStore = {}): ModelInfo[] {
   return CATALOG.filter((model) => model.free && (connected || model.builtin)).map((model) =>
     connected ? model : { ...model, label: "Anonymous free fallback" },
   );
+}
+
+export function listOpenCodeCatalog(auth: AuthStore = {}): ModelInfo[] {
+  return providerReady(auth, "opencode") ? CATALOG.filter((model) => model.zen) : [];
 }
 
 export function findCatalog(ref: string): ModelInfo | undefined {

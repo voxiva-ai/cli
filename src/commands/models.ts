@@ -1,6 +1,6 @@
 import { c } from "../brand/index.js";
 import { loadAuth, loadConfig, parseModelRef, rememberModel, type ModelRef } from "../config/store.js";
-import { DEFAULT_FREE_MODEL, listFreeCatalog, modelRef } from "../providers/chat.js";
+import { DEFAULT_FREE_MODEL, listFreeCatalog, listOpenCodeCatalog, modelRef } from "../providers/chat.js";
 
 export async function modelsList(): Promise<void> {
   const config = await loadConfig();
@@ -24,6 +24,16 @@ export async function modelsList(): Promise<void> {
     console.log(
       `${mark} ${c.text(info.label.padEnd(32))} ${c.muted(ref.padEnd(48))} ${status}`,
     );
+  }
+
+  const zenModels = listOpenCodeCatalog(auth);
+  if (zenModels.length) {
+    console.log(c.bold("\nOpenCode Zen models (usage billed)\n"));
+    for (const info of zenModels) {
+      const ref = modelRef(info);
+      const active = config.defaultModel === ref;
+      console.log(`${active ? c.brand("›") : " "} ${c.text(info.label.padEnd(32))} ${c.muted(ref)}`);
+    }
   }
 
   console.log("");
@@ -55,7 +65,7 @@ export async function modelsUse(ref: string): Promise<void> {
 
   const normalizedRef = `${parsed.provider}/${parsed.model}` as ModelRef;
   const auth = await loadAuth();
-  const known = listFreeCatalog(auth).some((m) => modelRef(m) === normalizedRef);
+  const known = [...listFreeCatalog(auth), ...listOpenCodeCatalog(auth)].some((m) => modelRef(m) === normalizedRef);
   if (!known) {
     console.log(c.muted(`Note: ${ref} may need an API key — will still be saved.`));
   }

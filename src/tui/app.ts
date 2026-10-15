@@ -18,6 +18,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { getPlan, planSystemAsync, PLANS } from "../plans/index.js";
 import {
   listFreeCatalog,
+  listOpenCodeCatalog,
   modelRef,
   parseModelRef,
   DEFAULT_FREE_MODEL,
@@ -118,7 +119,7 @@ const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
   {
     id: "opencode",
     label: "OpenCode Zen (recommended)",
-    description: "Reliable $0 coding models · opencode.ai/auth",
+    description: "Curated models · some billed by usage · opencode.ai/auth",
   },
   {
     id: "openrouter",
@@ -132,9 +133,9 @@ const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
   { id: "groq", label: "Groq", description: "Fast hosted open models · GROQ_API_KEY" },
 ];
 
-/** Paid / extra free via API key under free models in /models. */
+/** Paid / extra free models available after adding a provider key. */
 const KEY_CONNECT: { id: ProviderId; label: string; description: string }[] = [
-  { id: "opencode", label: "OpenCode Zen", description: "Reliable free coding models · paste key" },
+  { id: "opencode", label: "OpenCode Zen", description: "Curated models · paste key" },
   { id: "openrouter", label: "OpenRouter", description: "More free models · paste free key" },
   { id: "openai", label: "OpenAI", description: "ChatGPT · paste OPENAI_API_KEY" },
   { id: "anthropic", label: "Anthropic", description: "Claude · paste ANTHROPIC_API_KEY" },
@@ -452,7 +453,7 @@ export async function runTui(): Promise<"update" | undefined> {
     const authStub = Object.fromEntries(
       state.authKeys.map((id) => [id, { apiKey: "x" }]),
     ) as AuthStore;
-    const all = listFreeCatalog(authStub);
+    const all = [...listFreeCatalog(authStub), ...listOpenCodeCatalog(authStub)];
     if (!q) return all;
     return all.filter(
       (model) =>
@@ -887,7 +888,7 @@ export async function runTui(): Promise<"update" | undefined> {
       }
       case "connect":
         out.push(t.text("Connect a provider"));
-        out.push(t.dim("Tip: OpenCode Zen makes the free coding models reliable — $0 usage."));
+        out.push(t.dim("OpenCode Zen offers curated models; pricing depends on the model."));
         out.push("");
         PROVIDERS.forEach((p, i) => {
           const mark = i === state.overlayIndex ? t.accent("› ") : "  ";
@@ -904,7 +905,7 @@ export async function runTui(): Promise<"update" | undefined> {
         out.push(
           t.dim(
             provider === "opencode"
-              ? "Free key at opencode.ai/auth · select a $0 model"
+              ? "OpenCode Zen key at opencode.ai/auth · pricing varies by model"
               : provider === "openrouter"
                 ? "Free account at openrouter.ai/keys · free models cost $0"
               : "Stored locally in ~/.voxiva/auth.json",
@@ -922,7 +923,7 @@ export async function runTui(): Promise<"update" | undefined> {
       case "models": {
         const items = modelPickerItems();
         out.push(t.text("Select model") + " ".repeat(Math.max(1, inner - 16)) + t.dim("esc"));
-        out.push(t.dim("Free fallback needs no key · OpenCode Zen key recommended for reliability"));
+        out.push(t.dim("Anonymous fallback needs no key · Zen models may be billed per request"));
         out.push(
           t.dim("Search") +
             t.dim(": ") +
@@ -945,7 +946,7 @@ export async function runTui(): Promise<"update" | undefined> {
               const m = item.model;
               const ref = modelRef(m);
               const active = state.model === ref;
-              const status = m.builtin ? "No key" : "Zen key";
+              const status = m.builtin ? "No key" : m.zen ? "Zen · billed" : "Zen key";
               const dot = active ? "● " : "  ";
               const name = truncate(m.label, Math.max(16, inner - 12));
               const gap = Math.max(1, inner - 2 - stringWidth(dot + name) - stringWidth(status));
@@ -976,7 +977,7 @@ export async function runTui(): Promise<"update" | undefined> {
           });
         }
         out.push("");
-        out.push(t.dim("  ↑↓ enter · free models need a provider key except the fallback"));
+        out.push(t.dim("  ↑↓ enter · choose a model; pricing depends on the provider"));
         break;
       }
       case "plans":
@@ -2179,7 +2180,7 @@ export async function runTui(): Promise<"update" | undefined> {
     state.overlayIndex = 0;
     toast(
       id === "opencode"
-        ? "OpenCode Zen connected · reliable free models ready"
+        ? "OpenCode Zen connected · curated models ready"
         : id === "openrouter"
           ? "OpenRouter connected · free models ready (/models)"
         : `${id} connected`,

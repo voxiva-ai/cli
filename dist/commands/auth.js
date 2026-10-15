@@ -2,7 +2,7 @@ import * as p from "@clack/prompts";
 import { c, vMark } from "../brand/index.js";
 import { loadAuth, saveAuth } from "../config/store.js";
 const PROVIDERS = [
-    { id: "opencode", label: "OpenCode Zen (free models)", hint: "opencode.ai/auth — free models $0" },
+    { id: "opencode", label: "OpenCode Zen", hint: "opencode.ai/auth — model pricing varies" },
     { id: "openrouter", label: "OpenRouter (free models)", hint: "openrouter.ai/keys — free tier $0" },
     { id: "openai", label: "OpenAI", hint: "platform.openai.com/api-keys" },
     { id: "anthropic", label: "Anthropic", hint: "console.anthropic.com" },
