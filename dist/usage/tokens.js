@@ -113,6 +113,6 @@ export function usagePanelLines(opts) {
             lines.push(`  ${short.padEnd(38)} ${row.total.toLocaleString().padStart(8)}  (${row.turns}t)`);
         }
     }
-    lines.push("", "Estimates from text length until providers return exact usage.", "Free OpenCode-style models do not bill through Voxiva.", "", "↑↓ scroll · enter/esc close · /model · /files");
+    lines.push("", "Estimates from text length until providers return exact usage.", "", "↑↓ scroll · enter/esc close · /model · /files");
     return lines;
 }

@@ -20,7 +20,7 @@ export type ModelInfo = {
   label: string;
   /** $0 catalog entry. */
   free?: boolean;
-  /** Works with no API key after install (OpenCode-style). */
+  /** Works with no API key after install. */
   builtin?: boolean;
   /** Upstream id for the keyless gateway. */
   upstream?: string;
@@ -29,7 +29,7 @@ export type ModelInfo = {
 };
 
 /**
- * Default after install — OpenCode-style free model, no key.
+ * Default model available after install without a provider key.
  */
 export const DEFAULT_FREE_MODEL: ModelRef = "voxiva/big-pickle";
 
@@ -147,7 +147,7 @@ export function modelRef(info: ModelInfo): ModelRef {
   return `${info.provider}/${info.id}`;
 }
 
-/** Old short free ids → current OpenCode-style free catalog. */
+/** Migrate saved model ids from older versions. */
 const LEGACY_MODEL_MAP: Record<string, ModelRef> = {
   "anthropic/claude-sonnet-4-20250514": "anthropic/claude-sonnet-4-6",
   "anthropic/claude-opus-4-20250514": "anthropic/claude-opus-4-8",
@@ -240,7 +240,7 @@ function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
-/** Warm TLS/DNS so the first free reply feels instant (OpenCode-like). */
+/** Warm the gateway connection before the first reply. */
 export function warmFreeGateway(): void {
   for (const url of FREE_ENDPOINTS) {
     void fetch(url, {
@@ -254,7 +254,7 @@ export function warmFreeGateway(): void {
 const CASUAL_RE =
   /^(hi|hello|hey|yo|sup|thanks|thank you|ok|okay|да|нет|ок|привет|здравств[а-я]*|хай|你好|hola|bonjour|merci)[\s!.?…]*$/i;
 
-/** Keep recent turns so free/API models stay fast (OpenCode-like TTFT). */
+/** Keep recent turns concise to reduce response latency. */
 function prepareMessages(messages: ChatMessage[], maxChars = 40_000): ChatMessage[] {
   const system = messages.filter((m) => m.role === "system");
   const rest = messages.filter((m) => m.role !== "system");

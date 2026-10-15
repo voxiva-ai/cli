@@ -168,7 +168,6 @@ export function usagePanelLines(opts: {
   lines.push(
     "",
     "Estimates from text length until providers return exact usage.",
-    "Free OpenCode-style models do not bill through Voxiva.",
     "",
     "↑↓ scroll · enter/esc close · /model · /files",
   );

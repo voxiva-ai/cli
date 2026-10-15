@@ -75,7 +75,7 @@ test("long words wrap without disappearing", () => {
   assert.ok(lines.every((line) => stringWidth(line) <= 10));
 });
 
-test("header is compact Codex-style with model plan directory", () => {
+test("header shows model, plan, and project directory", () => {
   const lines = renderHeader(
     {
       version: "0.1.0",

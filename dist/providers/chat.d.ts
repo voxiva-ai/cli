@@ -14,7 +14,7 @@ export type ModelInfo = {
     label: string;
     /** $0 catalog entry. */
     free?: boolean;
-    /** Works with no API key after install (OpenCode-style). */
+    /** Works with no API key after install. */
     builtin?: boolean;
     /** Upstream id for the keyless gateway. */
     upstream?: string;
@@ -22,7 +22,7 @@ export type ModelInfo = {
     zen?: boolean;
 };
 /**
- * Default after install — OpenCode-style free model, no key.
+ * Default model available after install without a provider key.
  */
 export declare const DEFAULT_FREE_MODEL: ModelRef;
 export declare function listCatalog(): ModelInfo[];
@@ -64,6 +64,6 @@ export declare function resolvePreferredModel(opts: {
     model: ModelRef;
     migrated: boolean;
 };
-/** Warm TLS/DNS so the first free reply feels instant (OpenCode-like). */
+/** Warm the gateway connection before the first reply. */
 export declare function warmFreeGateway(): void;
 export declare function streamChat(auth: AuthStore, modelRefStr: ModelRef, messages: ChatMessage[], handlers: StreamHandlers): Promise<string>;

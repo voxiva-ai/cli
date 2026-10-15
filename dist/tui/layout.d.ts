@@ -49,7 +49,7 @@ export type HeaderInfo = {
     noModelLabel?: string;
 };
 /**
- * Compact Voxiva header (Codex layout, own voice):
+ * Compact Voxiva header:
  *   › Voxiva CLI (v0.1.0)
  *   model · …     /model to change
  *   plan  · …     Tab to switch

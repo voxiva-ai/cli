@@ -1181,7 +1181,7 @@ export async function runTui() {
                 body.push("");
             }
             const messageRows = [];
-            // Left-aligned like Codex — never center+wrap past terminal width.
+            // Keep message text aligned and inside the terminal width.
             const pad = "  ";
             const prefixW = 2;
             const wrapW = Math.max(10, cols - pad.length - prefixW - 1);
@@ -1745,7 +1745,7 @@ export async function runTui() {
     async function submitInput() {
         let line = state.input.trim();
         const drafts = [...state.draftAttachments];
-        // Enter on incomplete `/…` runs the highlighted suggestion (Codex/Claude style)
+        // Enter accepts the highlighted suggestion for an incomplete command.
         if (line.startsWith("/") && !line.includes(" ") && activeSuggestions().length) {
             const selected = activeSuggestions()[Math.min(state.suggestIndex, activeSuggestions().length - 1)];
             if (selected && selected.name !== line.slice(1).toLowerCase()) {

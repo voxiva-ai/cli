@@ -108,7 +108,7 @@ voxiva update
 
 ## 说明
 
-- **免费模型**对齐 OpenCode Zen，无需密钥；API 用 `/connect`
+- **免密钥模型**可直接使用；连接 OpenCode Zen 后可选择更多模型：`/connect`
 - 新电脑：安装程序自动下载 Node + CLI，并运行 `doctor`
 - 文件在 `~/.voxiva/` — 删除该目录并清理 PATH 即可卸载
 

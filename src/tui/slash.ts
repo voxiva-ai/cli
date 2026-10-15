@@ -440,7 +440,7 @@ export function slashSuggestions(input: string): SlashCommand[] {
   if (!input.startsWith("/")) return [];
   const query = input.slice(1).toLowerCase().split(/\s/, 1)[0] ?? "";
 
-  // Bare `/` → full command list (sorted), like OpenCode / Codex.
+  // A bare slash opens the full command list.
   if (!query) {
     return [...SLASH_COMMANDS].sort((a, b) => a.name.localeCompare(b.name));
   }

@@ -2,7 +2,7 @@ import { PROVIDER_IDS } from "../config/store.js";
 import { VERSION } from "../tui/copy.js";
 import { createHash, randomUUID } from "node:crypto";
 /**
- * Default after install — OpenCode-style free model, no key.
+ * Default model available after install without a provider key.
  */
 export const DEFAULT_FREE_MODEL = "voxiva/big-pickle";
 /** Anonymous OpenAI-compatible gateway. */
@@ -109,7 +109,7 @@ export function parseModelRef(ref) {
 export function modelRef(info) {
     return `${info.provider}/${info.id}`;
 }
-/** Old short free ids → current OpenCode-style free catalog. */
+/** Migrate saved model ids from older versions. */
 const LEGACY_MODEL_MAP = {
     "anthropic/claude-sonnet-4-20250514": "anthropic/claude-sonnet-4-6",
     "anthropic/claude-opus-4-20250514": "anthropic/claude-opus-4-8",
@@ -200,7 +200,7 @@ function withTimeout(signal, ms) {
     const timeout = AbortSignal.timeout(ms);
     return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
-/** Warm TLS/DNS so the first free reply feels instant (OpenCode-like). */
+/** Warm the gateway connection before the first reply. */
 export function warmFreeGateway() {
     for (const url of FREE_ENDPOINTS) {
         void fetch(url, {
@@ -211,7 +211,7 @@ export function warmFreeGateway() {
     }
 }
 const CASUAL_RE = /^(hi|hello|hey|yo|sup|thanks|thank you|ok|okay|да|нет|ок|привет|здравств[а-я]*|хай|你好|hola|bonjour|merci)[\s!.?…]*$/i;
-/** Keep recent turns so free/API models stay fast (OpenCode-like TTFT). */
+/** Keep recent turns concise to reduce response latency. */
 function prepareMessages(messages, maxChars = 40_000) {
     const system = messages.filter((m) => m.role === "system");
     const rest = messages.filter((m) => m.role !== "system");
