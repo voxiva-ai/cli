@@ -324,6 +324,15 @@ export function panel(lines: string[], cols: number): string[] {
   return [top, ...body, bottom];
 }
 
+export function centeredPanel(lines: string[], cols: number, width = 58): string[] {
+  const panelWidth = Math.min(width, cols);
+  const left = " ".repeat(Math.max(0, Math.floor((cols - panelWidth) / 2)));
+  return panel(lines, panelWidth).map((line) => {
+    const centered = left + line;
+    return centered + " ".repeat(Math.max(0, cols - stringWidth(centered)));
+  });
+}
+
 export function clearScreen(): void {
   process.stdout.write("\x1b[2J\x1b[H");
 }

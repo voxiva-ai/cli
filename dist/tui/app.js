@@ -12,7 +12,7 @@ import { checkForUpdate } from "../update/check.js";
 import { getSession, getContinuableSession, listSessions, listSessionsForCwd, saveSession, } from "../sessions/store.js";
 import { listWorkspaces, touchWorkspace } from "../workspaces/store.js";
 import { detectPromptLocale, LOCALES, t as ui } from "../i18n/index.js";
-import { assistantBubble, clearScreen, composeFrame, enterAltScreen, errorNote, fullWidth, hideCursor, horizontalRule, inputBar, leaveAltScreen, mediaCard, paintFrame, panel, pasteCard, renderHeader, showCursor, statusFooter, suggestionRows, systemNote, termSize, thoughtLine, truncate, userBubble, wrapText, fileChangeCard, } from "./layout.js";
+import { assistantBubble, clearScreen, centeredPanel, composeFrame, enterAltScreen, errorNote, fullWidth, hideCursor, horizontalRule, inputBar, leaveAltScreen, mediaCard, paintFrame, panel, pasteCard, renderHeader, showCursor, statusFooter, suggestionRows, systemNote, termSize, thoughtLine, truncate, userBubble, wrapText, fileChangeCard, } from "./layout.js";
 import { setActiveTheme, tc } from "./logo.js";
 import { PLAN_COLORS, THEMES } from "./themes.js";
 import { paletteItems, resolveSlash, slashSuggestions, matchesPaletteFilter, FILTER_OVERLAYS, INFO_OVERLAYS } from "./slash.js";
@@ -638,7 +638,7 @@ export async function runTui() {
         state.updateBanner = `v${info.latest}${revision} · press u or /update`;
         state.updateLatest = info.latest;
         state.updateRevision = info.revision?.slice(0, 7);
-        if (!state.messages.length && !state.input && !state.busy && !state.overlay) {
+        if (!state.busy && !state.overlay) {
             state.overlay = "update";
         }
         toast(`Update v${info.latest} ready — press u or /update`, "info");
@@ -664,10 +664,10 @@ export async function runTui() {
                 out.push(`  ${t.muted(`v${VERSION}`)}  ${t.dim("→")}  ${t.accent(`v${state.updateLatest ?? "latest"}`)}` +
                     (state.updateRevision ? t.dim(` · ${state.updateRevision}`) : ""));
                 out.push("");
-                out.push(t.text("Install it before continuing?"));
-                out.push(t.dim("Your settings, sessions and API keys stay in place."));
+                out.push(t.text("Download and install this update now?"));
+                out.push(t.dim("Your chats, settings and API keys will stay in place."));
                 out.push("");
-                out.push(t.dim("  Enter / U · update now     N / Esc · later"));
+                out.push(t.dim("  Enter / U · install now     N / Esc · later"));
                 break;
             case "help":
                 out.push(t.muted("Commands"));
@@ -1157,7 +1157,10 @@ export async function runTui() {
             tip,
             noModelLabel: s.noModel,
         }, cols);
-        if (state.overlay) {
+        if (state.overlay === "update") {
+            body.push(...centeredPanel(renderOverlay(), cols));
+        }
+        else if (state.overlay) {
             body.push(...header);
             body.push("");
             body.push(...panel(renderOverlay(), cols));
@@ -1308,7 +1311,7 @@ export async function runTui() {
                 queuedLabel: state.promptQueue.length ? s.queued(state.promptQueue.length) : undefined,
             }, cols),
         ];
-        const frame = composeFrame(body, cols, rows, pinned, footer, cursorInBox, "top");
+        const frame = composeFrame(body, cols, rows, pinned, footer, cursorInBox, state.overlay === "update" ? "center" : "top");
         if (snapshot) {
             clearScreen();
             process.stdout.write(frame.lines.join("\n"));
@@ -1592,8 +1595,22 @@ export async function runTui() {
             case "reject":
                 rejectPendingEdits();
                 return;
+            case "check-update": {
+                const info = await checkForUpdate(true);
+                if (!info) {
+                    toast("No update found. Check your connection and try again.", "info");
+                    return;
+                }
+                const revision = info.revision ? ` · GitHub ${info.revision.slice(0, 7)}` : "";
+                state.updateBanner = `v${info.latest}${revision} · press u or /update`;
+                state.updateLatest = info.latest;
+                state.updateRevision = info.revision?.slice(0, 7);
+                state.overlay = "update";
+                state.overlayIndex = 0;
+                return;
+            }
             case "update":
-                toast("Updating… leaving chat.", "info");
+                toast("Downloading and installing update…", "info");
                 exitAction = "update";
                 running = false;
                 return;

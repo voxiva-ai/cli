@@ -79,6 +79,7 @@ export declare function suggestionRows(items: {
 }[], cols: number, hint?: string): string[];
 /** Full-width overlay panel. */
 export declare function panel(lines: string[], cols: number): string[];
+export declare function centeredPanel(lines: string[], cols: number, width?: number): string[];
 export declare function clearScreen(): void;
 export declare function paintFrame(lines: string[], cols: number): void;
 export declare function hideCursor(): void;

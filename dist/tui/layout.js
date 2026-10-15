@@ -229,6 +229,14 @@ export function panel(lines, cols) {
     });
     return [top, ...body, bottom];
 }
+export function centeredPanel(lines, cols, width = 58) {
+    const panelWidth = Math.min(width, cols);
+    const left = " ".repeat(Math.max(0, Math.floor((cols - panelWidth) / 2)));
+    return panel(lines, panelWidth).map((line) => {
+        const centered = left + line;
+        return centered + " ".repeat(Math.max(0, cols - stringWidth(centered)));
+    });
+}
 export function clearScreen() {
     process.stdout.write("\x1b[2J\x1b[H");
 }

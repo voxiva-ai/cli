@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import stringWidth from "string-width";
 import {
   composeFrame,
+  centeredPanel,
   inputBar,
   inputBox,
   renderHeader,
@@ -279,6 +280,7 @@ test("git snapshot marks deleted tracked files as dirty", async () => {
 });
 
 test("new overlays resolve from slash", () => {
+  assert.equal(resolveSlash("/update")?.cmd.name, "update");
   assert.equal(resolveSlash("/files")?.cmd.name, "files");
   assert.equal(resolveSlash("/open")?.cmd.name, "files");
   assert.equal(resolveSlash("/context")?.cmd.name, "context");
@@ -294,6 +296,14 @@ test("new overlays resolve from slash", () => {
   assert.equal(resolveSlash("/retry")?.cmd.name, "retry");
   assert.equal(resolveSlash("/review")?.cmd.name, "review");
   assert.equal(resolveSlash("/explain")?.cmd.name, "explain");
+});
+
+test("update slash checks first and its dialog is centered", async () => {
+  const command = resolveSlash("/update")?.cmd;
+  assert.deepEqual(await command.handler("", {}), { type: "action", action: "check-update" });
+  const lines = centeredPanel(["Update available"], 100);
+  assert.equal(stringWidth(lines[0]), 100);
+  assert.equal(lines[0].startsWith(" ".repeat(21)), true);
 });
 
 test("memory and review actions return action results", async () => {

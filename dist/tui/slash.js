@@ -302,8 +302,8 @@ export const SLASH_COMMANDS = [
     {
         name: "update",
         aliases: ["upgrade"],
-        description: "Update Voxiva from GitHub",
-        handler: async () => ({ type: "action", action: "update" }),
+        description: "Check for and install a Voxiva update",
+        handler: async () => ({ type: "action", action: "check-update" }),
     },
     {
         name: "exit",
