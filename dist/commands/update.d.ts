@@ -4,4 +4,5 @@
  */
 export declare function runUpdate(opts?: {
     force?: boolean;
+    onProgress?: (message: string) => void;
 }): Promise<number>;

@@ -193,10 +193,25 @@ test("palette filter matches command aliases", () => {
 
 test("themes include ember forest mono", () => {
   const ids = themeIds();
+  assert.ok(ids.includes("auto"));
   assert.ok(ids.includes("ember"));
   assert.ok(ids.includes("forest"));
   assert.ok(ids.includes("mono"));
-  assert.equal(THEMES.length, 7);
+  assert.equal(THEMES.length, 8);
+});
+
+test("auto theme follows COLORFGBG background when available", async () => {
+  const { getTheme } = await import("../dist/tui/themes.js");
+  const previous = process.env.COLORFGBG;
+  try {
+    process.env.COLORFGBG = "7;15";
+    assert.equal(getTheme("auto").id, "arctic");
+    process.env.COLORFGBG = "15;0";
+    assert.equal(getTheme("auto").id, "voxiva");
+  } finally {
+    if (previous === undefined) delete process.env.COLORFGBG;
+    else process.env.COLORFGBG = previous;
+  }
 });
 
 test("version is beta 0.1.4", () => {

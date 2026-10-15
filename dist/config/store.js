@@ -18,7 +18,7 @@ const AUTH_PATH = join(DIR, "auth.json");
 const DEFAULT_CONFIG = {
     version: 1,
     plan: "build",
-    theme: "voxiva",
+    theme: "auto",
     locale: "en",
     defaultModel: "voxiva/big-pickle",
 };

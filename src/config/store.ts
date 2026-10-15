@@ -26,7 +26,7 @@ export const PROVIDER_IDS: ProviderId[] = [
 
 export type PlanId = "build" | "ship" | "check" | "explore";
 
-export type ThemeId = "voxiva" | "slate" | "midnight" | "arctic" | "ember" | "forest" | "mono";
+export type ThemeId = "auto" | "voxiva" | "slate" | "midnight" | "arctic" | "ember" | "forest" | "mono";
 
 export type LocaleId = import("../i18n/index.js").LocaleId;
 
@@ -54,7 +54,7 @@ const AUTH_PATH = join(DIR, "auth.json");
 const DEFAULT_CONFIG: VoxivaConfig = {
   version: 1,
   plan: "build",
-  theme: "voxiva",
+  theme: "auto",
   locale: "en",
   defaultModel: "voxiva/big-pickle",
 };

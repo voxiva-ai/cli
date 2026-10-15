@@ -58,6 +58,8 @@ voxiva run "Explain how authentication works in this project"
 - Use plans for building, end-to-end delivery, review, and read-only exploration.
 - Work in English, Russian, and Chinese, with themes and keyboard shortcuts.
 
+Run `/themes` to choose a terminal theme. The choice is saved between launches; **Auto (terminal)** reads `COLORFGBG` when your terminal provides it and otherwise uses Voxiva Blue. Run `/update` to check for a newer version and install it in a centered chat window.
+
 Model access and pricing come from the provider you choose. A limited anonymous fallback may be available without a key; for reliable use, connect your own provider credentials.
 
 To use DeepSeek through OpenCode Zen, connect OpenCode Zen with `/connect`, open `/models`, and select a DeepSeek V4 model. Zen model usage may be billed by OpenCode.

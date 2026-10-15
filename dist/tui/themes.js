@@ -7,6 +7,19 @@ export const PLAN_COLORS = {
 };
 export const THEMES = [
     {
+        id: "auto",
+        label: "Auto (terminal)",
+        text: "#e8ecf4",
+        muted: "#7a8498",
+        dim: "#4e5868",
+        accent: "#5aa6ff",
+        accent2: "#8ec0ff",
+        border: "#2a3548",
+        ok: "#8ec0ff",
+        danger: "#ff7b7b",
+        tip: "#8ec0ff",
+    },
+    {
         id: "voxiva",
         label: "Voxiva Blue",
         text: "#e8ecf4",
@@ -99,6 +112,10 @@ export const THEMES = [
     },
 ];
 export function getTheme(id) {
+    if (id === "auto") {
+        const background = Number(process.env.COLORFGBG?.split(";").at(-1));
+        return THEMES.find((theme) => theme.id === (background >= 7 ? "arctic" : "voxiva"));
+    }
     return THEMES.find((t) => t.id === id) ?? THEMES[0];
 }
 export function themeIds() {

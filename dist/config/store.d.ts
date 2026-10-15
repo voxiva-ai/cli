@@ -2,7 +2,7 @@ import { dirname, join } from "node:path";
 export type ProviderId = "voxiva" | "openai" | "anthropic" | "opencode" | "openrouter" | "groq" | "google" | "deepseek";
 export declare const PROVIDER_IDS: ProviderId[];
 export type PlanId = "build" | "ship" | "check" | "explore";
-export type ThemeId = "voxiva" | "slate" | "midnight" | "arctic" | "ember" | "forest" | "mono";
+export type ThemeId = "auto" | "voxiva" | "slate" | "midnight" | "arctic" | "ember" | "forest" | "mono";
 export type LocaleId = import("../i18n/index.js").LocaleId;
 export type ModelRef = `${ProviderId}/${string}`;
 export type VoxivaConfig = {

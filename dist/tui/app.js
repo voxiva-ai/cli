@@ -9,6 +9,7 @@ import { getPlan, planSystemAsync, PLANS } from "../plans/index.js";
 import { listFreeCatalog, listOpenCodeCatalog, modelRef, parseModelRef, DEFAULT_FREE_MODEL, canUseWithoutKey, findCatalog, isFreeModelRef, isUsableModelRef, resolvePreferredModel, streamChat, warmFreeGateway, } from "../providers/chat.js";
 import { clipboardToDraft, isImagePath, normalizeBracketedPaste, readClipboard, textToDraft, writeClipboard, } from "../clipboard/index.js";
 import { checkForUpdate } from "../update/check.js";
+import { runUpdate } from "../commands/update.js";
 import { getSession, getContinuableSession, listSessions, listSessionsForCwd, saveSession, } from "../sessions/store.js";
 import { listWorkspaces, touchWorkspace } from "../workspaces/store.js";
 import { detectPromptLocale, LOCALES, t as ui } from "../i18n/index.js";
@@ -167,7 +168,6 @@ export async function runTui() {
         thoughtFrame: 0,
     };
     let running = true;
-    let exitAction;
     let renderQueued = false;
     let lastRenderAt = 0;
     let streamAbort = null;
@@ -659,15 +659,25 @@ export async function runTui() {
         const t = tc();
         switch (state.overlay) {
             case "update":
-                out.push(t.text("Update available"));
+                out.push(t.accent(state.updatePhase === "working" ? "Updating Voxiva" : state.updatePhase === "done" ? "Voxiva updated" : state.updatePhase === "failed" ? "Update failed" : "Update available"));
                 out.push("");
                 out.push(`  ${t.muted(`v${VERSION}`)}  ${t.dim("→")}  ${t.accent(`v${state.updateLatest ?? "latest"}`)}` +
                     (state.updateRevision ? t.dim(` · ${state.updateRevision}`) : ""));
                 out.push("");
-                out.push(t.text("Download and install this update now?"));
-                out.push(t.dim("Your chats, settings and API keys will stay in place."));
+                if (state.updatePhase === "working") {
+                    const frames = ["|", "/", "-", "\\"];
+                    out.push(t.accent(`${frames[state.thoughtFrame % frames.length]} `) + t.text(state.updateMessage ?? "Preparing update…"));
+                    out.push(t.dim("Voxiva is downloading and installing in the background."));
+                }
+                else if (state.updatePhase === "done" || state.updatePhase === "failed") {
+                    out.push(t.text(state.updateMessage ?? ""));
+                }
+                else {
+                    out.push(t.text("Download and install this update now?"));
+                    out.push(t.dim("Your chats, settings and API keys will stay in place."));
+                }
                 out.push("");
-                out.push(t.dim("  Enter / U · install now     N / Esc · later"));
+                out.push(t.dim(state.updatePhase === "working" ? "  Esc · hide window · update continues" : state.updatePhase ? "  Enter / Esc · close" : "  Enter / U · install now     N / Esc · later"));
                 break;
             case "help":
                 out.push(t.muted("Commands"));
@@ -1596,6 +1606,10 @@ export async function runTui() {
                 rejectPendingEdits();
                 return;
             case "check-update": {
+                if (state.updatePhase === "working") {
+                    state.overlay = "update";
+                    return;
+                }
                 const info = await checkForUpdate(true);
                 if (!info) {
                     toast("No update found. Check your connection and try again.", "info");
@@ -1610,9 +1624,25 @@ export async function runTui() {
                 return;
             }
             case "update":
-                toast("Downloading and installing update…", "info");
-                exitAction = "update";
-                running = false;
+                if (state.updatePhase === "working")
+                    return;
+                state.updatePhase = "working";
+                state.updateMessage = "Checking for updates…";
+                queueRender(true);
+                void runUpdate({
+                    force: true,
+                    onProgress: (message) => {
+                        state.updateMessage = message;
+                        queueRender(true);
+                    },
+                }).then((code) => {
+                    state.updatePhase = code === 0 ? "done" : "failed";
+                    queueRender(true);
+                }).catch((error) => {
+                    state.updatePhase = "failed";
+                    state.updateMessage = error instanceof Error ? error.message : String(error);
+                    queueRender(true);
+                });
                 return;
             case "editor": {
                 leaveAltScreen();
@@ -2355,6 +2385,19 @@ export async function runTui() {
         }
         if (state.overlay) {
             if (state.overlay === "update") {
+                if (key === "\u001b" && state.updatePhase === "working") {
+                    state.overlay = null;
+                    toast("Update continues. Run /update to reopen it.", "info");
+                    queueRender(true);
+                    return;
+                }
+                if ((key === "\r" || key === "\n" || key === "\u001b") && state.updatePhase && state.updatePhase !== "working") {
+                    state.overlay = null;
+                    queueRender(true);
+                    return;
+                }
+                if (state.updatePhase)
+                    return;
                 if (key === "\r" ||
                     key === "\n" ||
                     key === "u" ||
@@ -2646,9 +2689,7 @@ export async function runTui() {
                 process.stdin.setRawMode(false);
                 leaveAltScreen();
                 process.stdout.write("\x1b[?2004l");
-                if (exitAction !== "update") {
-                    process.stdout.write(tc().muted("Bye.\n"));
-                }
+                process.stdout.write(tc().muted("Bye.\n"));
                 resolve();
                 return;
             }
@@ -2667,11 +2708,15 @@ export async function runTui() {
                     queueRender();
                 }
             }
+            if (state.updatePhase === "working") {
+                state.thoughtFrame += 1;
+                if (state.overlay === "update")
+                    queueRender();
+            }
             if (state.toast && state.toastUntil && Date.now() >= state.toastUntil) {
                 state.toast = undefined;
                 queueRender();
             }
         }, 130);
     });
-    return exitAction;
 }
