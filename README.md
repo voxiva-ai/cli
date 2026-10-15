@@ -1,97 +1,149 @@
 # Voxiva CLI
 
-**A coding assistant for your terminal.** Ask questions about a project, work through changes, and review proposed edits before they are applied.
+<p align="center">
+  A coding assistant for your terminal. Explore a project, work through a task, and review proposed file changes before they are applied.
+</p>
 
-[Русский](README.ru.md) · [简体中文](README.zh-CN.md) · [MIT License](LICENSE) · [Report an issue](https://github.com/voxiva-ai/cli/issues)
+<p align="center">
+  <a href="README.md">English</a> ·
+  <a href="README.ru.md">Русский</a> ·
+  <a href="README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
+  <a href="https://nodejs.org/"><img alt="Node.js 20+" src="https://img.shields.io/badge/Node.js-20%2B-339933?style=flat-square" /></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-39d9ff?style=flat-square" /></a>
+  <a href="https://github.com/voxiva-ai/cli/issues"><img alt="Issues" src="https://img.shields.io/github/issues/voxiva-ai/cli?style=flat-square&color=2aa8ff" /></a>
+</p>
+
+> **Beta v0.1.4.** Voxiva CLI is usable today, and its commands and interface are still evolving.
+
+## A coding assistant in your terminal
+
+Voxiva CLI works from your project directory. Ask about the code, provide project instructions in `AGENTS.md`, and get proposed file edits that you can review before applying.
+
+### Highlights
+
+- **Bring your model provider** — connect OpenAI, Anthropic, Google AI, DeepSeek, Groq, OpenRouter, or OpenCode Zen.
+- **Work with project context** — inspect files with `/files` or mention a path with `@path/to/file`.
+- **Review before writing** — approve or skip proposed file changes in the chat.
+- **Keep work together** — resume sessions and switch between recent project folders.
+- **Choose a workflow** — use build, ship, check, and explore plans.
+- **Make the terminal yours** — choose a saved theme or use Auto when the terminal exposes its background color.
 
 ## Install
 
 Voxiva supports Windows, macOS, and Linux. The installer sets up Node.js 20 or newer when needed and installs the `voxiva` command for your user.
 
-**Windows PowerShell**
+### Windows
+
+Run in PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 ```
 
-**macOS or Linux**
+### macOS and Linux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/voxiva-ai/cli/main/install | bash
 ```
 
-Open a new terminal and check the installation:
+Open a new terminal and verify the installation:
 
 ```bash
 voxiva doctor
 ```
 
-## Get started
+## Quick start
 
-Open a project directory and start Voxiva:
+Move to a project directory and launch the chat:
 
 ```bash
 cd path/to/your-project
 voxiva
 ```
 
-Connect a model provider with `/connect`, choose a model with `/models`, then describe the task. Voxiva reads project guidance from `AGENTS.md` and can inspect files you mention with `@path/to/file`.
-
-For a single request, use:
+Connect a provider with `/connect`, choose a model with `/models`, and describe what you want to do. For a one-time prompt, run:
 
 ```bash
 voxiva run "Explain how authentication works in this project"
 ```
 
-## Models
+## Models and providers
 
-Voxiva works with OpenAI, Anthropic, Google AI, DeepSeek, Groq, OpenRouter, and OpenCode Zen. Some providers offer free models; access, limits, and pricing depend on the provider and model. A limited anonymous fallback may be available without a key.
+Connect a provider key in the chat with `/connect` or from the terminal with `voxiva auth login`. Then select a model with `/models` or `voxiva models use <provider/model>`.
 
-To use a DeepSeek V4 model through OpenCode Zen, connect OpenCode Zen with `/connect` and select the model in `/models`. OpenCode Zen usage may be billed by the provider.
+Model availability, limits, and pricing are set by each provider. A limited anonymous fallback may be available without a key. DeepSeek V4 models are also available through OpenCode Zen; that provider may charge for usage.
 
-## Working in chat
+## Chat controls
 
 | Action | Command or key |
 | --- | --- |
 | Connect a provider | `/connect` |
 | Choose a model | `/models` |
-| Change the working plan | `/plans` or `Tab` |
-| Inspect project files | `/files` or `@path/to/file` |
-| Apply or skip proposed edits | `y` or `n` |
+| Change the plan | `/plans` or `Tab` |
+| Inspect files | `/files` or `@path/to/file` |
+| Approve or skip proposed edits | `y` or `n` |
 | Stop a response | `Esc` |
 | Continue the latest session | `/continue` |
-| Open the command list | `/` |
-| Change the terminal theme | `/themes` |
+| Switch project folder | `/workspaces` |
+| Change the theme | `/themes` |
 | Check for an update | `/update` |
+| Open the command list | `/` |
 
-Use `!command` to run a shell command yourself, for example `!git status`. Voxiva does not automatically execute shell commands suggested by a model. Proposed file edits require your approval before they are written.
+Type `!command` to run a shell command yourself, for example `!git status`. Voxiva does not run shell commands suggested by the model automatically.
 
-## CLI commands
+## CLI reference
 
-| Command | Purpose |
+| Command | Description |
 | --- | --- |
 | `voxiva` or `voxiva chat` | Start an interactive session |
-| `voxiva run "<prompt>"` | Send one prompt |
+| `voxiva run "<prompt>"` | Send a one-time prompt |
 | `voxiva ship "<task>"` | Work through a task with the ship plan |
 | `voxiva models list` | List available models |
 | `voxiva models use <provider/model>` | Set the default model |
 | `voxiva models current` | Show the default model |
-| `voxiva plan [build, ship, check, explore]` | Show or change the plan |
+| `voxiva plan [id]` | Show or change the plan: `build`, `ship`, `check`, or `explore` |
 | `voxiva auth login` | Connect a provider key |
-| `voxiva auth list` | Show connected providers |
+| `voxiva auth list` | List connected providers |
 | `voxiva auth logout [provider]` | Remove a provider key |
 | `voxiva doctor` | Check the installation and configuration |
 | `voxiva update` | Install the latest version |
-| `voxiva config` | Show the configuration directory |
+| `voxiva config` | Print the configuration directory |
 
-## Privacy and local data
+## Updates and themes
 
-Voxiva stores settings, sessions, and provider keys in `~/.voxiva/`. Keys are kept locally in `auth.json`. Prompts and any project context you provide are sent to the provider serving the selected model; check that provider's privacy and data policies before sharing sensitive information.
+Run `/update` in chat to check for a new version and install it from the centered update window. Run `voxiva update` from a terminal to update directly. Restart Voxiva after installation to use the new version.
+
+Run `/themes` to choose and save a theme. **Auto (terminal)** uses `COLORFGBG` when available and falls back to Voxiva Blue.
+
+## Privacy
+
+Voxiva stores settings, sessions, and provider keys in `~/.voxiva/`. Keys are kept locally in `auth.json`. Prompts and project context you provide are sent to the provider serving the selected model. Review that provider's privacy and data policies before sharing sensitive information.
+
+## Build from source
+
+Requirements: Node.js 20 or newer and npm.
+
+```bash
+git clone https://github.com/voxiva-ai/cli.git
+cd cli
+npm ci
+npm run build
+npm run dev
+```
+
+Run the checks with:
+
+```bash
+npm test
+```
 
 ## Contributing
 
-Bug fixes, documentation improvements, and focused feature proposals are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and pull request guidance. Report problems or suggest improvements in [GitHub Issues](https://github.com/voxiva-ai/cli/issues).
+Bug reports, documentation improvements, and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution guidance. Report an issue or suggest an improvement on [GitHub Issues](https://github.com/voxiva-ai/cli/issues).
 
 ## License
 
-Voxiva CLI is distributed under the [MIT License](LICENSE).
+[MIT](LICENSE)
