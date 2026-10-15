@@ -1,4 +1,4 @@
-# Voxiva CLI
+<h1 align="center">Voxiva CLI</h1>
 
 <p align="center">
   A coding assistant for your terminal. Explore a project, work through a task, and review proposed file changes before they are applied.
