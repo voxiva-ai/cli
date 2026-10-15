@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="brand/voxiva-mark.svg" alt="Voxiva" width="112" />
-</p>
-
 <h1 align="center">Voxiva CLI</h1>
 
 <p align="center">ИИ-агент для терминала. Подключайте свою модель, изучайте проект и проверяйте каждое изменение файлов до его применения.</p>
