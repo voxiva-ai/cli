@@ -74,7 +74,7 @@ voxiva run "Explain how authentication works in this project"
 
 Connect a provider key in the chat with `/connect` or from the terminal with `voxiva auth login`. Then select a model with `/models` or `voxiva models use <provider/model>`.
 
-Model availability, limits, and pricing are set by each provider. A limited anonymous fallback may be available without a key. DeepSeek V4 models are also available through OpenCode Zen; that provider may charge for usage.
+Model availability, limits, and pricing are set by each provider. A limited anonymous fallback may be available without a key, but it is not a DeepSeek model. The DeepSeek API requires a key and bills usage; check [current pricing](https://api-docs.deepseek.com/quick_start/pricing/) before use. Choosing DeepSeek in `/models` selects V4.1 Flash (`deepseek-flash`); V4 Pro is also available. The direct Flash route disables thinking to reduce token use. Voxiva caps DeepSeek replies at 8,192 output tokens, so unusually large file changes may need to be split across requests. DeepSeek models are also available through OpenCode Zen, with separate provider pricing.
 
 ## Chat controls
 

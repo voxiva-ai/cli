@@ -6,7 +6,7 @@ import stringWidth from "string-width";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { getPlan, planSystemAsync, PLANS } from "../plans/index.js";
-import { listFreeCatalog, listOpenCodeCatalog, modelRef, parseModelRef, DEFAULT_FREE_MODEL, canUseWithoutKey, findCatalog, isFreeModelRef, isUsableModelRef, resolvePreferredModel, streamChat, warmFreeGateway, } from "../providers/chat.js";
+import { listFreeCatalog, listCatalog, listOpenCodeCatalog, modelRef, parseModelRef, DEFAULT_FREE_MODEL, canUseWithoutKey, findCatalog, isFreeModelRef, isUsableModelRef, resolvePreferredModel, streamChat, warmFreeGateway, } from "../providers/chat.js";
 import { clipboardToDraft, isImagePath, normalizeBracketedPaste, readClipboard, textToDraft, writeClipboard, } from "../clipboard/index.js";
 import { checkForUpdate } from "../update/check.js";
 import { runUpdate } from "../commands/update.js";
@@ -38,7 +38,7 @@ const PROVIDERS = [
     { id: "openai", label: "OpenAI", description: "GPT and reasoning models · OPENAI_API_KEY" },
     { id: "anthropic", label: "Anthropic", description: "Claude models · ANTHROPIC_API_KEY" },
     { id: "google", label: "Google AI", description: "Gemini Flash / Pro · GEMINI_API_KEY" },
-    { id: "deepseek", label: "DeepSeek", description: "DeepSeek V3 / R1 · DEEPSEEK_API_KEY" },
+    { id: "deepseek", label: "DeepSeek", description: "V4 Flash / Pro · usage billed · DEEPSEEK_API_KEY" },
     { id: "groq", label: "Groq", description: "Fast hosted open models · GROQ_API_KEY" },
 ];
 /** Paid / extra free models available after adding a provider key. */
@@ -48,7 +48,7 @@ const KEY_CONNECT = [
     { id: "openai", label: "OpenAI", description: "ChatGPT · paste OPENAI_API_KEY" },
     { id: "anthropic", label: "Anthropic", description: "Claude · paste ANTHROPIC_API_KEY" },
     { id: "google", label: "Google", description: "Gemini · paste GEMINI_API_KEY" },
-    { id: "deepseek", label: "DeepSeek", description: "V3 / R1 · paste DEEPSEEK_API_KEY" },
+    { id: "deepseek", label: "DeepSeek", description: "V4 Flash / Pro · usage billed · paste DEEPSEEK_API_KEY" },
 ];
 function shortCwd(cwd) {
     const home = process.env.USERPROFILE || process.env.HOME || "";
@@ -281,7 +281,11 @@ export async function runTui() {
     function filteredModels() {
         const q = state.paletteFilter.toLowerCase().trim();
         const authStub = Object.fromEntries(state.authKeys.map((id) => [id, { apiKey: "x" }]));
-        const all = [...listFreeCatalog(authStub), ...listOpenCodeCatalog(authStub)];
+        const all = [
+            ...listFreeCatalog(authStub),
+            ...listOpenCodeCatalog(authStub),
+            ...(state.authKeys.includes("deepseek") ? listCatalog().filter((model) => model.provider === "deepseek") : []),
+        ];
         if (!q)
             return all;
         return all.filter((model) => model.label.toLowerCase().includes(q) ||
@@ -2025,7 +2029,7 @@ export async function runTui() {
                         openai: "openai/gpt-4o-mini",
                         anthropic: "anthropic/claude-3-5-haiku-20241022",
                         google: "google/gemini-2.5-flash",
-                        deepseek: "deepseek/deepseek-chat",
+                        deepseek: "deepseek/deepseek-flash",
                     };
                     state.pendingModel = defaults[item.id];
                     if (state.authKeys.includes(item.id) && state.pendingModel) {

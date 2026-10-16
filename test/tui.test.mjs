@@ -379,16 +379,19 @@ test("catalog includes deepseek and gemini flash", async () => {
     providerReady,
   } = await import("../dist/providers/chat.js");
   const catalog = listCatalog();
-  assert.ok(catalog.some((m) => m.provider === "deepseek" && m.id === "deepseek-chat"));
+  assert.ok(catalog.some((m) => m.provider === "deepseek" && m.id === "deepseek-flash"));
+  assert.ok(catalog.some((m) => m.provider === "deepseek" && m.id === "deepseek-v4-pro"));
   assert.ok(catalog.some((m) => m.provider === "google" && m.id === "gemini-2.5-flash"));
   assert.ok(catalog.some((m) => m.provider === "anthropic" && m.id === "claude-opus-4-8"));
   assert.ok(catalog.some((m) => m.provider === "google" && m.id === "gemini-3.8-flash"));
   assert.ok(!catalog.some((m) => m.id === "gemini-2.0-flash"));
-  assert.ok(parseModelRef("deepseek/deepseek-reasoner"));
+  assert.ok(parseModelRef("deepseek/deepseek-flash"));
   assert.ok(parseModelRef("opencode/big-pickle"));
   assert.ok(catalog.some((m) => m.provider === "opencode" && m.id === "deepseek-v4.1-flash" && m.zen));
   assert.equal(migrateModelRef("anthropic/claude-sonnet-4-20250514"), "anthropic/claude-sonnet-4-6");
   assert.equal(migrateModelRef("google/gemini-2.0-flash"), "google/gemini-3.8-flash");
+  assert.equal(migrateModelRef("deepseek/deepseek-chat"), "deepseek/deepseek-flash");
+  assert.equal(migrateModelRef("deepseek/deepseek-reasoner"), "deepseek/deepseek-v4-pro");
   const free = listFreeCatalog();
   assert.ok(free.length >= 1);
   assert.ok(free.every((m) => m.free), "picker shows free models");
@@ -471,7 +474,7 @@ test("preferred model sticks across restarts", async () => {
   );
   assert.equal(isUsableModelRef("openrouter/qwen/qwen3-32b:free", {}), false);
   assert.equal(
-    isUsableModelRef("deepseek/deepseek-chat", { deepseek: { apiKey: "sk-test" } }),
+    isUsableModelRef("deepseek/deepseek-flash", { deepseek: { apiKey: "sk-test" } }),
     true,
   );
   assert.equal(isUsableModelRef("opencode/deepseek-v4.1-flash", {}), false);
@@ -484,7 +487,7 @@ test("preferred model sticks across restarts", async () => {
     auth: { deepseek: { apiKey: "sk-test" } },
     configModel: "deepseek/deepseek-chat",
   });
-  assert.equal(byok.model, "deepseek/deepseek-chat");
+  assert.equal(byok.model, "deepseek/deepseek-flash");
 
   const zenModel = resolvePreferredModel({
     auth: { opencode: { apiKey: "sk-test" } },

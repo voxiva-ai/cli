@@ -8,7 +8,7 @@ const PROVIDERS: { id: ProviderId; label: string; hint: string }[] = [
   { id: "openai", label: "OpenAI", hint: "platform.openai.com/api-keys" },
   { id: "anthropic", label: "Anthropic", hint: "console.anthropic.com" },
   { id: "google", label: "Google AI", hint: "aistudio.google.com/apikey" },
-  { id: "deepseek", label: "DeepSeek", hint: "platform.deepseek.com/api_keys" },
+  { id: "deepseek", label: "DeepSeek", hint: "V4 API · usage billed · platform.deepseek.com/api_keys" },
   { id: "groq", label: "Groq", hint: "console.groq.com" },
 ];
 

@@ -1,6 +1,6 @@
 import { c } from "../brand/index.js";
 import { loadAuth, loadConfig, parseModelRef, rememberModel } from "../config/store.js";
-import { DEFAULT_FREE_MODEL, listFreeCatalog, listOpenCodeCatalog, modelRef } from "../providers/chat.js";
+import { DEFAULT_FREE_MODEL, listCatalog, listFreeCatalog, listOpenCodeCatalog, modelRef } from "../providers/chat.js";
 export async function modelsList() {
     const config = await loadConfig();
     const auth = await loadAuth();
@@ -28,6 +28,13 @@ export async function modelsList() {
             console.log(`${active ? c.brand("›") : " "} ${c.text(info.label.padEnd(32))} ${c.muted(ref)}`);
         }
     }
+    if (connected.has("deepseek")) {
+        console.log(c.bold("\nDeepSeek API models (usage billed)\n"));
+        for (const info of listCatalog().filter((model) => model.provider === "deepseek")) {
+            const ref = modelRef(info);
+            console.log(`${config.defaultModel === ref ? c.brand("›") : " "} ${c.text(info.label.padEnd(32))} ${c.muted(ref)}`);
+        }
+    }
     console.log("");
     console.log(c.muted("API key (paid / more free)"));
     for (const p of [
@@ -36,7 +43,7 @@ export async function modelsList() {
         { id: "openai", label: "OpenAI" },
         { id: "anthropic", label: "Anthropic" },
         { id: "google", label: "Google" },
-        { id: "deepseek", label: "DeepSeek" },
+        { id: "deepseek", label: "DeepSeek V4 API (usage billed)" },
         { id: "groq", label: "Groq" },
     ]) {
         const status = connected.has(p.id) ? c.ok("key ready") : c.muted("paste key via /model");

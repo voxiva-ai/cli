@@ -18,6 +18,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { getPlan, planSystemAsync, PLANS } from "../plans/index.js";
 import {
   listFreeCatalog,
+  listCatalog,
   listOpenCodeCatalog,
   modelRef,
   parseModelRef,
@@ -131,7 +132,7 @@ const PROVIDERS: { id: ProviderId; label: string; description: string }[] = [
   { id: "openai", label: "OpenAI", description: "GPT and reasoning models · OPENAI_API_KEY" },
   { id: "anthropic", label: "Anthropic", description: "Claude models · ANTHROPIC_API_KEY" },
   { id: "google", label: "Google AI", description: "Gemini Flash / Pro · GEMINI_API_KEY" },
-  { id: "deepseek", label: "DeepSeek", description: "DeepSeek V3 / R1 · DEEPSEEK_API_KEY" },
+  { id: "deepseek", label: "DeepSeek", description: "V4 Flash / Pro · usage billed · DEEPSEEK_API_KEY" },
   { id: "groq", label: "Groq", description: "Fast hosted open models · GROQ_API_KEY" },
 ];
 
@@ -142,7 +143,7 @@ const KEY_CONNECT: { id: ProviderId; label: string; description: string }[] = [
   { id: "openai", label: "OpenAI", description: "ChatGPT · paste OPENAI_API_KEY" },
   { id: "anthropic", label: "Anthropic", description: "Claude · paste ANTHROPIC_API_KEY" },
   { id: "google", label: "Google", description: "Gemini · paste GEMINI_API_KEY" },
-  { id: "deepseek", label: "DeepSeek", description: "V3 / R1 · paste DEEPSEEK_API_KEY" },
+  { id: "deepseek", label: "DeepSeek", description: "V4 Flash / Pro · usage billed · paste DEEPSEEK_API_KEY" },
 ];
 
 type ModelPickerItem =
@@ -456,7 +457,11 @@ export async function runTui(): Promise<void> {
     const authStub = Object.fromEntries(
       state.authKeys.map((id) => [id, { apiKey: "x" }]),
     ) as AuthStore;
-    const all = [...listFreeCatalog(authStub), ...listOpenCodeCatalog(authStub)];
+    const all = [
+      ...listFreeCatalog(authStub),
+      ...listOpenCodeCatalog(authStub),
+      ...(state.authKeys.includes("deepseek") ? listCatalog().filter((model) => model.provider === "deepseek") : []),
+    ];
     if (!q) return all;
     return all.filter(
       (model) =>
@@ -2272,7 +2277,7 @@ export async function runTui(): Promise<void> {
             openai: "openai/gpt-4o-mini",
             anthropic: "anthropic/claude-3-5-haiku-20241022",
             google: "google/gemini-2.5-flash",
-            deepseek: "deepseek/deepseek-chat",
+            deepseek: "deepseek/deepseek-flash",
           };
           state.pendingModel = defaults[item.id];
           if (state.authKeys.includes(item.id) && state.pendingModel) {

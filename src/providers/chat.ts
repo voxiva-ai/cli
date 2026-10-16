@@ -82,8 +82,8 @@ const CATALOG: ModelInfo[] = [
   { provider: "google", id: "gemini-3.1-pro", label: "Gemini 3.1 Pro" },
   { provider: "google", id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
   { provider: "google", id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-  { provider: "deepseek", id: "deepseek-chat", label: "DeepSeek V3" },
-  { provider: "deepseek", id: "deepseek-reasoner", label: "DeepSeek R1" },
+  { provider: "deepseek", id: "deepseek-flash", label: "DeepSeek V4.1 Flash" },
+  { provider: "deepseek", id: "deepseek-v4-pro", label: "DeepSeek V4 Pro" },
   { provider: "opencode", id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", zen: true },
   { provider: "opencode", id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", zen: true },
   { provider: "opencode", id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", zen: true },
@@ -149,6 +149,9 @@ export function modelRef(info: ModelInfo): ModelRef {
 
 /** Migrate saved model ids from older versions. */
 const LEGACY_MODEL_MAP: Record<string, ModelRef> = {
+  "deepseek/deepseek-chat": "deepseek/deepseek-flash",
+  "deepseek/deepseek-reasoner": "deepseek/deepseek-v4-pro",
+  "deepseek/deepseek-v4-flash": "deepseek/deepseek-flash",
   "anthropic/claude-sonnet-4-20250514": "anthropic/claude-sonnet-4-6",
   "anthropic/claude-opus-4-20250514": "anthropic/claude-opus-4-8",
   "anthropic/claude-3-5-haiku-20241022": "anthropic/claude-haiku-4-5-20251001",
@@ -496,6 +499,7 @@ export async function streamChat(
   messages: ChatMessage[],
   handlers: StreamHandlers,
 ): Promise<string> {
+  modelRefStr = migrateModelRef(modelRefStr) ?? modelRefStr;
   const slash = modelRefStr.indexOf("/");
   const provider = modelRefStr.slice(0, slash) as ProviderId;
   const model = modelRefStr.slice(slash + 1);
@@ -547,15 +551,18 @@ async function streamOpenAICompat(
   handlers: StreamHandlers,
 ): Promise<string> {
   const client = await getOpenAIClient(auth, provider);
-  const stream = await client.chat.completions.create(
-    {
-      model,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      stream: true,
-      ...(/^o\d/.test(model) ? {} : { temperature: 0.2 }),
-    },
-    { signal: handlers.signal },
-  );
+  const request = {
+    model,
+    messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    stream: true as const,
+    // shortcut: cap DeepSeek replies at 8,192 tokens to limit spend; raise if large edits are routinely truncated.
+    ...(model.startsWith("deepseek") ? { max_tokens: 8192 } : {}),
+    ...(provider === "deepseek" && model === "deepseek-flash"
+      ? { thinking: { type: "disabled" as const } }
+      : {}),
+    ...(/^o\d/.test(model) ? {} : { temperature: 0.2 }),
+  };
+  const stream = await client.chat.completions.create(request, { signal: handlers.signal });
 
   let full = "";
   for await (const chunk of stream) {
