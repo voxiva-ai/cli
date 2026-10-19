@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:;" />
@@ -8,9 +8,9 @@
     <link rel="stylesheet" href="./node_modules/@xterm/xterm/css/xterm.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
+  <body data-theme="light">
     <aside class="sidebar">
-      <div class="brand"><img id="logo" alt="" /><span>voxiva</span><button class="icon-button sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">≡</button></div>
+      <div class="brand"><img id="logo" alt="" /><span>voxiva</span></div>
       <button class="nav-item active" id="nav-chat"><span class="nav-glyph">✳</span><span>New chat</span><kbd>Ctrl N</kbd></button>
       <button class="nav-item" id="nav-terminal"><span class="nav-glyph terminal-glyph">&gt;_</span><span>Terminal</span><kbd>Ctrl J</kbd></button>
       <div class="side-section"><span>PROJECT</span><button class="icon-button" id="open-project" title="Open project" aria-label="Open project">+</button></div>
@@ -20,35 +20,29 @@
 
     <main class="app-main">
       <header class="topbar">
-        <div class="breadcrumbs"><span class="crumb-muted" id="top-project">No project</span><span class="slash">/</span><span id="view-title">New chat</span></div>
+        <div class="top-leading"><button class="icon-button sidebar-toggle" id="sidebar-toggle" title="Show sidebar" aria-label="Show sidebar">☰</button><div class="breadcrumbs"><span class="crumb-muted" id="top-project">No project</span><span class="slash">/</span><span id="view-title">New chat</span></div></div>
         <div class="top-actions"><button class="top-chip" id="plan-chip" title="Choose agent plan"><span id="plan-chip-label">Build</span><span>⌄</span><select id="plan-select" aria-label="Agent plan"></select></button><button class="icon-button" id="theme-button" title="Switch appearance">◐</button><button class="icon-button" id="top-terminal" title="Open terminal">&gt;_</button></div>
       </header>
 
       <section class="chat-view" id="chat-view">
         <div class="chat-scroll" id="chat-scroll">
           <div class="welcome" id="welcome">
-            <img id="welcome-logo" alt="" />
-            <div class="welcome-kicker">YOUR AI WORKSPACE</div>
-            <h1>What are we building?</h1>
-            <p>Open a project to explore code, fix a bug, or build something new.</p>
-            <div class="suggestions">
-              <button class="suggestion" data-prompt="Explain how this project is structured"><span>⌕</span><b>Explore project</b><small>Map the codebase and key files</small></button>
-              <button class="suggestion" data-prompt="Review this project for bugs and risks"><span>◉</span><b>Review code</b><small>Find issues and explain why they matter</small></button>
-              <button class="suggestion" data-prompt="Help me build a new feature"><span>↗</span><b>Build a feature</b><small>Plan and implement a change</small></button>
-            </div>
+            <div class="hero-brand"><img id="welcome-logo" alt="" /><span>Voxiva CLI</span></div>
           </div>
           <div class="messages" id="messages" aria-live="polite"></div>
         </div>
         <div class="composer-area">
           <form class="composer" id="composer-form">
-            <textarea id="prompt" rows="1" placeholder="Ask anything…" aria-label="Message Voxiva" disabled></textarea>
+            <textarea id="prompt" rows="1" placeholder="Спросите что угодно, / — команды, @ — контекст…" aria-label="Message Voxiva"></textarea>
             <div class="composer-bottom">
-              <div class="composer-tools"><button type="button" class="tool-button" id="composer-project" title="Choose project">＋ <span>Project</span></button><span class="context-label" id="context-label">Select a project to begin</span></div>
-              <div class="send-tools"><select id="model-select" aria-label="Model" title="Model"></select><button class="send-button" id="send-button" type="submit" disabled title="Send message">↑</button><button class="send-button stop-button" id="stop-button" type="button" hidden title="Stop response">■</button></div>
+              <div class="composer-tools"><select id="model-select" aria-label="Model" title="Model"></select></div>
+              <div class="send-tools"><button class="send-button" id="send-button" type="submit" title="Send message">↑</button><button class="send-button stop-button" id="stop-button" type="button" hidden title="Stop response">■</button></div>
             </div>
           </form>
+          <div class="workspace-context"><button type="button" class="project-chip" id="composer-project" title="Выбрать проект"><span class="project-icon">▣</span><span class="context-label" id="context-label">Выберите проект</span><span class="chip-chevron">⌄</span></button><span class="context-divider">/</span><span class="local-chip"><span class="local-icon">▱</span> Локально <i></i></span></div>
           <div class="composer-note">Voxiva can make mistakes. Review proposed file changes before applying.</div>
         </div>
+        <div class="home-footnote">Работа ведётся локально в выбранной папке проекта.</div>
       </section>
 
       <section class="terminal-view" id="terminal-view" hidden>

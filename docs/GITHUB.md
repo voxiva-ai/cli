@@ -1,4 +1,4 @@
-# GitHub
+﻿# GitHub
 
 Org: [voxiva-ai](https://github.com/voxiva-ai)  
 Repo: `voxiva-ai/cli`
@@ -7,7 +7,7 @@ Repo: `voxiva-ai/cli`
 
 Use the real Voxiva mark:
 
-`D:\voxiva.ai\Voxiva CLI\brand\voxiva-mark.svg`
+`D:\voxiva.ai\Voxiva CLI\brand\voxiva-logo.png`
 
 Upload: https://github.com/organizations/voxiva-ai/settings/profile  
 (GitHub may ask for PNG — open the SVG in a browser, screenshot/export 512×512 if needed.)

@@ -22,8 +22,8 @@ let currentAssistant;
 
 $("logo").src = window.voxiva.logoUrl;
 $("welcome-logo").src = window.voxiva.logoUrl;
-if (localStorage.getItem("voxiva-theme") === "light") document.body.dataset.theme = "light";
-if (localStorage.getItem("voxiva-sidebar") === "collapsed") document.body.classList.add("compact");
+if (localStorage.getItem("voxiva-theme")) document.body.dataset.theme = localStorage.getItem("voxiva-theme");
+if (localStorage.getItem("voxiva-sidebar") === "expanded") document.body.classList.add("sidebar-open");
 
 function toast(message) {
   const el = $("toast");
@@ -46,7 +46,7 @@ function setProject(cwd) {
   $("workspace-path").textContent = cwd;
   $("top-project").textContent = name;
   $("terminal-project").textContent = cwd;
-  $("context-label").textContent = cwd;
+  $("context-label").textContent = name;
   $("prompt").disabled = false;
   $("send-button").disabled = false;
   $("welcome").classList.add("has-project");
@@ -274,8 +274,10 @@ for (const id of ["nav-terminal", "top-terminal"]) $(id).addEventListener("click
 $("nav-chat").addEventListener("click", () => startNewChat());
 $("terminal-new").addEventListener("click", () => { terminalStarted = false; startTerminal(); });
 $("sidebar-toggle").addEventListener("click", () => {
-  document.body.classList.toggle("compact");
-  localStorage.setItem("voxiva-sidebar", document.body.classList.contains("compact") ? "collapsed" : "expanded");
+  const open = document.body.classList.toggle("sidebar-open");
+  $("sidebar-toggle").title = open ? "Hide sidebar" : "Show sidebar";
+  $("sidebar-toggle").setAttribute("aria-label", $("sidebar-toggle").title);
+  localStorage.setItem("voxiva-sidebar", open ? "expanded" : "collapsed");
 });
 $("theme-button").addEventListener("click", () => {
   const light = document.body.dataset.theme !== "light";
