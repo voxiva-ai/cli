@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const pty = require("node-pty");
+const asar = require("@electron/asar");
 const release = path.join(__dirname, "../release");
 
 function resourceRoot() {
@@ -15,6 +16,12 @@ function resourceRoot() {
 }
 
 const unpacked = path.join(resourceRoot(), "app.asar.unpacked", "node_modules");
+const archive = path.join(resourceRoot(), "app.asar");
+if (!fs.existsSync(archive)) throw new Error("Packaged Electron archive was not found.");
+for (const [file, marker] of [["app-actions.cjs", "Unsupported theme."], ["update-service.cjs", "RELEASE_API"], ["preload.cjs", "checkUpdate"]]) {
+  const source = asar.extractFile(archive, file).toString("utf8");
+  if (!source.includes(marker)) throw new Error(`Packaged desktop resource is incomplete: ${file}`);
+}
 const runtime = path.join(unpacked, "node", "bin", process.platform === "win32" ? "node.exe" : "node");
 const cli = path.join(unpacked, "@voxiva", "cli", "dist", "index.js");
 const child = pty.spawn(runtime, [cli, "--version"], {

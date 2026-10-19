@@ -1,6 +1,6 @@
 # Voxiva Desktop CLI Parity Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make the desktop app a reliable graphical front end for Voxiva CLI features, sharing providers, models, projects, sessions, settings, diagnostics, and update channels.
 
@@ -47,12 +47,12 @@
 - `state()` returns safe provider metadata, model refs/labels, plan, theme, and locale, never raw key material.
 - `save()` validates known provider ID and non-empty key up to 4096 characters before calling shared `saveAuth`; `remove()` accepts only a known ID.
 
-- [ ] **Step 1: Add failing tests** for unknown provider rejection, empty/oversized key rejection, masked listing, save/remove, and refreshing catalog availability after provider changes through `createProviderHandlers`.
-- [ ] **Step 2: Run** `node --test apps/desktop/test/provider-settings.test.cjs`; confirm it fails because provider IPC/service is missing.
-- [ ] **Step 3: Implement** the smallest shared main-process service and IPC handlers using `loadAuth`, `saveAuth`, `listCatalog`, and existing model usability checks.
-- [ ] **Step 4: Implement** a compact Voxiva settings dialog with provider URLs, masked connection status, add/replace/remove actions, accessible labels, validation errors, and working close/back behavior.
-- [ ] **Step 6: Run** `node --test apps/desktop/test/provider-settings.test.cjs` and the desktop stream tests.
-- [ ] **Step 7: Commit** the provider settings deliverable.
+- [x] **Step 1: Add failing tests** for unknown provider rejection, empty/oversized key rejection, masked listing, save/remove, and refreshing catalog availability after provider changes through `createProviderHandlers`.
+- [x] **Step 2: Run** `node --test apps/desktop/test/provider-settings.test.cjs`; confirm it fails because provider IPC/service is missing.
+- [x] **Step 3: Implement** the smallest shared main-process service and IPC handlers using `loadAuth`, `saveAuth`, `listCatalog`, and existing model usability checks.
+- [x] **Step 4: Implement** a compact Voxiva settings dialog with provider URLs, masked connection status, add/replace/remove actions, accessible labels, validation errors, and working close/back behavior.
+- [x] **Step 6: Run** `node --test apps/desktop/test/provider-settings.test.cjs` and the desktop stream tests.
+- [x] **Step 7: Commit** the provider settings deliverable.
 
 ### Task 2: Persisted chat sessions and project history
 
@@ -60,7 +60,7 @@
 - Modify: `apps/desktop/main.cjs` (session/workspace handlers and chat lifecycle)
 - Modify: `apps/desktop/preload.cjs` (session/workspace bridge)
 - Modify: `apps/desktop/index.html` (session list and project picker affordances)
-- Modify: `apps/desktop/renderer.js` (restore, create, switch, and rename session interactions)
+- Modify: `apps/desktop/renderer.js` (restore, create, and switch session interactions)
 - Modify: `apps/desktop/styles.css` (session rows and empty states)
 - Create: `apps/desktop/session-service.cjs` (project-scoped session persistence contract)
 - Test: `apps/desktop/test/session-lifecycle.test.cjs`
@@ -73,12 +73,12 @@
 - `chat:new` creates a new session ID; completed turns are saved through `saveSession` with cwd/model/plan/messages.
 - Streaming/incomplete turns are not persisted as completed assistant replies; switching projects aborts the active request before restoration.
 
-- [ ] **Step 1: Add failing tests** for session creation, completed-turn persistence, session restore, cwd filtering, and safe rejection of malformed/missing IDs.
-- [ ] **Step 2: Run** `node --test apps/desktop/test/session-lifecycle.test.cjs`; confirm missing persistence behavior.
-- [ ] **Step 3: Implement** handlers with shared `sessions/store.ts` and `workspaces/store.ts`, preserving the current user data format and limits.
-- [ ] **Step 4: Implement** the sidebar session/project lists and connect every row/button to the matching handler; show empty, missing-project, and load-error states.
-- [ ] **Step 6: Run** session lifecycle and stream tests; verify selection survives renderer refresh and session content is restored in order.
-- [ ] **Step 7: Commit** the session/project history deliverable.
+- [x] **Step 1: Add failing tests** for session creation, completed-turn persistence, session restore, cwd filtering, and safe rejection of malformed/missing IDs.
+- [x] **Step 2: Run** `node --test apps/desktop/test/session-lifecycle.test.cjs`; confirm missing persistence behavior.
+- [x] **Step 3: Implement** handlers with shared `sessions/store.ts` and `workspaces/store.ts`, preserving the current user data format and limits.
+- [x] **Step 4: Implement** the sidebar session/project lists and connect every row/button to the matching handler; show empty, missing-project, and load-error states.
+- [x] **Step 6: Run** session lifecycle and stream tests; verify selection survives renderer refresh and session content is restored in order.
+- [x] **Step 7: Commit** the session/project history deliverable.
 
 ### Task 3: Shared preferences, command actions, and diagnostics
 
@@ -96,12 +96,12 @@
 - Frequent slash equivalents (`new`, `models`, `plans`, `connect`, `sessions`, `workspaces`, `doctor`, `update`) are available through visible controls or a searchable command palette.
 - Advanced TUI-only commands continue to work through the embedded terminal.
 
-- [ ] **Step 1: Add failing tests** for persisted `auto`/dark/light theme choice, supported locale validation, safe doctor output, and exact command-palette dispatch results.
-- [ ] **Step 2: Run** `node --test apps/desktop/test/app-actions.test.cjs`; confirm unsupported or missing actions fail.
-- [ ] **Step 3: Implement** preference and diagnostic IPC using existing config/provider/update helpers; do not duplicate business logic.
-- [ ] **Step 4: Implement** renderer controls and command palette; replace decorative or toast-only controls with their real action or a disabled state with explanation.
-- [ ] **Step 5: Run** action, provider, and session tests plus desktop stream tests.
-- [ ] **Step 6: Commit** the shared settings and diagnostics deliverable.
+- [x] **Step 1: Add failing tests** for persisted `auto`/dark/light theme choice, supported locale validation, safe doctor output, and exact command-palette dispatch results.
+- [x] **Step 2: Run** `node --test apps/desktop/test/app-actions.test.cjs`; confirm unsupported or missing actions fail.
+- [x] **Step 3: Implement** preference and diagnostic IPC using existing config/provider/update helpers; do not duplicate business logic.
+- [x] **Step 4: Implement** renderer controls and command palette; replace decorative or toast-only controls with their real action or a disabled state with explanation.
+- [x] **Step 5: Run** action, provider, and session tests plus desktop stream tests.
+- [x] **Step 6: Commit** the shared settings and diagnostics deliverable.
 
 ### Task 4: Desktop release updates
 
@@ -119,16 +119,16 @@
 **Interfaces:**
 - `update:check` returns `{ current, latest, available, assets, supportedAction }` from validated GitHub release metadata.
 - `update:download` runs only after user confirmation and reports bounded progress without blocking chat.
-- `update:restart` is enabled only after a completed supported installation; unsupported installs open the matching GitHub release page.
+- `update:open` is enabled only after a completed download; unsupported installs open the matching GitHub release page. The downloaded installer is opened only after a second user action.
 - A version tag builds all existing OS/architecture targets, publishes installers and update metadata to one GitHub Release, and fails if an expected asset is absent.
 
-- [ ] **Step 1: Add failing tests** for version comparison, malformed/no-network release responses, platform/architecture asset choice, cancellation, and the macOS manual-install fallback.
-- [ ] **Step 2: Run** `node --test apps/desktop/test/update-flow.test.cjs`; confirm the update service is missing.
-- [ ] **Step 3: Implement** the minimal release client and platform update adapter, reusing Electron updater support only where automatic installation is supported by the current packaging/signing setup.
-- [ ] **Step 4: Implement** the centered branded update dialog and ensure checks are low-frequency, cancellable, and never auto-install without confirmation.
-- [ ] **Step 6: Change** the workflow to publish only on version tags while retaining the existing CI artifact workflow; validate release asset names match the selector.
-- [ ] **Step 7: Run** updater tests, desktop packaging smoke tests, the desktop test suite, and the CLI test suite.
-- [ ] **Step 8: Commit** the update flow and release-pipeline deliverable.
+- [x] **Step 1: Add failing tests** for version comparison, malformed/no-network release responses, platform/architecture asset choice, cancellation, and the macOS manual-install fallback.
+- [x] **Step 2: Run** `node --test apps/desktop/test/update-flow.test.cjs`; confirm the update service is missing.
+- [x] **Step 3: Implement** the minimal release client and platform update adapter, reusing Electron updater support only where automatic installation is supported by the current packaging/signing setup.
+- [x] **Step 4: Implement** the centered branded update dialog and ensure checks are low-frequency, cancellable, and never auto-install without confirmation.
+- [x] **Step 6: Change** the workflow to publish only on version tags while retaining the existing CI artifact workflow; validate release asset names match the selector.
+- [x] **Step 7: Run** updater tests, desktop packaging smoke tests, the desktop test suite, and the CLI test suite.
+- [x] **Step 8: Commit** the update flow and release-pipeline deliverable.
 
 ### Task 5: End-to-end desktop verification and documentation
 
@@ -137,8 +137,8 @@
 - Modify: `apps/desktop/README.md`
 - Modify: `README.md` and `README.ru.md` only where desktop feature/setup details are outdated
 
-- [ ] **Step 1: Add failing packaged smoke assertions** for settings/session/update resources and bridge exposure.
-- [ ] **Step 2: Run** the packaged smoke test and confirm it detects any missing packaged resource.
-- [ ] **Step 3: Fix** packaging declarations and document provider setup, sessions, update prompt, restart requirements, and full CLI access through the terminal.
-- [ ] **Step 4: Run** `npm test`, desktop tests, `npm run desktop:prepare`, `npm run dist:dir --prefix apps/desktop`, and `npm run smoke:packaged --prefix apps/desktop`.
-- [ ] **Step 5: Commit** final verification and documentation.
+- [x] **Step 1: Add failing packaged smoke assertions** for settings/session/update resources and bridge exposure.
+- [x] **Step 2: Run** the packaged smoke test and confirm it detects any missing packaged resource.
+- [x] **Step 3: Fix** packaging declarations and document provider setup, sessions, update prompt, restart requirements, and full CLI access through the terminal.
+- [x] **Step 4: Run** `npm test`, desktop tests, `npm run desktop:prepare`, `npm run dist:dir --prefix apps/desktop`, and `npm run smoke:packaged --prefix apps/desktop`.
+- [x] **Step 5: Commit** final verification and documentation.

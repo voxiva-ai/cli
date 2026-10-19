@@ -59,7 +59,7 @@ voxiva doctor
 
 ## Desktop app
 
-Voxiva CLI also runs in a desktop window on Windows, macOS, and Linux. The desktop app opens with a centered chat, model and plan selectors, and reviewable file changes; the Terminal view keeps the full CLI TUI and its commands available. Both views share Voxiva's provider settings. Download a system installer from [GitHub Actions](https://github.com/voxiva-ai/cli/actions/workflows/desktop.yml) after a successful build. Swift and a separate Node.js installation are not required to run a packaged app.
+Voxiva CLI also runs in a desktop window on Windows, macOS, and Linux. The app includes a centered chat, model/provider settings, saved sessions, recent projects, shared theme and reply-language preferences, and reviewable file changes. The embedded Terminal keeps the full CLI TUI and its commands available. New desktop releases are offered in the app and published with installers on [GitHub Releases](https://github.com/voxiva-ai/cli/releases). Packaged apps include Node.js and do not require Swift or a system Node.js installation; see [desktop setup and update details](apps/desktop/README.md).
 
 ## Quick start
 
