@@ -24,6 +24,8 @@ let currentAssistant;
 let currentTheme = "auto";
 let currentUpdate;
 let updateDownloaded = false;
+let availableModels = [];
+let selectedModelRef = "";
 
 if (localStorage.getItem("voxiva-sidebar") === "expanded") document.body.classList.add("sidebar-open");
 
@@ -379,20 +381,10 @@ async function loadState() {
     const localeSelect = $("locale-select");
     if (!localeSelect.options.length) for (const locale of options.locales) localeSelect.add(new Option(locale.native || locale.label, locale.id));
     localeSelect.value = preferences.locale;
-    const models = $("model-select");
-    models.replaceChildren();
-    for (const model of state.models) {
-      const option = document.createElement("option");
-      option.value = model.ref;
-      option.textContent = model.label;
-      models.append(option);
-    }
-    if (state.models.some((model) => model.ref === state.model)) models.value = state.model;
-    else if (state.models[0]) {
-      models.value = state.models[0].ref;
-      await window.voxiva.setModel(models.value);
-    }
-    $("model-caption").textContent = models.selectedOptions[0]?.textContent ?? "Connect a model";
+    availableModels = state.models;
+    selectedModelRef = state.models.some((model) => model.ref === state.model) ? state.model : state.models[0]?.ref ?? "";
+    if (selectedModelRef && selectedModelRef !== state.model) await window.voxiva.setModel(selectedModelRef);
+    renderModelPicker();
     renderProviders(state.providers ?? []);
     const plan = $("plan-select");
     plan.replaceChildren();
@@ -404,12 +396,102 @@ async function loadState() {
     }
     plan.value = state.plan;
     $("plan-chip-label").textContent = state.plans.find((item) => item.id === state.plan)?.label ?? "Build";
-    $("status-meta").textContent = `${$("plan-chip-label").textContent} · ${models.selectedOptions[0]?.textContent ?? "Voxiva"}`;
+    $("status-meta").textContent = `${$("plan-chip-label").textContent} · ${availableModels.find((model) => model.ref === selectedModelRef)?.label ?? "Voxiva"}`;
   } catch (error) {
     $("model-caption").textContent = "Model settings unavailable";
     $("status-text").textContent = "Startup error";
     toast(error instanceof Error ? error.message : String(error));
   }
+}
+
+const modelProviderLabels = { voxiva: "Voxiva · Free", opencode: "OpenCode Zen", openai: "OpenAI", anthropic: "Anthropic", google: "Google AI", deepseek: "DeepSeek", groq: "Groq", openrouter: "OpenRouter" };
+function modelProvider(ref) { return ref.split("/")[0] || "Other"; }
+function renderModelPicker() {
+  const selected = availableModels.find((model) => model.ref === selectedModelRef);
+  $("model-trigger-label").textContent = selected?.label ?? "Подключите модель";
+  $("model-trigger").disabled = availableModels.length === 0;
+  $("model-caption").textContent = selected?.label ?? "Connect a model";
+  const query = $("model-search").value.trim().toLocaleLowerCase();
+  const filtered = availableModels.filter((model) => `${model.label} ${model.ref} ${modelProvider(model.ref)}`.toLocaleLowerCase().includes(query));
+  const options = $("model-options");
+  options.replaceChildren();
+  const groups = new Map();
+  for (const model of filtered) {
+    const provider = modelProvider(model.ref);
+    if (!groups.has(provider)) groups.set(provider, []);
+    groups.get(provider).push(model);
+  }
+  for (const [provider, models] of groups) {
+    const group = document.createElement("section");
+    group.className = "model-group";
+    const heading = document.createElement("div");
+    heading.className = "model-group-heading";
+    heading.textContent = modelProviderLabels[provider] ?? provider;
+    group.append(heading);
+    for (const model of models) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "model-option" + (model.ref === selectedModelRef ? " selected" : "");
+      button.setAttribute("role", "option");
+      button.setAttribute("aria-selected", String(model.ref === selectedModelRef));
+      const label = document.createElement("span");
+      label.className = "model-option-name";
+      label.textContent = model.label;
+      button.append(label);
+      if (provider === "voxiva") {
+        const free = document.createElement("small");
+        free.className = "model-free-badge";
+        free.textContent = "Бесплатно";
+        button.append(free);
+      }
+      if (model.ref === selectedModelRef) {
+        const check = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        check.setAttribute("viewBox", "0 0 16 16");
+        check.setAttribute("aria-hidden", "true");
+        check.innerHTML = "<path d=\"m3 8 3.2 3.2L13 4.8\"/>";
+        button.append(check);
+      }
+      button.addEventListener("click", () => chooseModel(model.ref));
+      group.append(button);
+    }
+    options.append(group);
+  }
+  if (!filtered.length) {
+    const empty = document.createElement("div");
+    empty.className = "model-empty";
+    empty.textContent = availableModels.length ? "Модели не найдены" : "Подключите провайдера в настройках";
+    options.append(empty);
+  }
+}
+
+function positionModelMenu() {
+  const menu = $("model-menu");
+  const trigger = $("model-trigger").getBoundingClientRect();
+  const margin = 10;
+  const gap = 6;
+  const width = Math.min(286, innerWidth - margin * 2);
+  menu.style.width = `${width}px`;
+  menu.style.height = "auto";
+  menu.style.maxHeight = "none";
+  const naturalHeight = Math.min(340, menu.getBoundingClientRect().height);
+  const below = Math.max(0, innerHeight - trigger.bottom - gap - margin);
+  const above = Math.max(0, trigger.top - gap - margin);
+  const openAbove = below < naturalHeight && above > below;
+  const height = Math.min(naturalHeight, openAbove ? above : below);
+  menu.style.left = `${Math.max(margin, Math.min(trigger.left, innerWidth - width - margin))}px`;
+  menu.style.maxHeight = `${height}px`;
+  menu.style.top = `${openAbove ? trigger.top - gap - height : trigger.bottom + gap}px`;
+}
+
+async function chooseModel(ref) {
+  try {
+    await window.voxiva.setModel(ref);
+    selectedModelRef = ref;
+    renderModelPicker();
+    $("model-menu").hidePopover();
+    $("model-trigger").focus();
+    $("status-meta").textContent = `${$("plan-chip-label").textContent} · ${availableModels.find((model) => model.ref === ref)?.label ?? "Voxiva"}`;
+  } catch (error) { toast(error instanceof Error ? error.message : String(error)); await loadState(); }
 }
 
 function renderProviders(providers) {
@@ -664,16 +746,39 @@ $("plan-select").addEventListener("change", async (event) => {
   try {
     await window.voxiva.setPlan(event.currentTarget.value);
     $("plan-chip-label").textContent = event.currentTarget.selectedOptions[0]?.textContent.split(" · ")[0] ?? "Build";
-    $("status-meta").textContent = $("plan-chip-label").textContent + " · " + ($("model-select").selectedOptions[0]?.textContent ?? "Voxiva");
+    $("status-meta").textContent = `${$("plan-chip-label").textContent} · ${availableModels.find((model) => model.ref === selectedModelRef)?.label ?? "Voxiva"}`;
   } catch (error) { toast(error instanceof Error ? error.message : String(error)); await loadState(); }
 });
-$("model-select").addEventListener("change", async (event) => {
-  try {
-    await window.voxiva.setModel(event.currentTarget.value);
-    $("model-caption").textContent = event.currentTarget.selectedOptions[0]?.textContent ?? "";
-    $("status-meta").textContent = `${$("plan-chip-label").textContent} · ${event.currentTarget.selectedOptions[0]?.textContent ?? "Voxiva"}`;
-  } catch (error) { toast(error instanceof Error ? error.message : String(error)); await loadState(); }
+$("model-trigger").addEventListener("click", () => {
+  const menu = $("model-menu");
+  if (menu.matches(":popover-open")) { menu.hidePopover(); return; }
+  renderModelPicker();
+  menu.showPopover();
+  positionModelMenu();
+  $("model-search").focus();
 });
+$("model-search").addEventListener("input", () => { renderModelPicker(); positionModelMenu(); });
+$("model-menu").addEventListener("toggle", (event) => {
+  const open = event.newState === "open";
+  $("model-trigger").setAttribute("aria-expanded", String(open));
+  if (!open) { $("model-search").value = ""; renderModelPicker(); }
+});
+$("model-menu").addEventListener("keydown", (event) => {
+  if (event.key === "Escape") { event.preventDefault(); $("model-menu").hidePopover(); $("model-trigger").focus(); }
+  if (event.target === $("model-search") && event.key === "ArrowDown") { event.preventDefault(); $("model-options").querySelector(".model-option")?.focus(); }
+  if (event.target.matches(".model-option") && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+    event.preventDefault();
+    const options = [...$("model-options").querySelectorAll(".model-option")];
+    const index = options.indexOf(event.target);
+    options[(index + (event.key === "ArrowDown" ? 1 : options.length - 1)) % options.length]?.focus();
+  }
+});
+$("model-manage").addEventListener("click", async () => {
+  $("model-menu").hidePopover();
+  await loadState();
+  $("settings-dialog").showModal();
+});
+window.addEventListener("resize", () => { if ($("model-menu").matches(":popover-open")) positionModelMenu(); });
 document.querySelectorAll(".suggestion").forEach((button) => button.addEventListener("click", async () => {
   if (!currentProject) {
     $("prompt").value = button.dataset.prompt ?? "";
