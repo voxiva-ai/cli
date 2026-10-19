@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:;" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voxiva CLI</title>
+    <link rel="stylesheet" href="./node_modules/@xterm/xterm/css/xterm.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="identity">
+        <img id="logo" alt="" />
+        <span>Voxiva <b>CLI</b></span>
+      </div>
+      <div class="project" id="project-path">No project selected</div>
+      <div class="toolbar">
+        <button id="open-project" class="button subtle">Open folder</button>
+        <button id="restart" class="button primary" disabled>New session</button>
+      </div>
+    </header>
+
+    <main id="stage">
+      <section id="welcome" class="welcome">
+        <img class="welcome-mark" src="" alt="" id="welcome-logo" />
+        <p class="eyebrow">YOUR PROJECT, YOUR MODEL</p>
+        <h1>Build with Voxiva</h1>
+        <p class="intro">Open a project folder to start a private coding session in your terminal.</p>
+        <button id="welcome-open" class="button primary large">Choose project folder <span>↗</span></button>
+        <div class="welcome-note"><span class="dot"></span> Your provider keys stay on this device</div>
+      </section>
+      <section id="terminal-shell" class="terminal-shell" hidden>
+        <div class="terminal-head">
+          <div class="terminal-label"><span class="live-dot"></span><span>SESSION</span></div>
+          <span class="terminal-hint">Voxiva agent</span>
+        </div>
+        <div id="terminal"></div>
+      </section>
+    </main>
+
+    <footer class="statusbar">
+      <span class="status-left"><span class="status-dot" id="status-dot"></span><span id="status-text">Ready</span></span>
+      <span class="status-right"><kbd>Esc</kbd> stop response <span class="sep">·</span> <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>C</kbd> copy</span>
+    </footer>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="renderer.js"></script>
+  </body>
+</html>

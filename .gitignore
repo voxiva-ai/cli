@@ -1,4 +1,7 @@
 node_modules/
+**/release/
+apps/desktop/build/
+apps/desktop/vendor/*.tgz
 *.log
 .DS_Store
 .env

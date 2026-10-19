@@ -1,0 +1,57 @@
+name: Desktop builds
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "src/**"
+      - "scripts/build.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/desktop.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win nsis --x64
+          - os: windows-11-arm
+            target: --win nsis --arm64
+          - os: macos-15-intel
+            target: --mac dmg --x64
+          - os: macos-latest
+            target: --mac dmg --arm64
+          - os: ubuntu-latest
+            target: --linux AppImage deb --x64
+          - os: ubuntu-24.04-arm
+            target: --linux AppImage deb --arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/desktop/package-lock.json
+      - run: npm ci
+      - run: npm run desktop:prepare
+      - run: npm ci --prefix apps/desktop
+      - run: npm run smoke:pty --prefix apps/desktop
+      - run: npm run dist --prefix apps/desktop -- ${{ matrix.target }}
+      - run: npm run smoke:packaged --prefix apps/desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voxiva-cli-${{ matrix.os }}
+          path: apps/desktop/release/*
+          if-no-files-found: error
+          retention-days: 90

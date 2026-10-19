@@ -32,6 +32,10 @@ irm https://raw.githubusercontent.com/voxiva-ai/cli/main/install.ps1 | iex
 voxiva doctor
 ```
 
+## Приложение для рабочего стола
+
+Voxiva CLI также запускается в отдельном окне на Windows, macOS и Linux. В приложении используется тот же терминальный интерфейс и тот же агент. Установщики собираются отдельно для каждой системы в [GitHub Actions](https://github.com/voxiva-ai/cli/actions/workflows/desktop.yml). Приложение включает Electron и Node.js; Swift и отдельная установка Node.js для запуска не нужны.
+
 Установщик при необходимости поставит Node.js и установит Voxiva в профиль пользователя. Если GitHub работает медленно, используйте [установщик через jsDelivr](https://cdn.jsdelivr.net/gh/voxiva-ai/cli@main/install) или скачайте [архив исходного кода](https://github.com/voxiva-ai/cli/archive/refs/heads/main.zip).
 
 ## Быстрый старт

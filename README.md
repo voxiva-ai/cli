@@ -57,6 +57,10 @@ Open a new terminal and verify the installation:
 voxiva doctor
 ```
 
+## Desktop app
+
+Voxiva CLI also runs in a desktop window on Windows, macOS, and Linux. The app embeds the terminal interface, so its commands and agent behavior stay in sync with the CLI. Download the installer for your system from [GitHub Actions](https://github.com/voxiva-ai/cli/actions/workflows/desktop.yml) after a successful build. Swift and a separate Node.js installation are not required to run a packaged app.
+
 ## Quick start
 
 Move to a project directory and launch the chat:

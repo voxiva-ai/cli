@@ -1,0 +1,74 @@
+{
+  "name": "voxiva-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cross-platform desktop shell for Voxiva CLI",
+  "author": "Voxiva AI",
+  "license": "MIT",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "smoke:pty": "electron test/fixture",
+    "smoke:packaged": "node test/packaged-smoke.cjs",
+    "icons": "node scripts/build-icons.mjs",
+    "dist": "npm run icons && electron-builder",
+    "dist:dir": "npm run icons && electron-builder --dir"
+  },
+  "dependencies": {
+    "@voxiva/cli": "file:vendor/voxiva-cli.tgz",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "node": "24.22.0",
+    "node-pty": "^1.1.0"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0",
+    "electron-builder": "26.15.3",
+    "png2icons": "^2.0.1",
+    "sharp": "^0.35.5"
+  },
+  "build": {
+    "appId": "ai.voxiva.cli.desktop",
+    "productName": "Voxiva CLI",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "index.html",
+      "renderer.js",
+      "styles.css",
+      "node_modules/**"
+    ],
+    "asarUnpack": [
+      "node_modules/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../../brand/voxiva-mark.svg",
+        "to": "voxiva-mark.svg"
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools"
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": "nsis"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "build/icon.png",
+      "category": "Development"
+    },
+    "npmRebuild": false,
+    "artifactName": "${productName}-${version}-${platform}-${arch}.${ext}"
+  }
+}
