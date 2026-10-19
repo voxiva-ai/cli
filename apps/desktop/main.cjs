@@ -247,7 +247,7 @@ ipcMain.on("terminal:resize", (_event, cols, rows) => {
 });
 
 app.whenReady().then(() => {
-  Menu.setApplicationMenu(null);
+  if (process.platform === "win32") Menu.setApplicationMenu(null);
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
