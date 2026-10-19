@@ -29,5 +29,5 @@ await Promise.all([
   writeFile(resolve(outputDir, "icon.png"), png),
   writeFile(resolve(outputDir, "icon.ico"), ico),
   writeFile(resolve(outputDir, "icon.icns"), icns),
-  writeFile(resolve(here, "../assets/voxiva-cli-mark.png"), png),
+  writeFile(resolve(here, "../assets/voxiva-cli-mark.png"), logo),
 ]);
