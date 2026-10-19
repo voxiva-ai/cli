@@ -1,3 +1,5 @@
+<p align="center"><img src="brand/voxiva-mark.svg" alt="Voxiva" width="96" /></p>
+
 <h1 align="center">Voxiva CLI</h1>
 
 <p align="center">

@@ -1,3 +1,5 @@
+<p align="center"><img src="brand/voxiva-mark.svg" alt="Voxiva" width="96" /></p>
+
 <p align="center">
   <b>Voxiva CLI</b><br/>
   终端编程助手 · 免费模型 · 文件修改需确认
