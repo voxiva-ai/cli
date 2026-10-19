@@ -15,6 +15,8 @@
       <button class="nav-item" id="nav-terminal"><span class="nav-glyph terminal-glyph">&gt;_</span><span>Terminal</span><kbd>Ctrl J</kbd></button>
       <div class="side-section"><span>PROJECT</span><button class="icon-button" id="open-project" title="Open project" aria-label="Open project">+</button></div>
       <button class="workspace" id="workspace-button"><span class="workspace-copy"><b id="workspace-name">Choose a project</b><small id="workspace-path">Open a folder to begin</small></span><span class="chevron">⌄</span></button>
+      <div class="side-section session-label"><span>SESSIONS</span><button class="icon-button" id="new-session-button" title="New session" aria-label="New session">+</button></div>
+      <div class="session-list" id="session-list"><div class="empty-session">Your recent chats will appear here</div></div>
       <div class="sidebar-bottom"><button class="profile" id="settings-button"><span><b>voxiva</b><small id="model-caption">Loading model…</small></span><span class="chevron">···</span></button></div>
     </aside>
 
@@ -51,6 +53,14 @@
       </section>
       <footer class="statusbar"><span id="status-text">Ready</span><span id="status-meta">Build · Voxiva</span></footer>
     </main>
+    <dialog class="settings-dialog workspace-dialog" id="workspace-dialog" aria-labelledby="workspace-title">
+      <header class="settings-header">
+        <div><span class="settings-kicker">VOXIVA</span><h2 id="workspace-title">Recent projects</h2></div>
+        <button class="icon-button" id="workspace-close" type="button" aria-label="Close projects" title="Close">×</button>
+      </header>
+      <div class="workspace-list" id="workspace-list" aria-live="polite"></div>
+      <footer class="settings-footer"><button class="button" id="workspace-add" type="button">Open folder…</button><button class="button" id="workspace-done" type="button">Done</button></footer>
+    </dialog>
     <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
       <header class="settings-header">
         <div><span class="settings-kicker">VOXIVA</span><h2 id="settings-title">Models & providers</h2></div>

@@ -62,20 +62,21 @@
 - Modify: `apps/desktop/index.html` (session list and project picker affordances)
 - Modify: `apps/desktop/renderer.js` (restore, create, switch, and rename session interactions)
 - Modify: `apps/desktop/styles.css` (session rows and empty states)
+- Create: `apps/desktop/session-service.cjs` (project-scoped session persistence contract)
 - Test: `apps/desktop/test/session-lifecycle.test.cjs`
 
 **Interfaces:**
 - `workspace:list` returns only existing paths and labels using `listWorkspaces`.
 - `session:list` returns safe summaries from `listSessionsForCwd(cwd)`.
 - `session:open` validates the ID and returns a bounded record from `getSession(id)`.
+- `createSessionHandlers({ sessions, getCurrentProject })` owns project-scoped list/open/save; lists omit message bodies and saves keep the latest 40 user/assistant messages.
 - `chat:new` creates a new session ID; completed turns are saved through `saveSession` with cwd/model/plan/messages.
 - Streaming/incomplete turns are not persisted as completed assistant replies; switching projects aborts the active request before restoration.
 
 - [ ] **Step 1: Add failing tests** for session creation, completed-turn persistence, session restore, cwd filtering, and safe rejection of malformed/missing IDs.
 - [ ] **Step 2: Run** `node --test apps/desktop/test/session-lifecycle.test.cjs`; confirm missing persistence behavior.
 - [ ] **Step 3: Implement** handlers with shared `sessions/store.ts` and `workspaces/store.ts`, preserving the current user data format and limits.
-- [ ] **Step 4: Add failing UI contract tests** for starting a new session, selecting a prior session, and switching between recent projects.
-- [ ] **Step 5: Implement** the sidebar session/project lists and connect every row/button to the matching handler; show empty, missing-project, and load-error states.
+- [ ] **Step 4: Implement** the sidebar session/project lists and connect every row/button to the matching handler; show empty, missing-project, and load-error states.
 - [ ] **Step 6: Run** session lifecycle and stream tests; verify selection survives renderer refresh and session content is restored in order.
 - [ ] **Step 7: Commit** the session/project history deliverable.
 

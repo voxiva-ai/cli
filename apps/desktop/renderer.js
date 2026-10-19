@@ -15,7 +15,10 @@ const terminal = new Terminal({
 const fit = new FitAddon();
 terminal.loadAddon(fit);
 let currentProject = null;
+let currentSessionId = null;
+let currentSessionTitle = "New session";
 let running = false;
+let activeSendPromise;
 let terminalStarted = false;
 let toastTimer;
 let currentAssistant;
@@ -59,17 +62,128 @@ function setProject(cwd) {
   }).catch(() => { $("branch-chip").hidden = true; });
 }
 
+function clearMessages() {
+  $("messages").replaceChildren();
+  currentAssistant = undefined;
+  $("welcome").hidden = false;
+  $("welcome").classList.toggle("has-project", Boolean(currentProject));
+}
+
+async function loadSessions() {
+  const list = $("session-list");
+  const sessions = await window.voxiva.sessions();
+  list.replaceChildren();
+  if (!sessions.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-session";
+    empty.textContent = currentProject ? "Your recent chats will appear here" : "Open a project to start a session";
+    list.append(empty);
+    return;
+  }
+  for (const session of sessions) {
+    const button = document.createElement("button");
+    button.className = "session-entry" + (session.id === currentSessionId ? " active" : "");
+    button.type = "button";
+    button.title = session.title;
+    button.textContent = session.title || "Untitled session";
+    button.addEventListener("click", () => openSession(session.id));
+    list.append(button);
+  }
+}
+
+async function openSession(id) {
+  try {
+    await stopCurrentResponse();
+    const session = await window.voxiva.openSession(id);
+    currentSessionId = session.id;
+    currentSessionTitle = session.title || "Session";
+    clearMessages();
+    for (const message of session.messages) addMessage(message.role, message.content);
+    $("welcome").hidden = session.messages.length > 0;
+    $("view-title").textContent = currentSessionTitle;
+    await loadState();
+    await loadSessions();
+    switchView("chat");
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function loadWorkspaces() {
+  const list = $("workspace-list");
+  const workspaces = await window.voxiva.workspaces();
+  list.replaceChildren();
+  if (!workspaces.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-session";
+    empty.textContent = "Choose a folder to add your first project";
+    list.append(empty);
+    return;
+  }
+  for (const workspace of workspaces) {
+    const button = document.createElement("button");
+    button.className = "workspace-entry" + (workspace.path === currentProject ? " active" : "");
+    button.type = "button";
+    button.title = workspace.path;
+    const name = document.createElement("b");
+    name.textContent = workspace.title;
+    const folder = document.createElement("small");
+    folder.textContent = workspace.path;
+    button.append(name, folder);
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await stopCurrentResponse();
+        const lastSession = await window.voxiva.lastSession(workspace.path);
+        const cwd = await window.voxiva.activateWorkspace(workspace.path);
+        const changed = currentProject !== cwd;
+        if (changed) {
+          currentSessionId = await window.voxiva.newChat();
+          currentSessionTitle = "New session";
+          clearMessages();
+          terminalStarted = false;
+        }
+        setProject(cwd);
+        $("view-title").textContent = currentSessionTitle;
+        $("workspace-dialog").close();
+        await loadSessions();
+        if (lastSession) await openSession(lastSession);
+        else if (changed) { currentSessionTitle = "New session"; }
+      } catch (error) {
+        toast(error instanceof Error ? error.message : String(error));
+        button.disabled = false;
+      }
+    });
+    list.append(button);
+  }
+}
+
+async function openWorkspacePicker() {
+  try {
+    await loadWorkspaces();
+    $("workspace-dialog").showModal();
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+  }
+}
+
 async function chooseProject() {
   try {
     const cwd = await window.voxiva.chooseProject();
     if (!cwd) return;
-    if (currentProject && currentProject !== cwd) {
-      await window.voxiva.newChat();
-      $("messages").replaceChildren();
-      $("welcome").hidden = false;
+    const changed = currentProject && currentProject !== cwd;
+    if (changed) await stopCurrentResponse();
+    const lastSession = changed ? await window.voxiva.lastSession(cwd) : null;
+    if (changed) {
+      currentSessionId = await window.voxiva.newChat();
+      currentSessionTitle = "New session";
+      clearMessages();
       terminalStarted = false;
     }
     setProject(cwd);
+    $("view-title").textContent = currentSessionTitle;
+    await loadSessions();
+    if (lastSession) await openSession(lastSession);
     if (!$("terminal-view").hidden) startTerminal();
     $("prompt").focus();
     setStatus("Project ready");
@@ -84,7 +198,7 @@ function switchView(view) {
   $("terminal-view").hidden = !terminalView;
   $("nav-chat").classList.toggle("active", !terminalView);
   $("nav-terminal").classList.toggle("active", terminalView);
-  $("view-title").textContent = terminalView ? "Terminal" : "New session";
+  $("view-title").textContent = terminalView ? "Terminal" : currentSessionTitle;
   if (terminalView) {
     if (!currentProject) { chooseProject(); return; }
     startTerminal();
@@ -198,6 +312,7 @@ async function sendPrompt(value) {
   const prompt = value.trim();
   if (!prompt || running) return;
   if (!currentProject) { toast("Choose a project folder first."); return; }
+  if (currentSessionTitle === "New session") currentSessionTitle = prompt.replace(/\s+/g, " ").slice(0, 72) || "Session";
   $("prompt").value = "";
   $("prompt").style.height = "auto";
   addMessage("user", prompt);
@@ -226,6 +341,22 @@ async function sendPrompt(value) {
     $("prompt").focus();
     setStatus("Ready");
   }
+}
+
+function runPrompt(value) {
+  const pending = sendPrompt(value);
+  activeSendPromise = pending;
+  pending.then(
+    () => { if (activeSendPromise === pending) activeSendPromise = undefined; },
+    () => { if (activeSendPromise === pending) activeSendPromise = undefined; },
+  );
+  return pending;
+}
+
+async function stopCurrentResponse() {
+  if (!running) return;
+  await window.voxiva.stopChat();
+  await activeSendPromise?.catch(() => {});
 }
 
 async function loadState() {
@@ -336,7 +467,7 @@ function renderProviders(providers) {
   }
 }
 
-$("composer-form").addEventListener("submit", (event) => { event.preventDefault(); sendPrompt($("prompt").value); });
+$("composer-form").addEventListener("submit", (event) => { event.preventDefault(); runPrompt($("prompt").value); });
 $("prompt").addEventListener("input", (event) => {
   const input = event.currentTarget;
   input.style.height = "auto";
@@ -348,7 +479,7 @@ $("prompt").addEventListener("keydown", (event) => {
   if (event.key === "Escape" && running) window.voxiva.stopChat();
 });
 $("stop-button").addEventListener("click", () => window.voxiva.stopChat());
-for (const id of ["open-project", "workspace-button", "composer-project", "terminal-open-project"]) $(id).addEventListener("click", chooseProject);
+for (const id of ["open-project", "composer-project", "terminal-open-project"]) $(id).addEventListener("click", chooseProject);
 $("attach-file").addEventListener("click", async () => {
   if (!currentProject) return chooseProject();
   try {
@@ -361,7 +492,7 @@ $("attach-file").addEventListener("click", async () => {
   } catch (error) { toast(error instanceof Error ? error.message : String(error)); }
 });
 for (const id of ["nav-terminal", "top-terminal"]) $(id).addEventListener("click", () => switchView("terminal"));
-$("nav-chat").addEventListener("click", () => startNewChat());
+$("nav-chat").addEventListener("click", () => startNewChat().catch((error) => toast(error.message)));
 $("terminal-new").addEventListener("click", () => { terminalStarted = false; startTerminal(); });
 $("sidebar-toggle").addEventListener("click", () => {
   const open = document.body.classList.toggle("sidebar-open");
@@ -375,12 +506,12 @@ $("theme-button").addEventListener("click", () => {
   localStorage.setItem("voxiva-theme", light ? "light" : "dark");
 });
 async function startNewChat() {
-  await window.voxiva.newChat();
-  $("messages").replaceChildren();
-  currentAssistant = undefined;
-  $("welcome").hidden = false;
-  $("welcome").classList.toggle("has-project", Boolean(currentProject));
-  $("view-title").textContent = "New chat";
+  await stopCurrentResponse();
+  currentSessionId = await window.voxiva.newChat();
+  currentSessionTitle = "New session";
+  clearMessages();
+  $("view-title").textContent = currentSessionTitle;
+  await loadSessions();
   switchView("chat");
 }
 $("settings-button").addEventListener("click", () => {
@@ -388,6 +519,11 @@ $("settings-button").addEventListener("click", () => {
 });
 $("settings-close").addEventListener("click", () => $("settings-dialog").close());
 $("settings-done").addEventListener("click", () => $("settings-dialog").close());
+$("workspace-button").addEventListener("click", openWorkspacePicker);
+$("workspace-close").addEventListener("click", () => $("workspace-dialog").close());
+$("workspace-done").addEventListener("click", () => $("workspace-dialog").close());
+$("workspace-add").addEventListener("click", () => { $("workspace-dialog").close(); chooseProject(); });
+$("new-session-button").addEventListener("click", () => startNewChat().catch((error) => toast(error.message)));
 $("plan-chip").addEventListener("click", () => $("plan-select").focus());
 $("plan-select").addEventListener("change", async (event) => {
   try {
@@ -409,14 +545,17 @@ document.querySelectorAll(".suggestion").forEach((button) => button.addEventList
     await chooseProject();
     return;
   }
-  sendPrompt(button.dataset.prompt ?? "");
+  runPrompt(button.dataset.prompt ?? "");
 }));
 
-window.voxiva.onReply(({ text }) => {
+window.voxiva.onReply(({ text, sessionId, title }) => {
   if (!currentAssistant) return;
   currentAssistant.content.textContent = text;
   currentAssistant.content.classList.remove("thinking");
-  $("view-title").textContent = "Session";
+  currentSessionId = sessionId ?? currentSessionId;
+  currentSessionTitle = title || currentSessionTitle;
+  $("view-title").textContent = currentSessionTitle;
+  loadSessions().catch((error) => toast(error.message));
 });
 window.voxiva.onChunk((chunk) => {
   if (!currentAssistant) return;
@@ -431,6 +570,8 @@ window.voxiva.onReset((message) => {
   currentAssistant.content.classList.add("thinking");
 });
 window.voxiva.onEdits((proposal) => renderProposal(proposal));
+window.voxiva.onSessionChanged(() => loadSessions().catch((error) => toast(error.message)));
+window.voxiva.onWarning((message) => toast(message));
 terminal.open($("terminal"));
 terminal.onData((data) => window.voxiva.write(data));
 terminal.onResize(({ cols, rows }) => window.voxiva.resize(cols, rows));
@@ -460,4 +601,9 @@ document.addEventListener("keydown", (event) => {
 
 await loadState();
 const initialProject = await window.voxiva.initialProject();
-if (initialProject) setProject(initialProject);
+if (initialProject) {
+  setProject(initialProject);
+  await loadSessions();
+  const lastSession = await window.voxiva.lastSession(initialProject);
+  if (lastSession) await openSession(lastSession);
+}

@@ -38,6 +38,7 @@
     "files": [
       "main.cjs",
       "provider-service.cjs",
+      "session-service.cjs",
       "output-filter.cjs",
       "preload.cjs",
       "assets/**",

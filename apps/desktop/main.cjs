@@ -6,11 +6,13 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { createOutputFilter } = require("./output-filter.cjs");
 const { createProviderHandlers } = require("./provider-service.cjs");
+const { createSessionHandlers } = require("./session-service.cjs");
 
 let window;
 let terminal;
 let activeRequest;
 let conversation = [];
+let activeSessionId;
 let pendingEdits = new Map();
 let corePromise;
 let providerHandlersPromise;
@@ -29,6 +31,24 @@ function saveProject(cwd) {
   fs.writeFileSync(settingsPath(), JSON.stringify({ lastProject: cwd }, null, 2));
 }
 
+function samePath(left, right) {
+  const normalize = (value) => {
+    const resolved = path.resolve(value);
+    return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  };
+  return normalize(left) === normalize(right);
+}
+
+function clearProjectState(nextCwd) {
+  const current = loadSettings().lastProject;
+  if (typeof current !== "string" || samePath(current, nextCwd)) return;
+  activeRequest?.abort();
+  stopTerminal();
+  conversation = [];
+  activeSessionId = undefined;
+  pendingEdits.clear();
+}
+
 function cliEntry() {
   return path.join(app.isPackaged ? path.join(process.resourcesPath, "app.asar.unpacked") : app.getAppPath(), "node_modules", "@voxiva", "cli", "dist", "index.js");
 }
@@ -44,7 +64,8 @@ function core() {
     corePromise = Promise.all([
       load("providers/chat.js"), load("config/store.js"), load("plans/index.js"),
       load("project/files.js"), load("project/edits.js"),
-    ]).then(([chat, config, plans, files, edits]) => ({ chat, config, plans, files, edits }));
+      load("sessions/store.js"), load("workspaces/store.js"),
+    ]).then(([chat, config, plans, files, edits, sessions, workspaces]) => ({ chat, config, plans, files, edits, sessions, workspaces }));
   }
   return corePromise;
 }
@@ -100,13 +121,56 @@ ipcMain.handle("project:choose", async () => {
   });
   if (result.canceled || !result.filePaths[0]) return null;
   const cwd = fs.realpathSync(result.filePaths[0]);
+  clearProjectState(cwd);
   saveProject(cwd);
+  const { config, workspaces } = await core();
+  await workspaces.touchWorkspace(cwd);
+  await config.patchConfig({ cwd });
   return cwd;
 });
 
-ipcMain.handle("project:initial", () => {
-  const cwd = loadSettings().lastProject;
-  return typeof cwd === "string" && fs.existsSync(cwd) ? cwd : null;
+ipcMain.handle("project:initial", async () => {
+  const { config, workspaces } = await core();
+  const saved = await config.loadConfig();
+  const recent = await workspaces.listWorkspaces();
+  const candidates = [loadSettings().lastProject, saved.cwd, recent[0]?.path];
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string" || !fs.existsSync(candidate)) continue;
+    try {
+      const cwd = fs.realpathSync(candidate);
+      if (!fs.statSync(cwd).isDirectory()) continue;
+      saveProject(cwd);
+      await workspaces.touchWorkspace(cwd);
+      await config.patchConfig({ cwd });
+      return cwd;
+    } catch {}
+  }
+  return null;
+});
+
+ipcMain.handle("workspace:list", async () => {
+  const { workspaces } = await core();
+  return (await workspaces.listWorkspaces()).map(({ path: folder, title, updatedAt }) => ({ path: folder, title, updatedAt }));
+});
+
+ipcMain.handle("workspace:last-session", async (_event, cwd) => {
+  if (typeof cwd !== "string") return null;
+  const { workspaces } = await core();
+  return (await workspaces.getWorkspace(cwd))?.lastSessionId ?? null;
+});
+
+ipcMain.handle("workspace:activate", async (_event, requestedPath) => {
+  if (typeof requestedPath !== "string") throw new Error("Choose a recent project.");
+  const { config, workspaces } = await core();
+  const selected = (await workspaces.listWorkspaces()).find((item) => samePath(item.path, requestedPath));
+  if (!selected) throw new Error("This project is no longer available. Choose a folder again.");
+  const cwd = fs.realpathSync(selected.path);
+  if (!fs.statSync(cwd).isDirectory()) throw new Error("The selected project path is not a folder.");
+  clearProjectState(cwd);
+  saveProject(cwd);
+  await workspaces.touchWorkspace(cwd);
+  await config.patchConfig({ cwd });
+  return cwd;
 });
 
 ipcMain.handle("project:branch", (_event, cwd) => {
@@ -163,6 +227,35 @@ ipcMain.handle("provider:state", async () => (await providerHandlers()).state())
 ipcMain.handle("provider:save", async (_event, input) => (await providerHandlers()).save(input));
 ipcMain.handle("provider:remove", async (_event, id) => (await providerHandlers()).remove(id));
 
+ipcMain.handle("session:list", async () => {
+  const { sessions } = await core();
+  return createSessionHandlers({ sessions, getCurrentProject: () => loadSettings().lastProject }).list();
+});
+
+ipcMain.handle("session:open", async (_event, id) => {
+  const { chat, config, plans, sessions, workspaces } = await core();
+  const handlers = createSessionHandlers({ sessions, getCurrentProject: () => loadSettings().lastProject });
+  const record = await handlers.open(id);
+  const auth = await config.loadAuth();
+  const modelAvailable = Boolean(record.model && chat.isUsableModelRef(record.model, auth));
+  if (modelAvailable) await config.rememberModel(record.model);
+  const plan = plans.PLANS.some((item) => item.id === record.plan) ? record.plan : undefined;
+  if (plan) await config.patchConfig({ plan });
+  const cwd = loadSettings().lastProject;
+  activeRequest?.abort();
+  activeSessionId = record.id;
+  conversation = record.messages;
+  pendingEdits.clear();
+  const saved = await config.loadConfig();
+  await config.patchConfig({ cwd, lastSessionId: record.id });
+  await workspaces.touchWorkspace(cwd, {
+    lastSessionId: record.id,
+    lastModel: modelAvailable ? record.model : saved.defaultModel,
+    lastPlan: plan ?? saved.plan,
+  });
+  return { ...record, modelAvailable };
+});
+
 ipcMain.handle("app:model", async (_event, ref) => {
   const { chat, config } = await core();
   const auth = await config.loadAuth();
@@ -181,8 +274,9 @@ ipcMain.handle("app:plan", async (_event, id) => {
 ipcMain.handle("chat:new", () => {
   activeRequest?.abort();
   conversation = [];
+  activeSessionId = require("node:crypto").randomUUID();
   pendingEdits.clear();
-  return true;
+  return activeSessionId;
 });
 
 ipcMain.handle("chat:send", async (event, prompt) => {
@@ -195,13 +289,17 @@ ipcMain.handle("chat:send", async (event, prompt) => {
   const auth = await config.loadAuth();
   const model = chat.migrateModelRef(saved.defaultModel) ?? chat.DEFAULT_FREE_MODEL;
   if (!chat.isUsableModelRef(model, auth)) throw new Error("The selected model is not available. Connect its provider in Settings.");
+  activeRequest?.abort();
   const controller = new AbortController();
   activeRequest = controller;
-  conversation.push({ role: "user", content: prompt.trim() });
+  const requestConversation = conversation;
+  const sessionId = activeSessionId ?? (activeSessionId = require("node:crypto").randomUUID());
+  requestConversation.push({ role: "user", content: prompt.trim() });
   const plan = saved.plan ?? "build";
-  const messages = [{ role: "system", content: await plans.planSystemAsync(plan, saved.locale ?? "en", cwd) }, ...conversation];
+  const messages = [{ role: "system", content: await plans.planSystemAsync(plan, saved.locale ?? "en", cwd) }, ...requestConversation];
   let reply = "";
   let readLimitReached = false;
+  let savedSession;
   try {
     for (let round = 0; round < 3; round++) {
       const outputFilter = createOutputFilter();
@@ -221,23 +319,38 @@ ipcMain.handle("chat:send", async (event, prompt) => {
       show(outputFilter.finish());
       break;
     }
-    if (controller.signal.aborted) return { stopped: true };
+    if (controller.signal.aborted) {
+      if (requestConversation.at(-1)?.role === "user" && requestConversation.at(-1)?.content === prompt.trim()) requestConversation.pop();
+      return { stopped: true };
+    }
     const blocks = edits.extractFileBlocks(reply);
     const text = files.stripReadBlocks(edits.stripFileBlocks(reply));
-    conversation.push({ role: "assistant", content: text });
-    if (conversation.length > 40) conversation = conversation.slice(-40);
+    requestConversation.push({ role: "assistant", content: text });
+    if (requestConversation.length > 40) requestConversation.splice(0, requestConversation.length - 40);
+    conversation = requestConversation;
+    try {
+      const sessionHandlers = createSessionHandlers({ sessions: (await core()).sessions, getCurrentProject: () => cwd });
+      savedSession = await sessionHandlers.save({ id: sessionId, plan, model, messages: requestConversation });
+      const { config, workspaces } = await core();
+      await config.patchConfig({ cwd, lastSessionId: sessionId });
+      await workspaces.touchWorkspace(cwd, { lastSessionId: sessionId, lastModel: model, lastPlan: plan });
+      if (!event.sender.isDestroyed()) event.sender.send("session:changed");
+    } catch {
+      send("chat:warning", "The reply arrived, but this session could not be saved.");
+    }
     let proposed = [];
     if (blocks.length && plans.getPlan(plan).allowEdits) {
       proposed = await edits.prepareEdits(cwd, blocks);
+      if (controller.signal.aborted) return { stopped: true };
       const id = require("node:crypto").randomUUID();
       pendingEdits.set(id, { cwd, proposed });
       send("chat:edits", { id, files: proposed.map(({ path, action, preview, exists }) => ({ path, action, preview, exists })) });
     }
-    send("chat:reply", { text: text || (readLimitReached ? "I couldn't finish reading the requested files. Try again with a narrower request." : "No response received."), files: proposed.map(({ path }) => path) });
+    send("chat:reply", { text: text || (readLimitReached ? "I couldn't finish reading the requested files. Try again with a narrower request." : "No response received."), files: proposed.map(({ path }) => path), sessionId, title: savedSession?.title });
     return { ok: true };
   } catch (error) {
     if (!controller.signal.aborted) {
-      if (conversation.at(-1)?.role === "user" && conversation.at(-1)?.content === prompt.trim()) conversation.pop();
+      if (requestConversation.at(-1)?.role === "user" && requestConversation.at(-1)?.content === prompt.trim()) requestConversation.pop();
       throw error;
     }
     return { stopped: true };
