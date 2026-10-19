@@ -1,9 +1,7 @@
-const { app, contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer } = require("electron");
 const { pathToFileURL } = require("node:url");
 
-const logoPath = app.isPackaged
-  ? `${process.resourcesPath}/voxiva-mark.svg`
-  : `${__dirname}/../../brand/voxiva-mark.svg`;
+const logoPath = `${__dirname}/assets/voxiva-mark.svg`;
 
 function subscribe(channel, callback) {
   const listener = (_event, value) => callback(value);

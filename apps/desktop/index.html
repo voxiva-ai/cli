@@ -10,19 +10,17 @@
   </head>
   <body>
     <aside class="sidebar">
-      <div class="brand"><img id="logo" alt="" /><span>voxiva</span><button class="icon-button sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar">≡</button></div>
-      <button class="nav-item active" id="nav-chat"><span class="nav-glyph">✳</span><span>New session</span><kbd>⌘ N</kbd></button>
-      <button class="nav-item" id="nav-terminal"><span class="nav-glyph terminal-glyph">&gt;_</span><span>Terminal</span><kbd>⌘ J</kbd></button>
-      <div class="side-section"><span>WORKSPACE</span><button class="icon-button" id="open-project" title="Open project">+</button></div>
+      <div class="brand"><img id="logo" alt="" /><span>voxiva</span><button class="icon-button sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">≡</button></div>
+      <button class="nav-item active" id="nav-chat"><span class="nav-glyph">✳</span><span>New chat</span><kbd>Ctrl N</kbd></button>
+      <button class="nav-item" id="nav-terminal"><span class="nav-glyph terminal-glyph">&gt;_</span><span>Terminal</span><kbd>Ctrl J</kbd></button>
+      <div class="side-section"><span>PROJECT</span><button class="icon-button" id="open-project" title="Open project" aria-label="Open project">+</button></div>
       <button class="workspace" id="workspace-button"><span class="workspace-mark">V</span><span class="workspace-copy"><b id="workspace-name">Choose a project</b><small id="workspace-path">Open a folder to begin</small></span><span class="chevron">⌄</span></button>
-      <div class="side-section session-label"><span>SESSIONS</span><button class="icon-button" id="new-chat-small" title="New session">+</button></div>
-      <div class="session-list" id="session-list"><div class="empty-session">Your recent chats<br />will appear here</div></div>
       <div class="sidebar-bottom"><button class="profile" id="settings-button"><span class="avatar">V</span><span><b>Voxiva CLI</b><small id="model-caption">Loading model…</small></span><span class="chevron">···</span></button></div>
     </aside>
 
     <main class="app-main">
       <header class="topbar">
-        <div class="breadcrumbs"><span class="crumb-muted" id="top-project">No project</span><span class="slash">/</span><span id="view-title">New session</span></div>
+        <div class="breadcrumbs"><span class="crumb-muted" id="top-project">No project</span><span class="slash">/</span><span id="view-title">New chat</span></div>
         <div class="top-actions"><button class="top-chip" id="plan-chip" title="Choose agent plan"><span id="plan-chip-label">Build</span><span>⌄</span><select id="plan-select" aria-label="Agent plan"></select></button><button class="icon-button" id="theme-button" title="Switch appearance">◐</button><button class="icon-button" id="top-terminal" title="Open terminal">&gt;_</button></div>
       </header>
 
@@ -30,13 +28,13 @@
         <div class="chat-scroll" id="chat-scroll">
           <div class="welcome" id="welcome">
             <img id="welcome-logo" alt="" />
-            <div class="welcome-kicker">VOXIVA · YOUR CODING AGENT</div>
+            <div class="welcome-kicker">YOUR AI WORKSPACE</div>
             <h1>What are we building?</h1>
-            <p>Ask about your project, explore the code, or describe a change.</p>
+            <p>Open a project to explore code, fix a bug, or build something new.</p>
             <div class="suggestions">
-              <button class="suggestion" data-prompt="Explain how this project is structured"><span>⌕</span><b>Explore this project</b><small>Understand folders and key files</small></button>
-              <button class="suggestion" data-prompt="Review this project for bugs and risks"><span>◉</span><b>Review the code</b><small>Find issues and explain why they matter</small></button>
-              <button class="suggestion" data-prompt="Help me build a new feature"><span>↗</span><b>Build something</b><small>Plan and implement a feature</small></button>
+              <button class="suggestion" data-prompt="Explain how this project is structured"><span>⌕</span><b>Explore project</b><small>Map the codebase and key files</small></button>
+              <button class="suggestion" data-prompt="Review this project for bugs and risks"><span>◉</span><b>Review code</b><small>Find issues and explain why they matter</small></button>
+              <button class="suggestion" data-prompt="Help me build a new feature"><span>↗</span><b>Build a feature</b><small>Plan and implement a change</small></button>
             </div>
           </div>
           <div class="messages" id="messages" aria-live="polite"></div>

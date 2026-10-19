@@ -252,6 +252,8 @@ async function loadState() {
     $("plan-chip-label").textContent = state.plans.find((item) => item.id === state.plan)?.label ?? "Build";
     $("status-meta").textContent = `${$("plan-chip-label").textContent} · ${models.selectedOptions[0]?.textContent ?? "Voxiva"}`;
   } catch (error) {
+    $("model-caption").textContent = "Model settings unavailable";
+    $("status-text").textContent = "Startup error";
     toast(error instanceof Error ? error.message : String(error));
   }
 }
@@ -269,7 +271,7 @@ $("prompt").addEventListener("keydown", (event) => {
 $("stop-button").addEventListener("click", () => window.voxiva.stopChat());
 for (const id of ["open-project", "workspace-button", "composer-project", "terminal-open-project"]) $(id).addEventListener("click", chooseProject);
 for (const id of ["nav-terminal", "top-terminal"]) $(id).addEventListener("click", () => switchView("terminal"));
-$("nav-chat").addEventListener("click", () => switchView("chat"));
+$("nav-chat").addEventListener("click", () => startNewChat());
 $("terminal-new").addEventListener("click", () => { terminalStarted = false; startTerminal(); });
 $("sidebar-toggle").addEventListener("click", () => {
   document.body.classList.toggle("compact");
@@ -280,19 +282,27 @@ $("theme-button").addEventListener("click", () => {
   document.body.dataset.theme = light ? "light" : "dark";
   localStorage.setItem("voxiva-theme", light ? "light" : "dark");
 });
-$("new-chat-small").addEventListener("click", async () => {
+async function startNewChat() {
   await window.voxiva.newChat();
   $("messages").replaceChildren();
+  currentAssistant = undefined;
   $("welcome").hidden = false;
   $("welcome").classList.toggle("has-project", Boolean(currentProject));
-  $("view-title").textContent = "New session";
+  $("view-title").textContent = "New chat";
   switchView("chat");
-});
+}
 $("settings-button").addEventListener("click", () => {
   toast("To connect providers and manage keys, open Terminal and use /connect or /model.");
   switchView("terminal");
 });
 $("plan-chip").addEventListener("click", () => $("plan-select").focus());
+$("plan-select").addEventListener("change", async (event) => {
+  try {
+    await window.voxiva.setPlan(event.currentTarget.value);
+    $("plan-chip-label").textContent = event.currentTarget.selectedOptions[0]?.textContent.split(" · ")[0] ?? "Build";
+    $("status-meta").textContent = $("plan-chip-label").textContent + " · " + ($("model-select").selectedOptions[0]?.textContent ?? "Voxiva");
+  } catch (error) { toast(error instanceof Error ? error.message : String(error)); await loadState(); }
+});
 $("model-select").addEventListener("change", async (event) => {
   try {
     await window.voxiva.setModel(event.currentTarget.value);
@@ -351,7 +361,7 @@ window.voxiva.onExit((code) => {
 new ResizeObserver(() => { if (!$("terminal-view").hidden) fit.fit(); }).observe($("terminal-view"));
 document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
-  if ((event.ctrlKey || event.metaKey) && key === "n") { event.preventDefault(); $("new-chat-small").click(); }
+  if ((event.ctrlKey || event.metaKey) && key === "n") { event.preventDefault(); startNewChat(); }
   if ((event.ctrlKey || event.metaKey) && key === "j") { event.preventDefault(); $("nav-terminal").click(); }
 });
 

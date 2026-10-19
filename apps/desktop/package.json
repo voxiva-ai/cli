@@ -39,6 +39,7 @@
       "main.cjs",
       "output-filter.cjs",
       "preload.cjs",
+      "assets/**",
       "index.html",
       "renderer.js",
       "styles.css",
@@ -46,12 +47,6 @@
     ],
     "asarUnpack": [
       "node_modules/**"
-    ],
-    "extraResources": [
-      {
-        "from": "../../brand/voxiva-mark.svg",
-        "to": "voxiva-mark.svg"
-      }
     ],
     "mac": {
       "target": "dmg",

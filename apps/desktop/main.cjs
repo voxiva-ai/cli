@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu } = require("electron");
 const pty = require("node-pty");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -31,7 +31,7 @@ function cliEntry() {
 }
 
 function cliRoot() {
-  return path.dirname(path.dirname(cliEntry()));
+  return path.dirname(cliEntry());
 }
 
 function core() {
@@ -247,6 +247,7 @@ ipcMain.on("terminal:resize", (_event, cols, rows) => {
 });
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

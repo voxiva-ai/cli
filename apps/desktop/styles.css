@@ -2,18 +2,19 @@
   color-scheme: dark;
   font-family: Inter, "Segoe UI Variable", "Segoe UI", sans-serif;
   color: #e8eaf0;
-  background: #111216;
+  background: #101116;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --surface: #111216;
-  --panel: #17181d;
-  --panel-soft: #1c1d22;
-  --line: #292a30;
+  --surface: #101116;
+  --panel: #15171d;
+  --panel-soft: #1b1e25;
+  --line: #252832;
   --text: #e8eaf0;
   --muted: #9799a3;
   --quiet: #6d707a;
-  --accent: #5eb6fa;
+  --accent: #62b8ff;
+  --accent-soft: #162438;
   --green: #65cda0;
   --sidebar: 246px;
 }
@@ -24,22 +25,22 @@ button, textarea, select { font: inherit; }
 button { color: inherit; }
 [hidden] { display: none !important; }
 
-.sidebar { width: var(--sidebar); flex: 0 0 var(--sidebar); min-width: 0; display: flex; flex-direction: column; padding: 14px 10px 9px; border-right: 1px solid var(--line); background: #141519; transition: width .18s, flex-basis .18s; }
-.brand { height: 39px; display: flex; align-items: center; gap: 9px; padding: 0 6px 11px; color: var(--text); font-size: 15px; font-weight: 680; letter-spacing: -.04em; }
-.brand img { width: 23px; height: 23px; object-fit: contain; }
+.sidebar { width: var(--sidebar); flex: 0 0 var(--sidebar); min-width: 0; display: flex; flex-direction: column; padding: 15px 11px 10px; border-right: 1px solid var(--line); background: #12141a; transition: width .18s, flex-basis .18s; }
+.brand { height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 7px 12px; color: var(--text); font-size: 15px; font-weight: 680; letter-spacing: -.04em; }
+.brand img { width: 25px; height: 25px; object-fit: contain; }
 .icon-button { width: 29px; height: 29px; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 16px; cursor: pointer; }
 .icon-button:hover { color: var(--text); background: #25262c; }
 .sidebar-toggle { margin-left: auto; font-size: 19px; }
-.nav-item { height: 34px; display: flex; align-items: center; gap: 9px; padding: 0 8px; border: 0; border-radius: 6px; color: #b4b5bc; background: transparent; text-align: left; font-size: 12px; cursor: pointer; }
+.nav-item { height: 37px; display: flex; align-items: center; gap: 10px; padding: 0 9px; border: 0; border-radius: 7px; color: #b4b8c3; background: transparent; text-align: left; font-size: 12px; cursor: pointer; }
 .nav-item:hover { background: #202126; color: var(--text); }
-.nav-item.active { color: var(--text); background: #26272d; }
+.nav-item.active { color: #e8f4ff; background: #1b2735; box-shadow: inset 2px 0 #59b6ff; }
 .nav-item kbd { margin-left: auto; color: #737680; font: 10px "Cascadia Code", Consolas, monospace; }
 .nav-glyph { width: 16px; color: #b8c7d7; font-size: 15px; text-align: center; }
 .terminal-glyph { font: 10px "Cascadia Code", Consolas, monospace; }
-.side-section { display: flex; align-items: center; justify-content: space-between; margin: 25px 2px 7px 8px; color: var(--quiet); font-size: 9px; font-weight: 680; letter-spacing: .12em; }
+.side-section { display: flex; align-items: center; justify-content: space-between; margin: 25px 2px 7px 8px; color: #818796; font-size: 9px; font-weight: 680; letter-spacing: .12em; }
 .side-section .icon-button { width: 22px; height: 22px; font-size: 17px; }
-.workspace { width: 100%; display: flex; align-items: center; gap: 9px; padding: 7px 6px; border: 0; border-radius: 7px; background: transparent; text-align: left; cursor: pointer; }
-.workspace:hover { background: #202126; }
+.workspace { width: 100%; display: flex; align-items: center; gap: 9px; padding: 8px 7px; border: 1px solid transparent; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; }
+.workspace:hover { border-color: #2e3542; background: #191d25; }
 .workspace-mark, .avatar { width: 24px; height: 24px; flex: 0 0 24px; display: grid; place-items: center; border: 1px solid #35404b; border-radius: 6px; color: #a4d8ff; background: #202b37; font-size: 11px; font-weight: 650; }
 .workspace-copy, .profile > span:nth-child(2) { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 2px; }
 .workspace-copy b, .profile b { overflow: hidden; color: #d6d7dc; font-size: 11px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
@@ -53,8 +54,8 @@ button { color: inherit; }
 .profile:hover { background: #202126; }
 .avatar { color: #d6eafa; background: #252a32; }
 
-.app-main { min-width: 0; flex: 1; display: flex; flex-direction: column; background: var(--surface); }
-.topbar { height: 47px; flex: 0 0 47px; display: flex; align-items: center; justify-content: space-between; padding: 0 17px; border-bottom: 1px solid #24252a; }
+.app-main { min-width: 0; flex: 1; display: flex; flex-direction: column; background: radial-gradient(ellipse at 54% 42%, #171c2526, transparent 54%), var(--surface); }
+.topbar { height: 51px; flex: 0 0 51px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid #242832; }
 .breadcrumbs { display: flex; align-items: center; gap: 9px; color: #d6d7dd; font-size: 11px; }
 .crumb-muted, .slash { color: #777983; }
 .top-actions { display: flex; align-items: center; gap: 7px; }
@@ -64,22 +65,22 @@ button { color: inherit; }
 .top-actions .icon-button { border: 1px solid #27282e; }
 
 .chat-view { min-height: 0; flex: 1; display: flex; flex-direction: column; }
-.chat-scroll { min-height: 0; flex: 1; overflow: auto; scrollbar-color: #34353b transparent; }
-.welcome { width: min(760px, calc(100% - 44px)); margin: min(15vh, 125px) auto 0; text-align: center; }
-.welcome img { width: 45px; height: 45px; margin-bottom: 17px; filter: drop-shadow(0 6px 14px #188fff25); }
-.welcome-kicker { margin-bottom: 12px; color: #8394a5; font: 600 9px "Cascadia Code", Consolas, monospace; letter-spacing: .16em; }
-.welcome h1 { margin: 0; color: #f0f1f5; font-size: clamp(25px, 3vw, 33px); letter-spacing: -.055em; font-weight: 600; }
-.welcome p { margin: 10px 0 25px; color: #8f9099; font-size: 12px; }
-.suggestions { max-width: 620px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 0 auto; text-align: left; }
-.suggestion { min-height: 79px; display: grid; grid-template-columns: 18px 1fr; align-content: center; align-items: center; gap: 5px 8px; padding: 10px 11px; border: 1px solid #2b2c32; border-radius: 8px; color: #cdd0d7; background: #18191e; text-align: left; cursor: pointer; transition: border-color .14s, background .14s; }
-.suggestion:hover { border-color: #454b54; background: #1e2026; }
-.suggestion > span { grid-row: span 2; color: #8eb7d7; font-size: 14px; text-align: center; }
-.suggestion b { font-size: 10px; font-weight: 560; }
-.suggestion small { color: #81838d; font-size: 9px; line-height: 1.45; }
-.welcome.has-project { margin-top: 42px; }
-.welcome.has-project img { width: 34px; height: 34px; margin-bottom: 12px; }
+.chat-scroll { min-height: 0; flex: 1; display: flex; flex-direction: column; overflow: auto; scrollbar-color: #343a45 transparent; }
+.welcome { width: min(760px, calc(100% - 44px)); margin: auto auto; padding-top: 26px; text-align: center; }
+.welcome img { width: 58px; height: 58px; margin-bottom: 22px; filter: drop-shadow(0 9px 25px #0d83ff2e); }
+.welcome-kicker { margin-bottom: 13px; color: #8ea1b8; font: 600 9px "Cascadia Code", Consolas, monospace; letter-spacing: .17em; }
+.welcome h1 { margin: 0; color: #f3f5f9; font-size: clamp(29px, 3.3vw, 38px); letter-spacing: -.055em; font-weight: 610; }
+.welcome p { margin: 11px 0 25px; color: #969ba7; font-size: 13px; }
+.suggestions { max-width: 680px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin: 0 auto; text-align: left; }
+.suggestion { min-height: 72px; display: grid; grid-template-columns: 23px 1fr; align-content: center; align-items: center; gap: 5px 9px; padding: 10px 12px; border: 1px solid #292e38; border-radius: 9px; color: #d7dce5; background: linear-gradient(145deg, #191c23, #15171c); text-align: left; cursor: pointer; transition: border-color .14s, background .14s, transform .14s; }
+.suggestion:hover { transform: translateY(-1px); border-color: #3a506a; background: #1b2029; }
+.suggestion > span { grid-row: span 2; color: #83c6ff; font-size: 16px; text-align: center; }
+.suggestion b { font-size: 10px; font-weight: 580; }
+.suggestion small { color: #8b919e; font-size: 9px; line-height: 1.45; }
+.welcome.has-project { margin-top: 34px; }
+.welcome.has-project img { width: 38px; height: 38px; margin-bottom: 15px; }
 .welcome.has-project .welcome-kicker { margin-bottom: 8px; }
-.welcome.has-project h1 { font-size: 26px; }
+.welcome.has-project h1 { font-size: 29px; }
 .welcome.has-project p { margin: 7px 0 18px; }
 .messages { width: min(760px, calc(100% - 44px)); margin: 25px auto 35px; }
 .message { display: grid; grid-template-columns: 27px minmax(0, 1fr); gap: 12px; margin: 0 0 25px; }
@@ -108,10 +109,10 @@ button { color: inherit; }
 .apply-button { border-color: #438d70; color: #dff6eb; background: #24513f; }
 .apply-button:hover { background: #2d624d; }
 
-.composer-area { width: min(760px, calc(100% - 44px)); margin: 0 auto; padding: 0 0 11px; }
-.composer { border: 1px solid #3a3b42; border-radius: 10px; background: #191a1f; box-shadow: 0 5px 22px #0002; transition: border-color .14s; }
-.composer:focus-within { border-color: #555963; }
-.composer textarea { width: 100%; min-height: 58px; max-height: 180px; display: block; resize: none; padding: 14px 14px 8px; border: 0; outline: 0; color: #e6e7ec; background: transparent; font-size: 12px; line-height: 1.6; }
+.composer-area { width: min(760px, calc(100% - 44px)); margin: 0 auto; padding: 0 0 18px; }
+.composer { border: 1px solid #343b47; border-radius: 12px; background: #171a20; box-shadow: 0 10px 36px #0003; transition: border-color .14s, box-shadow .14s; }
+.composer:focus-within { border-color: #4b83b3; box-shadow: 0 10px 36px #0003, 0 0 0 3px #398dca14; }
+.composer textarea { width: 100%; min-height: 66px; max-height: 180px; display: block; resize: none; padding: 16px 16px 8px; border: 0; outline: 0; color: #e6e7ec; background: transparent; font-size: 13px; line-height: 1.6; }
 .composer textarea::placeholder { color: #858791; }
 .composer textarea:disabled { opacity: .45; }
 .composer-bottom { min-height: 39px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px 7px; }
