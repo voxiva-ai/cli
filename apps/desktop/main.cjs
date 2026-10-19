@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require("electron");
 const { spawnSync } = require("node:child_process");
 const pty = require("node-pty");
 const fs = require("node:fs");
@@ -7,6 +7,8 @@ const { pathToFileURL } = require("node:url");
 const { createOutputFilter } = require("./output-filter.cjs");
 const { createProviderHandlers } = require("./provider-service.cjs");
 const { createSessionHandlers } = require("./session-service.cjs");
+const { createAppActions } = require("./app-actions.cjs");
+const { createUpdateService } = require("./update-service.cjs");
 
 let window;
 let terminal;
@@ -16,6 +18,10 @@ let activeSessionId;
 let pendingEdits = new Map();
 let corePromise;
 let providerHandlersPromise;
+let appActionsPromise;
+let downloadedUpdate;
+let updateController;
+let updateService;
 const settingsPath = () => path.join(app.getPath("userData"), "settings.json");
 
 function loadSettings() {
@@ -80,6 +86,31 @@ function providerHandlers() {
   }
   return providerHandlersPromise;
 }
+
+function appActions() {
+  if (!appActionsPromise) appActionsPromise = core().then(({ chat, config }) => import(pathToFileURL(path.join(cliRoot(), "tui/themes.js")).href).then(({ THEMES }) => import(pathToFileURL(path.join(cliRoot(), "i18n/index.js")).href).then(({ LOCALES }) => createAppActions({
+    config,
+    themes: THEMES,
+    locales: LOCALES,
+    getStatus: async () => {
+      const saved = await config.loadConfig();
+      const auth = await config.loadAuth();
+      const usable = chat.isUsableModelRef(saved.defaultModel ?? chat.DEFAULT_FREE_MODEL, auth);
+      const update = await updates().check().catch(() => null);
+      return {
+        runtime: process.versions.node,
+        model: saved.defaultModel ?? chat.DEFAULT_FREE_MODEL,
+        modelReady: usable,
+        providers: Object.keys(auth).filter((id) => auth[id]?.apiKey),
+        project: loadSettings().lastProject ?? null,
+        update: update?.available ? `v${update.latest} available` : update?.latest ? (update.releaseReady ? `Up to date (v${update.current})` : `No desktop installer for v${update.latest} yet`) : "GitHub check unavailable",
+      };
+    },
+  }))));
+  return appActionsPromise;
+}
+
+const updates = () => (updateService ??= createUpdateService({ currentVersion: app.getVersion() }));
 
 function nodeRuntime() {
   return path.join(app.isPackaged ? path.join(process.resourcesPath, "app.asar.unpacked") : app.getAppPath(), "node_modules", "node", "bin", process.platform === "win32" ? "node.exe" : "node");
@@ -221,6 +252,40 @@ ipcMain.handle("app:state", async () => {
     theme: saved.theme ?? "auto",
     locale: saved.locale ?? "en",
   };
+});
+
+ipcMain.handle("app:preferences", async () => (await appActions()).preferences());
+ipcMain.handle("app:set-preferences", async (_event, input) => (await appActions()).setPreferences(input));
+ipcMain.handle("app:doctor", async () => (await appActions()).doctor());
+ipcMain.handle("app:commands", async () => (await appActions()).commands());
+ipcMain.handle("app:options", async () => (await appActions()).options());
+ipcMain.handle("update:check", async () => (await updates()).check());
+ipcMain.handle("update:open-release", async () => {
+  const status = await (await updates()).check();
+  await shell.openExternal(status.releaseUrl);
+  return true;
+});
+ipcMain.handle("update:download", async (event) => {
+  if (updateController) throw new Error("An update download is already running.");
+  const controller = new AbortController();
+  updateController = controller;
+  try {
+    downloadedUpdate = await (await updates()).download({
+      directory: path.join(app.getPath("downloads"), "Voxiva Updates"),
+      signal: controller.signal,
+      onProgress: (progress) => { if (!event.sender.isDestroyed()) event.sender.send("update:progress", progress); },
+    });
+    return downloadedUpdate;
+  } finally {
+    if (updateController === controller) updateController = undefined;
+  }
+});
+ipcMain.handle("update:cancel", () => { updateController?.abort(); return true; });
+ipcMain.handle("update:open", async () => {
+  if (!downloadedUpdate?.path || !fs.existsSync(downloadedUpdate.path)) throw new Error("Download the update before opening it.");
+  const error = await shell.openPath(downloadedUpdate.path);
+  if (error) throw new Error(error);
+  return true;
 });
 
 ipcMain.handle("provider:state", async () => (await providerHandlers()).state());

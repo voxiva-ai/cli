@@ -1,6 +1,6 @@
 {
   "name": "voxiva-desktop",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "private": true,
   "description": "Cross-platform desktop shell for Voxiva CLI",
   "author": "Voxiva AI",
@@ -10,6 +10,7 @@
     "start": "electron .",
     "smoke:pty": "electron test/fixture",
     "smoke:packaged": "node test/packaged-smoke.cjs",
+    "test": "node --test test/*.test.cjs",
     "test:stream": "node --test test/output-filter.test.cjs",
     "icons": "node scripts/build-icons.mjs",
     "dist": "npm run icons && electron-builder",
@@ -37,6 +38,8 @@
     },
     "files": [
       "main.cjs",
+      "app-actions.cjs",
+      "update-service.cjs",
       "provider-service.cjs",
       "session-service.cjs",
       "output-filter.cjs",

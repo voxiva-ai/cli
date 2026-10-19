@@ -1,7 +1,6 @@
-import { Terminal } from "./node_modules/@xterm/xterm/lib/xterm.js";
-import { FitAddon } from "./node_modules/@xterm/addon-fit/lib/addon-fit.js";
-
 const $ = (id) => document.getElementById(id);
+const { Terminal } = window;
+const { FitAddon } = window.FitAddon;
 const terminal = new Terminal({
   allowProposedApi: false,
   convertEol: false,
@@ -22,9 +21,19 @@ let activeSendPromise;
 let terminalStarted = false;
 let toastTimer;
 let currentAssistant;
+let currentTheme = "auto";
+let currentUpdate;
+let updateDownloaded = false;
 
-if (localStorage.getItem("voxiva-theme")) document.body.dataset.theme = localStorage.getItem("voxiva-theme");
 if (localStorage.getItem("voxiva-sidebar") === "expanded") document.body.classList.add("sidebar-open");
+
+const themeAccent = { auto: "#62b8ff", voxiva: "#62b8ff", slate: "#9aa8bc", midnight: "#4d8fff", arctic: "#7ad7ff", ember: "#e8915a", forest: "#5fb87a", mono: "#c8c8c8" };
+function applyTheme(theme) {
+  currentTheme = theme;
+  const light = theme === "arctic" || (theme === "auto" && matchMedia("(prefers-color-scheme: light)").matches);
+  document.body.dataset.theme = light ? "light" : "dark";
+  document.documentElement.style.setProperty("--accent", themeAccent[theme] ?? themeAccent.voxiva);
+}
 
 function toast(message) {
   const el = $("toast");
@@ -362,6 +371,14 @@ async function stopCurrentResponse() {
 async function loadState() {
   try {
     const state = await window.voxiva.state();
+    const [preferences, options] = await Promise.all([window.voxiva.preferences(), window.voxiva.options()]);
+    applyTheme(preferences.theme);
+    const themeSelect = $("theme-select");
+    if (!themeSelect.options.length) for (const theme of options.themes) themeSelect.add(new Option(theme.label, theme.id));
+    themeSelect.value = preferences.theme;
+    const localeSelect = $("locale-select");
+    if (!localeSelect.options.length) for (const locale of options.locales) localeSelect.add(new Option(locale.native || locale.label, locale.id));
+    localeSelect.value = preferences.locale;
     const models = $("model-select");
     models.replaceChildren();
     for (const model of state.models) {
@@ -500,10 +517,10 @@ $("sidebar-toggle").addEventListener("click", () => {
   $("sidebar-toggle").setAttribute("aria-label", $("sidebar-toggle").title);
   localStorage.setItem("voxiva-sidebar", open ? "expanded" : "collapsed");
 });
-$("theme-button").addEventListener("click", () => {
-  const light = document.body.dataset.theme !== "light";
-  document.body.dataset.theme = light ? "light" : "dark";
-  localStorage.setItem("voxiva-theme", light ? "light" : "dark");
+$("theme-button").addEventListener("click", async () => {
+  const theme = currentTheme === "arctic" ? "voxiva" : "arctic";
+  try { await window.voxiva.setPreferences({ theme }); applyTheme(theme); $("theme-select").value = theme; }
+  catch (error) { toast(error instanceof Error ? error.message : String(error)); }
 });
 async function startNewChat() {
   await stopCurrentResponse();
@@ -514,11 +531,129 @@ async function startNewChat() {
   await loadSessions();
   switchView("chat");
 }
+async function openCommands() {
+  const commands = await window.voxiva.commands();
+  const list = $("command-list");
+  const search = $("command-search");
+  const render = () => {
+    const query = search.value.trim().toLowerCase();
+    list.replaceChildren();
+    for (const command of commands.filter((item) => `${item.id} ${item.label}`.toLowerCase().includes(query))) {
+      const button = document.createElement("button");
+      button.className = "command-entry";
+      button.type = "button";
+      button.setAttribute("role", "option");
+      const label = document.createElement("span");
+      label.textContent = command.label;
+      const shortcut = document.createElement("small");
+      shortcut.textContent = command.shortcut;
+      button.append(label, shortcut);
+      button.addEventListener("click", () => { $("command-dialog").close(); runCommand(command.id); });
+      list.append(button);
+    }
+  };
+  search.value = "";
+  search.oninput = render;
+  render();
+  $("command-dialog").showModal();
+  search.focus();
+}
+async function checkDesktopUpdate({ silent = false } = {}) {
+  const status = await window.voxiva.checkUpdate();
+  if (!status.available) {
+    if (!silent) toast(!status.latest ? "Could not reach GitHub. Try again later." : !status.releaseReady ? "The latest release does not include a desktop installer yet." : "Voxiva is up to date.");
+    return;
+  }
+  currentUpdate = status;
+  updateDownloaded = false;
+  $("update-title").textContent = `Voxiva ${status.latest} is ready`;
+  $("update-description").textContent = status.asset
+    ? `A new desktop release is available (current version ${status.current}). Download the installer for this device when you are ready.`
+    : `Version ${status.latest} is available. Download an installer from the release page for your device.`;
+  $("update-result").textContent = "";
+  $("update-progress-wrap").hidden = true;
+  $("update-action").textContent = status.asset ? "Download update" : "Open release page";
+  $("update-action").disabled = false;
+  $("update-dialog").showModal();
+}
+async function runCommand(id) {
+  try {
+    if (id === "new") return startNewChat();
+    if (id === "models" || id === "connect") { await loadState(); $("settings-dialog").showModal(); return; }
+    if (id === "plans") { $("plan-select").focus(); return; }
+    if (id === "sessions") { document.body.classList.add("sidebar-open"); $("session-list").scrollIntoView({ block: "nearest" }); return; }
+    if (id === "workspaces") return openWorkspacePicker();
+    if (id === "terminal") return switchView("terminal");
+    if (id === "doctor") {
+      const result = await window.voxiva.doctor();
+      $("doctor-output").textContent = [
+        `Runtime  ${result.runtime}`,
+        `Model    ${result.model} (${result.modelReady ? "ready" : "not available"})`,
+        `Providers ${result.providers.join(", ") || "free model only"}`,
+        `Project  ${result.project ?? "none selected"}`,
+        `Updates  ${result.update}`,
+      ].join("\n");
+      $("doctor-dialog").showModal();
+      return;
+    }
+    if (id === "update") return checkDesktopUpdate();
+  } catch (error) { toast(error instanceof Error ? error.message : String(error)); }
+}
 $("settings-button").addEventListener("click", () => {
   loadState().then(() => $("settings-dialog").showModal()).catch((error) => toast(error.message));
 });
 $("settings-close").addEventListener("click", () => $("settings-dialog").close());
 $("settings-done").addEventListener("click", () => $("settings-dialog").close());
+$("theme-select").addEventListener("change", async (event) => {
+  try { await window.voxiva.setPreferences({ theme: event.currentTarget.value }); applyTheme(event.currentTarget.value); }
+  catch (error) { toast(error instanceof Error ? error.message : String(error)); await loadState(); }
+});
+$("locale-select").addEventListener("change", async (event) => {
+  try { await window.voxiva.setPreferences({ locale: event.currentTarget.value }); toast("Reply language saved for the CLI and desktop app."); }
+  catch (error) { toast(error instanceof Error ? error.message : String(error)); await loadState(); }
+});
+$("commands-button").addEventListener("click", () => openCommands().catch((error) => toast(error.message)));
+$("commands-close").addEventListener("click", () => $("command-dialog").close());
+$("commands-done").addEventListener("click", () => $("command-dialog").close());
+$("doctor-close").addEventListener("click", () => $("doctor-dialog").close());
+$("doctor-done").addEventListener("click", () => $("doctor-dialog").close());
+async function closeUpdateDialog() {
+  if (!updateDownloaded && $("update-progress-wrap").hidden === false) await window.voxiva.cancelUpdate();
+  $("update-dialog").close();
+}
+$("update-close").addEventListener("click", closeUpdateDialog);
+$("update-later").addEventListener("click", closeUpdateDialog);
+$("update-action").addEventListener("click", async () => {
+  const action = $("update-action");
+  if (currentUpdate?.supportedAction === "release-page") {
+    try { await window.voxiva.openRelease(); } catch (error) { $("update-result").textContent = error.message; }
+    return;
+  }
+  if (updateDownloaded) {
+    try { await window.voxiva.openUpdate(); $("update-result").textContent = "Installer opened. Follow its prompts to finish updating."; }
+    catch (error) { $("update-result").textContent = error instanceof Error ? error.message : String(error); }
+    return;
+  }
+  action.disabled = true;
+  $("update-progress-wrap").hidden = false;
+  $("update-progress-label").textContent = "Starting download…";
+  try {
+    const result = await window.voxiva.downloadUpdate();
+    updateDownloaded = true;
+    action.textContent = "Open installer";
+    $("update-result").textContent = `Saved to ${result.path}`;
+  } catch (error) {
+    $("update-result").textContent = error instanceof Error ? error.message : String(error);
+  } finally { action.disabled = false; }
+});
+window.voxiva.onUpdateProgress(({ percent, received, total }) => {
+  $("update-progress-wrap").hidden = false;
+  $("update-progress-bar").style.width = `${percent ?? 10}%`;
+  $("update-progress-label").textContent = percent == null ? `${Math.floor(received / 1048576)} MB downloaded` : `Downloading update · ${percent}%`;
+});
+document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); openCommands().catch((error) => toast(error.message)); }
+});
 $("workspace-button").addEventListener("click", openWorkspacePicker);
 $("workspace-close").addEventListener("click", () => $("workspace-dialog").close());
 $("workspace-done").addEventListener("click", () => $("workspace-dialog").close());
@@ -607,3 +742,4 @@ if (initialProject) {
   const lastSession = await window.voxiva.lastSession(initialProject);
   if (lastSession) await openSession(lastSession);
 }
+checkDesktopUpdate({ silent: true }).catch(() => {});
