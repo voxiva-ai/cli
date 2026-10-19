@@ -10,6 +10,7 @@
     "start": "electron .",
     "smoke:pty": "electron test/fixture",
     "smoke:packaged": "node test/packaged-smoke.cjs",
+    "test:stream": "node --test test/output-filter.test.cjs",
     "icons": "node scripts/build-icons.mjs",
     "dist": "npm run icons && electron-builder",
     "dist:dir": "npm run icons && electron-builder --dir"
@@ -36,6 +37,7 @@
     },
     "files": [
       "main.cjs",
+      "output-filter.cjs",
       "preload.cjs",
       "index.html",
       "renderer.js",

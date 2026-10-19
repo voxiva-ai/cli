@@ -44,6 +44,7 @@ jobs:
             package-lock.json
             apps/desktop/package-lock.json
       - run: npm ci
+      - run: npm run test:stream --prefix apps/desktop
       - run: npm run desktop:prepare
       - run: npm ci --prefix apps/desktop
       - run: npm run smoke:pty --prefix apps/desktop

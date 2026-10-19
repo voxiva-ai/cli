@@ -1,6 +1,6 @@
 # Voxiva CLI Desktop
 
-The desktop app opens the existing Voxiva CLI in a native window with an embedded terminal. It uses Electron and node-pty, bundles its own Node.js runtime, and runs on Windows, macOS, and Linux without requiring Swift or a system Node.js installation.
+The desktop app opens a centered coding chat with model and plan selection, reviewable file changes, and a separate embedded terminal for the full Voxiva CLI TUI. Chat and terminal share the CLI's provider configuration and project workspace. It uses Electron and node-pty, bundles its own Node.js runtime, and runs on Windows, macOS, and Linux without requiring Swift or a system Node.js installation.
 
 ## Develop
 

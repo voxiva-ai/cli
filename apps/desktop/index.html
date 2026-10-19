@@ -4,45 +4,61 @@
     <meta charset="UTF-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:;" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Voxiva CLI</title>
+    <title>Voxiva</title>
     <link rel="stylesheet" href="./node_modules/@xterm/xterm/css/xterm.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="identity">
-        <img id="logo" alt="" />
-        <span>Voxiva <b>CLI</b></span>
-      </div>
-      <div class="project" id="project-path">No project selected</div>
-      <div class="toolbar">
-        <button id="open-project" class="button subtle">Open folder</button>
-        <button id="restart" class="button primary" disabled>New session</button>
-      </div>
-    </header>
+    <aside class="sidebar">
+      <div class="brand"><img id="logo" alt="" /><span>voxiva</span><button class="icon-button sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar">≡</button></div>
+      <button class="nav-item active" id="nav-chat"><span class="nav-glyph">✳</span><span>New session</span><kbd>⌘ N</kbd></button>
+      <button class="nav-item" id="nav-terminal"><span class="nav-glyph terminal-glyph">&gt;_</span><span>Terminal</span><kbd>⌘ J</kbd></button>
+      <div class="side-section"><span>WORKSPACE</span><button class="icon-button" id="open-project" title="Open project">+</button></div>
+      <button class="workspace" id="workspace-button"><span class="workspace-mark">V</span><span class="workspace-copy"><b id="workspace-name">Choose a project</b><small id="workspace-path">Open a folder to begin</small></span><span class="chevron">⌄</span></button>
+      <div class="side-section session-label"><span>SESSIONS</span><button class="icon-button" id="new-chat-small" title="New session">+</button></div>
+      <div class="session-list" id="session-list"><div class="empty-session">Your recent chats<br />will appear here</div></div>
+      <div class="sidebar-bottom"><button class="profile" id="settings-button"><span class="avatar">V</span><span><b>Voxiva CLI</b><small id="model-caption">Loading model…</small></span><span class="chevron">···</span></button></div>
+    </aside>
 
-    <main id="stage">
-      <section id="welcome" class="welcome">
-        <img class="welcome-mark" src="" alt="" id="welcome-logo" />
-        <p class="eyebrow">YOUR PROJECT, YOUR MODEL</p>
-        <h1>Build with Voxiva</h1>
-        <p class="intro">Open a project folder to start a private coding session in your terminal.</p>
-        <button id="welcome-open" class="button primary large">Choose project folder <span>↗</span></button>
-        <div class="welcome-note"><span class="dot"></span> Your provider keys stay on this device</div>
-      </section>
-      <section id="terminal-shell" class="terminal-shell" hidden>
-        <div class="terminal-head">
-          <div class="terminal-label"><span class="live-dot"></span><span>SESSION</span></div>
-          <span class="terminal-hint">Voxiva agent</span>
+    <main class="app-main">
+      <header class="topbar">
+        <div class="breadcrumbs"><span class="crumb-muted" id="top-project">No project</span><span class="slash">/</span><span id="view-title">New session</span></div>
+        <div class="top-actions"><button class="top-chip" id="plan-chip" title="Choose agent plan"><span id="plan-chip-label">Build</span><span>⌄</span><select id="plan-select" aria-label="Agent plan"></select></button><button class="icon-button" id="theme-button" title="Switch appearance">◐</button><button class="icon-button" id="top-terminal" title="Open terminal">&gt;_</button></div>
+      </header>
+
+      <section class="chat-view" id="chat-view">
+        <div class="chat-scroll" id="chat-scroll">
+          <div class="welcome" id="welcome">
+            <img id="welcome-logo" alt="" />
+            <div class="welcome-kicker">VOXIVA · YOUR CODING AGENT</div>
+            <h1>What are we building?</h1>
+            <p>Ask about your project, explore the code, or describe a change.</p>
+            <div class="suggestions">
+              <button class="suggestion" data-prompt="Explain how this project is structured"><span>⌕</span><b>Explore this project</b><small>Understand folders and key files</small></button>
+              <button class="suggestion" data-prompt="Review this project for bugs and risks"><span>◉</span><b>Review the code</b><small>Find issues and explain why they matter</small></button>
+              <button class="suggestion" data-prompt="Help me build a new feature"><span>↗</span><b>Build something</b><small>Plan and implement a feature</small></button>
+            </div>
+          </div>
+          <div class="messages" id="messages" aria-live="polite"></div>
         </div>
+        <div class="composer-area">
+          <form class="composer" id="composer-form">
+            <textarea id="prompt" rows="1" placeholder="Ask anything…" aria-label="Message Voxiva" disabled></textarea>
+            <div class="composer-bottom">
+              <div class="composer-tools"><button type="button" class="tool-button" id="composer-project" title="Choose project">＋ <span>Project</span></button><span class="context-label" id="context-label">Select a project to begin</span></div>
+              <div class="send-tools"><select id="model-select" aria-label="Model" title="Model"></select><button class="send-button" id="send-button" type="submit" disabled title="Send message">↑</button><button class="send-button stop-button" id="stop-button" type="button" hidden title="Stop response">■</button></div>
+            </div>
+          </form>
+          <div class="composer-note">Voxiva can make mistakes. Review proposed file changes before applying.</div>
+        </div>
+      </section>
+
+      <section class="terminal-view" id="terminal-view" hidden>
+        <div class="terminal-toolbar"><div><span class="live-dot" id="terminal-dot"></span><b>Voxiva CLI</b><span class="terminal-project" id="terminal-project">Choose a project</span></div><button class="button subtle" id="terminal-open-project">Open folder</button><button class="button subtle" id="terminal-new">Restart terminal</button></div>
         <div id="terminal"></div>
       </section>
+      <footer class="statusbar"><span><span class="status-dot" id="status-dot"></span><span id="status-text">Ready</span></span><span id="status-meta">Build · Voxiva</span></footer>
     </main>
-
-    <footer class="statusbar">
-      <span class="status-left"><span class="status-dot" id="status-dot"></span><span id="status-text">Ready</span></span>
-      <span class="status-right"><kbd>Esc</kbd> stop response <span class="sep">·</span> <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>C</kbd> copy</span>
-    </footer>
     <div id="toast" role="status" aria-live="polite"></div>
     <script type="module" src="renderer.js"></script>
   </body>
