@@ -1,7 +1,4 @@
 const { contextBridge, ipcRenderer } = require("electron");
-const { pathToFileURL } = require("node:url");
-
-const logoPath = `${__dirname}/assets/voxiva-cli-mark.png`;
 
 function subscribe(channel, callback) {
   const listener = (_event, value) => callback(value);
@@ -10,9 +7,10 @@ function subscribe(channel, callback) {
 }
 
 contextBridge.exposeInMainWorld("voxiva", {
-  logoUrl: pathToFileURL(logoPath).href,
   initialProject: () => ipcRenderer.invoke("project:initial"),
   chooseProject: () => ipcRenderer.invoke("project:choose"),
+  chooseContextFile: () => ipcRenderer.invoke("project:context-file"),
+  branch: (cwd) => ipcRenderer.invoke("project:branch", cwd),
   state: () => ipcRenderer.invoke("app:state"),
   setModel: (ref) => ipcRenderer.invoke("app:model", ref),
   setPlan: (id) => ipcRenderer.invoke("app:plan", id),

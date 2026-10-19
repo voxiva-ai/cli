@@ -20,8 +20,6 @@ let terminalStarted = false;
 let toastTimer;
 let currentAssistant;
 
-$("logo").src = window.voxiva.logoUrl;
-$("welcome-logo").src = window.voxiva.logoUrl;
 if (localStorage.getItem("voxiva-theme")) document.body.dataset.theme = localStorage.getItem("voxiva-theme");
 if (localStorage.getItem("voxiva-sidebar") === "expanded") document.body.classList.add("sidebar-open");
 
@@ -35,8 +33,11 @@ function toast(message) {
 
 function setStatus(label, active = false) {
   $("status-text").textContent = label;
-  $("status-dot").classList.toggle("running", active);
   $("terminal-dot").classList.toggle("running", active);
+}
+
+function updateSendButton() {
+  $("send-button").disabled = !currentProject || !$("prompt").value.trim() || running;
 }
 
 function setProject(cwd) {
@@ -48,9 +49,14 @@ function setProject(cwd) {
   $("terminal-project").textContent = cwd;
   $("context-label").textContent = name;
   $("prompt").disabled = false;
-  $("send-button").disabled = false;
+  updateSendButton();
   $("welcome").classList.add("has-project");
   $("prompt").placeholder = `Ask about ${name}…`;
+  window.voxiva.branch(cwd).then((branch) => {
+    if (currentProject !== cwd) return;
+    $("branch-name").textContent = branch ?? "";
+    $("branch-chip").hidden = !branch;
+  }).catch(() => { $("branch-chip").hidden = true; });
 }
 
 async function chooseProject() {
@@ -199,6 +205,7 @@ async function sendPrompt(value) {
   currentAssistant.content.classList.add("thinking");
   currentAssistant.content.textContent = "Thinking…";
   running = true;
+  updateSendButton();
   $("send-button").hidden = true;
   $("stop-button").hidden = false;
   $("prompt").disabled = true;
@@ -212,6 +219,7 @@ async function sendPrompt(value) {
   } finally {
     currentAssistant.content.classList.remove("thinking");
     running = false;
+    updateSendButton();
     $("send-button").hidden = false;
     $("stop-button").hidden = true;
     $("prompt").disabled = false;
@@ -260,6 +268,7 @@ $("prompt").addEventListener("input", (event) => {
   const input = event.currentTarget;
   input.style.height = "auto";
   input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
+  updateSendButton();
 });
 $("prompt").addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); $("composer-form").requestSubmit(); }
@@ -267,6 +276,17 @@ $("prompt").addEventListener("keydown", (event) => {
 });
 $("stop-button").addEventListener("click", () => window.voxiva.stopChat());
 for (const id of ["open-project", "workspace-button", "composer-project", "terminal-open-project"]) $(id).addEventListener("click", chooseProject);
+$("attach-file").addEventListener("click", async () => {
+  if (!currentProject) return chooseProject();
+  try {
+    const file = await window.voxiva.chooseContextFile();
+    if (!file) return;
+    const prompt = $("prompt");
+    prompt.value = [prompt.value.trimEnd(), `Read project file: ${file}`].filter(Boolean).join("\n");
+    prompt.dispatchEvent(new Event("input", { bubbles: true }));
+    prompt.focus();
+  } catch (error) { toast(error instanceof Error ? error.message : String(error)); }
+});
 for (const id of ["nav-terminal", "top-terminal"]) $(id).addEventListener("click", () => switchView("terminal"));
 $("nav-chat").addEventListener("click", () => startNewChat());
 $("terminal-new").addEventListener("click", () => { terminalStarted = false; startTerminal(); });

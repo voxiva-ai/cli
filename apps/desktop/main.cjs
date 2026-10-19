@@ -1,4 +1,5 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu } = require("electron");
+const { spawnSync } = require("node:child_process");
 const pty = require("node-pty");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -93,6 +94,31 @@ ipcMain.handle("project:choose", async () => {
 ipcMain.handle("project:initial", () => {
   const cwd = loadSettings().lastProject;
   return typeof cwd === "string" && fs.existsSync(cwd) ? cwd : null;
+});
+
+ipcMain.handle("project:branch", (_event, cwd) => {
+  if (typeof cwd !== "string") return null;
+  try {
+    const result = spawnSync("git", ["branch", "--show-current"], { cwd, encoding: "utf8", timeout: 1500, windowsHide: true });
+    return result.status === 0 ? result.stdout.trim() || null : null;
+  } catch {
+    return null;
+  }
+});
+
+ipcMain.handle("project:context-file", async () => {
+  const cwd = loadSettings().lastProject;
+  if (!cwd || !fs.existsSync(cwd)) throw new Error("Choose a project folder first.");
+  const result = await dialog.showOpenDialog(window, { title: "Add a project file", defaultPath: cwd, properties: ["openFile"] });
+  if (result.canceled || !result.filePaths[0]) return null;
+  const root = fs.realpathSync(cwd);
+  const file = fs.realpathSync(result.filePaths[0]);
+  const relative = path.relative(root, file);
+  if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error("Choose a file inside the current project.");
+  }
+  if (!fs.statSync(file).isFile()) throw new Error("Choose a regular file.");
+  return relative.split(path.sep).join("/");
 });
 
 ipcMain.handle("app:state", async () => {

@@ -10,7 +10,7 @@
   </head>
   <body data-theme="light">
     <aside class="sidebar">
-      <div class="brand"><img id="logo" alt="" /><span>voxiva</span></div>
+      <div class="brand"><img src="./assets/voxiva-cli-mark.png" alt="" /><span>voxiva</span></div>
       <button class="nav-item active" id="nav-chat"><span class="nav-glyph">✳</span><span>New chat</span><kbd>Ctrl N</kbd></button>
       <button class="nav-item" id="nav-terminal"><span class="nav-glyph terminal-glyph">&gt;_</span><span>Terminal</span><kbd>Ctrl J</kbd></button>
       <div class="side-section"><span>PROJECT</span><button class="icon-button" id="open-project" title="Open project" aria-label="Open project">+</button></div>
@@ -27,7 +27,7 @@
       <section class="chat-view" id="chat-view">
         <div class="chat-scroll" id="chat-scroll">
           <div class="welcome" id="welcome">
-            <div class="hero-brand"><img id="welcome-logo" alt="" /><span>voxiva</span></div>
+            <div class="hero-brand"><img src="./assets/voxiva-cli-mark.png" alt="" /><span>voxiva</span></div>
           </div>
           <div class="messages" id="messages" aria-live="polite"></div>
         </div>
@@ -35,11 +35,11 @@
           <form class="composer" id="composer-form">
             <textarea id="prompt" rows="1" placeholder="Спросите что угодно, / — команды, @ — контекст…" aria-label="Message Voxiva"></textarea>
             <div class="composer-bottom">
-              <div class="composer-tools"><select id="model-select" aria-label="Model" title="Model"></select></div>
-              <div class="send-tools"><button class="send-button" id="send-button" type="submit" title="Send message">↑</button><button class="send-button stop-button" id="stop-button" type="button" hidden title="Stop response">■</button></div>
+              <div class="composer-tools"><button class="tool-button" id="attach-file" type="button" title="Добавить файл из проекта" aria-label="Добавить файл из проекта">+</button><select id="model-select" aria-label="Model" title="Model"><option value="voxiva/big-pickle">Big Pickle</option></select></div>
+              <div class="send-tools"><button class="send-button" id="send-button" type="submit" disabled title="Send message">↑</button><button class="send-button stop-button" id="stop-button" type="button" hidden title="Stop response">■</button></div>
             </div>
           </form>
-          <div class="workspace-context"><button type="button" class="project-chip" id="composer-project" title="Выбрать проект"><span class="context-label" id="context-label">Выберите проект</span><span class="chip-chevron">⌄</span></button><span class="context-divider">/</span><span class="local-chip">Локально <i></i></span></div>
+          <div class="workspace-context"><button type="button" class="project-chip" id="composer-project" title="Выбрать проект"><svg class="context-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.5 1.7H14v6.3H2z" /></svg><span class="context-label" id="context-label">Выберите проект</span><span class="chip-chevron">⌄</span></button><span class="context-divider">/</span><span class="local-chip"><svg class="context-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="8.5" rx="1.2"/><path d="M6 13.5h4M8 11v2.5"/></svg>Локально</span><span class="branch-chip" id="branch-chip" hidden><svg class="context-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 13V3m0 3h5a3 3 0 0 1 3 3v1m0 0-2-2m2 2 2-2"/></svg><span id="branch-name"></span></span></div>
           <div class="composer-note">Voxiva can make mistakes. Review proposed file changes before applying.</div>
         </div>
         <div class="home-footnote">Работа ведётся локально в выбранной папке проекта.</div>
@@ -49,7 +49,7 @@
         <div class="terminal-toolbar"><div><span class="live-dot" id="terminal-dot"></span><b>Voxiva CLI</b><span class="terminal-project" id="terminal-project">Choose a project</span></div><button class="button subtle" id="terminal-open-project">Open folder</button><button class="button subtle" id="terminal-new">Restart terminal</button></div>
         <div id="terminal"></div>
       </section>
-      <footer class="statusbar"><span><span class="status-dot" id="status-dot"></span><span id="status-text">Ready</span></span><span id="status-meta">Build · Voxiva</span></footer>
+      <footer class="statusbar"><span id="status-text">Ready</span><span id="status-meta">Build · Voxiva</span></footer>
     </main>
     <div id="toast" role="status" aria-live="polite"></div>
     <script type="module" src="renderer.js"></script>
