@@ -7,10 +7,10 @@ Repo: `voxiva-ai/cli`
 
 Use the real Voxiva mark:
 
-`D:\voxiva.ai\Voxiva CLI\brand\voxiva-logo.png`
+`D:\voxiva.ai\Voxiva CLI\brand\voxiva-cli-mark.png`
 
 Upload: https://github.com/organizations/voxiva-ai/settings/profile  
-(GitHub may ask for PNG — open the SVG in a browser, screenshot/export 512×512 if needed.)
+Upload the PNG directly as the Voxiva organization mark.
 
 ## Public install (after push)
 

@@ -110,9 +110,6 @@ async function startTerminal() {
 function addMessage(role, text = "") {
   const row = document.createElement("article");
   row.className = `message ${role}`;
-  const avatar = document.createElement("div");
-  avatar.className = "message-avatar";
-  avatar.textContent = role === "assistant" ? "V" : "You";
   const body = document.createElement("div");
   body.className = "message-body";
   const label = document.createElement("div");
@@ -122,7 +119,7 @@ function addMessage(role, text = "") {
   content.className = "message-content";
   content.textContent = text;
   body.append(label, content);
-  row.append(avatar, body);
+  row.append(body);
   $("messages").append(row);
   $("welcome").hidden = true;
   $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;

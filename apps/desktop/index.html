@@ -14,8 +14,8 @@
       <button class="nav-item active" id="nav-chat"><span class="nav-glyph">✳</span><span>New chat</span><kbd>Ctrl N</kbd></button>
       <button class="nav-item" id="nav-terminal"><span class="nav-glyph terminal-glyph">&gt;_</span><span>Terminal</span><kbd>Ctrl J</kbd></button>
       <div class="side-section"><span>PROJECT</span><button class="icon-button" id="open-project" title="Open project" aria-label="Open project">+</button></div>
-      <button class="workspace" id="workspace-button"><span class="workspace-mark">V</span><span class="workspace-copy"><b id="workspace-name">Choose a project</b><small id="workspace-path">Open a folder to begin</small></span><span class="chevron">⌄</span></button>
-      <div class="sidebar-bottom"><button class="profile" id="settings-button"><span class="avatar">V</span><span><b>Voxiva CLI</b><small id="model-caption">Loading model…</small></span><span class="chevron">···</span></button></div>
+      <button class="workspace" id="workspace-button"><span class="workspace-copy"><b id="workspace-name">Choose a project</b><small id="workspace-path">Open a folder to begin</small></span><span class="chevron">⌄</span></button>
+      <div class="sidebar-bottom"><button class="profile" id="settings-button"><span><b>voxiva</b><small id="model-caption">Loading model…</small></span><span class="chevron">···</span></button></div>
     </aside>
 
     <main class="app-main">
@@ -27,7 +27,7 @@
       <section class="chat-view" id="chat-view">
         <div class="chat-scroll" id="chat-scroll">
           <div class="welcome" id="welcome">
-            <div class="hero-brand"><img id="welcome-logo" alt="" /><span>Voxiva CLI</span></div>
+            <div class="hero-brand"><img id="welcome-logo" alt="" /><span>voxiva</span></div>
           </div>
           <div class="messages" id="messages" aria-live="polite"></div>
         </div>
@@ -39,7 +39,7 @@
               <div class="send-tools"><button class="send-button" id="send-button" type="submit" title="Send message">↑</button><button class="send-button stop-button" id="stop-button" type="button" hidden title="Stop response">■</button></div>
             </div>
           </form>
-          <div class="workspace-context"><button type="button" class="project-chip" id="composer-project" title="Выбрать проект"><span class="project-icon">▣</span><span class="context-label" id="context-label">Выберите проект</span><span class="chip-chevron">⌄</span></button><span class="context-divider">/</span><span class="local-chip"><span class="local-icon">▱</span> Локально <i></i></span></div>
+          <div class="workspace-context"><button type="button" class="project-chip" id="composer-project" title="Выбрать проект"><span class="context-label" id="context-label">Выберите проект</span><span class="chip-chevron">⌄</span></button><span class="context-divider">/</span><span class="local-chip">Локально <i></i></span></div>
           <div class="composer-note">Voxiva can make mistakes. Review proposed file changes before applying.</div>
         </div>
         <div class="home-footnote">Работа ведётся локально в выбранной папке проекта.</div>

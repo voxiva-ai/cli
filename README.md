@@ -1,4 +1,4 @@
-<p align="center"><img src="brand/voxiva-logo.png" alt="Voxiva" width="96" /></p>
+<p align="center"><img src="brand/voxiva-cli-mark.png" alt="Voxiva" width="96" /></p>
 
 <h1 align="center">Voxiva CLI</h1>
 
