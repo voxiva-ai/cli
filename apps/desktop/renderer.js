@@ -245,6 +245,7 @@ async function loadState() {
       await window.voxiva.setModel(models.value);
     }
     $("model-caption").textContent = models.selectedOptions[0]?.textContent ?? "Connect a model";
+    renderProviders(state.providers ?? []);
     const plan = $("plan-select");
     plan.replaceChildren();
     for (const item of state.plans) {
@@ -260,6 +261,78 @@ async function loadState() {
     $("model-caption").textContent = "Model settings unavailable";
     $("status-text").textContent = "Startup error";
     toast(error instanceof Error ? error.message : String(error));
+  }
+}
+
+function renderProviders(providers) {
+  const list = $("provider-list");
+  if (!list) return;
+  list.replaceChildren();
+  for (const provider of providers) {
+    const card = document.createElement("section");
+    card.className = "provider-card";
+    const heading = document.createElement("div");
+    heading.className = "provider-heading";
+    const identity = document.createElement("div");
+    const name = document.createElement("b");
+    name.textContent = provider.label;
+    const url = document.createElement("small");
+    url.textContent = provider.url;
+    identity.append(name, url);
+    const state = document.createElement("span");
+    state.className = "provider-state" + (provider.connected ? " connected" : "");
+    state.textContent = provider.connected ? "Connected · " + provider.maskedKey : "Not connected";
+    heading.append(identity, state);
+
+    const controls = document.createElement("div");
+    controls.className = "provider-controls";
+    const input = document.createElement("input");
+    input.type = "password";
+    input.autocomplete = "new-password";
+    input.maxLength = 4096;
+    input.placeholder = provider.connected ? "Enter a replacement API key" : "Paste API key";
+    input.setAttribute("aria-label", provider.label + " API key");
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") controls.querySelector(".provider-save").click();
+    });
+    const save = document.createElement("button");
+    save.className = "button provider-save";
+    save.type = "button";
+    save.textContent = provider.connected ? "Replace" : "Connect";
+    save.addEventListener("click", async () => {
+      save.disabled = true;
+      try {
+        await window.voxiva.saveProvider({ id: provider.id, apiKey: input.value });
+        input.value = "";
+        await loadState();
+        toast(provider.label + " connected");
+      } catch (error) {
+        toast(error instanceof Error ? error.message : String(error));
+      } finally {
+        save.disabled = false;
+      }
+    });
+    controls.append(input, save);
+    if (provider.connected) {
+      const remove = document.createElement("button");
+      remove.className = "button subtle";
+      remove.type = "button";
+      remove.textContent = "Remove";
+      remove.addEventListener("click", async () => {
+        remove.disabled = true;
+        try {
+          await window.voxiva.removeProvider(provider.id);
+          await loadState();
+          toast(provider.label + " disconnected");
+        } catch (error) {
+          toast(error instanceof Error ? error.message : String(error));
+          remove.disabled = false;
+        }
+      });
+      controls.append(remove);
+    }
+    card.append(heading, controls);
+    list.append(card);
   }
 }
 
@@ -311,9 +384,10 @@ async function startNewChat() {
   switchView("chat");
 }
 $("settings-button").addEventListener("click", () => {
-  toast("To connect providers and manage keys, open Terminal and use /connect or /model.");
-  switchView("terminal");
+  loadState().then(() => $("settings-dialog").showModal()).catch((error) => toast(error.message));
 });
+$("settings-close").addEventListener("click", () => $("settings-dialog").close());
+$("settings-done").addEventListener("click", () => $("settings-dialog").close());
 $("plan-chip").addEventListener("click", () => $("plan-select").focus());
 $("plan-select").addEventListener("change", async (event) => {
   try {

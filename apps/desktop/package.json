@@ -37,6 +37,7 @@
     },
     "files": [
       "main.cjs",
+      "provider-service.cjs",
       "output-filter.cjs",
       "preload.cjs",
       "assets/**",

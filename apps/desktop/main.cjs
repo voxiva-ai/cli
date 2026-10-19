@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { createOutputFilter } = require("./output-filter.cjs");
+const { createProviderHandlers } = require("./provider-service.cjs");
 
 let window;
 let terminal;
@@ -12,6 +13,7 @@ let activeRequest;
 let conversation = [];
 let pendingEdits = new Map();
 let corePromise;
+let providerHandlersPromise;
 const settingsPath = () => path.join(app.getPath("userData"), "settings.json");
 
 function loadSettings() {
@@ -45,6 +47,17 @@ function core() {
     ]).then(([chat, config, plans, files, edits]) => ({ chat, config, plans, files, edits }));
   }
   return corePromise;
+}
+
+function providerHandlers() {
+  if (!providerHandlersPromise) {
+    providerHandlersPromise = core().then(({ config }) => createProviderHandlers({
+      loadAuth: config.loadAuth,
+      saveAuth: config.saveAuth,
+      providerIds: config.PROVIDER_IDS,
+    }));
+  }
+  return providerHandlersPromise;
 }
 
 function nodeRuntime() {
@@ -125,6 +138,7 @@ ipcMain.handle("app:state", async () => {
   const { chat, config, plans } = await core();
   const saved = await config.loadConfig();
   const auth = await config.loadAuth();
+  const providers = await (await providerHandlers()).state(auth);
   const usable = chat.listCatalog().filter((model) => chat.isUsableModelRef(chat.modelRef(model), auth));
   const models = [...new Map(usable.map((model) => [chat.modelRef(model), { ref: chat.modelRef(model), label: model.label }])).values()];
   if (saved.defaultModel && chat.isUsableModelRef(saved.defaultModel, auth) && !models.some((model) => model.ref === saved.defaultModel)) {
@@ -134,13 +148,25 @@ ipcMain.handle("app:state", async () => {
     const fallback = chat.modelRef(chat.listFreeCatalog(auth)[0]);
     if (fallback && !models.some((model) => model.ref === fallback)) models.unshift({ ref: fallback, label: "Anonymous free fallback" });
   }
-  return { models, model: saved.defaultModel ?? chat.DEFAULT_FREE_MODEL, plan: saved.plan, plans: plans.PLANS.map(({ id, label, description }) => ({ id, label, description })) };
+  return {
+    models,
+    model: saved.defaultModel ?? chat.DEFAULT_FREE_MODEL,
+    plan: saved.plan,
+    plans: plans.PLANS.map(({ id, label, description }) => ({ id, label, description })),
+    providers,
+    theme: saved.theme ?? "auto",
+    locale: saved.locale ?? "en",
+  };
 });
+
+ipcMain.handle("provider:state", async () => (await providerHandlers()).state());
+ipcMain.handle("provider:save", async (_event, input) => (await providerHandlers()).save(input));
+ipcMain.handle("provider:remove", async (_event, id) => (await providerHandlers()).remove(id));
 
 ipcMain.handle("app:model", async (_event, ref) => {
   const { chat, config } = await core();
   const auth = await config.loadAuth();
-  if (typeof ref !== "string" || !chat.isUsableModelRef(ref, auth)) throw new Error("This model is unavailable. Connect its provider in the terminal with /connect.");
+  if (typeof ref !== "string" || !chat.isUsableModelRef(ref, auth)) throw new Error("This model is unavailable. Connect its provider in Settings.");
   await config.rememberModel(ref);
   return ref;
 });
@@ -168,7 +194,7 @@ ipcMain.handle("chat:send", async (event, prompt) => {
   const saved = await config.loadConfig();
   const auth = await config.loadAuth();
   const model = chat.migrateModelRef(saved.defaultModel) ?? chat.DEFAULT_FREE_MODEL;
-  if (!chat.isUsableModelRef(model, auth)) throw new Error("The selected model is not available. Connect its provider in the terminal.");
+  if (!chat.isUsableModelRef(model, auth)) throw new Error("The selected model is not available. Connect its provider in Settings.");
   const controller = new AbortController();
   activeRequest = controller;
   conversation.push({ role: "user", content: prompt.trim() });
