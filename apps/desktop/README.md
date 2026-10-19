@@ -16,7 +16,7 @@ Open a project folder in the app. Provider keys, saved sessions, themes, and oth
 
 Open **Models & providers** from the Voxiva button to add or remove a provider key; keys remain on the device and are never shown back in full. Choose a model in the composer and an agent plan in the top bar. The sidebar restores recent project chats after restart. Settings are shared with the CLI, so changing the theme or reply language in either place affects both.
 
-The app checks GitHub Releases on startup and offers an update when a newer version is available. A manual check is in the quick actions palette. Downloading starts only after you choose **Download update**; the app saves the matching installer in your Downloads folder and opens it only after a second explicit click. Windows opens the NSIS installer, macOS opens the unsigned DMG for manual installation, and Linux opens the downloaded AppImage. Unsupported platforms or architectures open the release page instead. The current app stays usable if GitHub is unavailable.
+The app checks GitHub Releases on startup and offers an update when a newer version is available. A manual check is in the quick actions palette. Downloading starts only after you choose **Download update**; the app saves the matching installer in your Downloads folder and opens it only after a second explicit click. Windows opens the NSIS installer and Linux opens the downloaded AppImage. macOS and unsupported platforms or architectures open the release page to download the installer manually. The current app stays usable if GitHub is unavailable.
 
 ## Package
 

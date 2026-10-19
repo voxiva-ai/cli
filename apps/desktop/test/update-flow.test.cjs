@@ -40,11 +40,19 @@ test("unsupported architectures get a release-page fallback", async () => {
   assert.equal(status.supportedAction, "release-page");
 });
 
-test("macOS updates select the DMG for manual installation", async () => {
+test("macOS updates open the release page for manual DMG installation", async () => {
   const service = createUpdateService({ currentVersion: "0.1.4", platform: "darwin", arch: "arm64", fetchRelease: async () => release("v0.1.5", [asset("Voxiva CLI-0.1.5-mac-arm64.dmg"), asset("Voxiva CLI-0.1.5-win-x64.exe")]) });
   const status = await service.check();
   assert.equal(status.asset.name, "Voxiva CLI-0.1.5-mac-arm64.dmg");
-  assert.equal(status.supportedAction, "download");
+  assert.equal(status.supportedAction, "release-page");
+  await assert.rejects(service.download({ directory: os.tmpdir() }), /No compatible desktop update/);
+});
+
+test("asset names must match the target and version exactly", async () => {
+  const service = createUpdateService({ currentVersion: "0.1.4", platform: "win32", arch: "x64", fetchRelease: async () => release("v0.1.5", [asset("Voxiva CLI-0.1.5-win-x64-extra.exe"), asset("Voxiva CLI-0.1.5-mac-arm64.dmg")]) });
+  const status = await service.check();
+  assert.equal(status.asset, null);
+  assert.equal(status.supportedAction, "release-page");
 });
 
 test("confirmed update download reports progress and preserves existing files", async () => {

@@ -567,12 +567,12 @@ async function checkDesktopUpdate({ silent = false } = {}) {
   currentUpdate = status;
   updateDownloaded = false;
   $("update-title").textContent = `Voxiva ${status.latest} is ready`;
-  $("update-description").textContent = status.asset
-    ? `A new desktop release is available (current version ${status.current}). Download the installer for this device when you are ready.`
-    : `Version ${status.latest} is available. Download an installer from the release page for your device.`;
+  $("update-description").textContent = status.supportedAction === "release-page"
+    ? `Version ${status.latest} is available. Open the release page to download the installer for this device.`
+    : `A new desktop release is available (current version ${status.current}). Download the installer for this device when you are ready.`;
   $("update-result").textContent = "";
   $("update-progress-wrap").hidden = true;
-  $("update-action").textContent = status.asset ? "Download update" : "Open release page";
+  $("update-action").textContent = status.supportedAction === "download" ? "Download update" : "Open release page";
   $("update-action").disabled = false;
   $("update-dialog").showModal();
 }

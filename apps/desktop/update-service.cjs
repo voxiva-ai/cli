@@ -34,13 +34,13 @@ function createUpdateService({ currentVersion, platform = process.platform, arch
       const releaseReady = Boolean(latest && Array.isArray(raw?.assets) && raw.assets.some((item) => isDesktopAsset(item, latest)));
       const newer = Boolean(latest && releaseReady && compare(latest, current) > 0);
       const asset = newer ? selectAsset(raw.assets, latest, platform, arch) : null;
-      cached = { current, latest: latest ?? null, releaseReady, available: newer, asset, releaseUrl: page, supportedAction: newer ? (asset ? "download" : "release-page") : "none" };
+      cached = { current, latest: latest ?? null, releaseReady, available: newer, asset, releaseUrl: page, supportedAction: newer ? (platform === "darwin" || !asset ? "release-page" : "download") : "none" };
       checkedAt = Date.now();
       return cached;
     },
     async download({ directory, onProgress = () => {}, signal } = {}) {
       const status = await this.check();
-      if (!status.available || !status.asset) throw new Error("No compatible desktop update is available.");
+      if (!status.available || status.supportedAction !== "download" || !status.asset) throw new Error("No compatible desktop update is available.");
       if (typeof directory !== "string" || !directory) throw new Error("Choose a download folder.");
       const response = await fetchAsset(status.asset.url, { signal, headers: { "user-agent": `voxiva-desktop/${current}` } });
       if (!response?.ok || !response.body) throw new Error("GitHub could not provide this update. Open the release page and try again.");
@@ -97,9 +97,9 @@ function safeReleasePage(value) {
 function selectAsset(assets, latest, platform, arch) {
   const target = platform === "win32" ? "win" : platform === "darwin" ? "mac" : platform === "linux" ? "linux" : null;
   if (!target || !["x64", "arm64"].includes(arch) || !Array.isArray(assets)) return null;
-  const extension = target === "win" ? /\.exe$/i : target === "mac" ? /\.dmg$/i : /\.appimage$/i;
+  const extension = target === "win" ? ".exe" : target === "mac" ? ".dmg" : ".AppImage";
   for (const item of assets) {
-    if (typeof item?.name !== "string" || path.basename(item.name) !== item.name || item.name.length > 220 || !item.name.startsWith(`Voxiva CLI-${latest}-${target}-${arch}`) || !extension.test(item.name)) continue;
+    if (typeof item?.name !== "string" || path.basename(item.name) !== item.name || item.name.length > 220 || item.name !== `Voxiva CLI-${latest}-${target}-${arch}${extension}`) continue;
     const url = safeAssetUrl(item.browser_download_url);
     if (!url || !Number.isSafeInteger(item.size) || item.size <= 0 || item.size > MAX_ASSET_BYTES) continue;
     return { name: item.name, size: item.size, url };
