@@ -3,6 +3,7 @@ const path = require("node:path");
 const pty = require("node-pty");
 const asar = require("@electron/asar");
 const release = path.join(__dirname, "../release");
+const cliVersion = require("../../../package.json").version;
 
 function resourceRoot() {
   if (process.platform === "win32") return path.join(release, "win-unpacked", "resources");
@@ -36,7 +37,7 @@ let output = "";
 child.onData((data) => { output += data; });
 child.onExit(({ exitCode }) => {
   clearTimeout(timeout);
-  if (exitCode !== 0 || !output.includes("0.1.4")) {
+  if (exitCode !== 0 || !output.includes(cliVersion)) {
     console.error(`Packaged Voxiva CLI failed (exit ${exitCode}): ${output.trim()}`);
     process.exit(1);
   }

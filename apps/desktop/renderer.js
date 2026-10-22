@@ -32,7 +32,8 @@ if (localStorage.getItem("voxiva-sidebar") === "expanded") document.body.classLi
 const themeAccent = { auto: "#62b8ff", voxiva: "#62b8ff", slate: "#9aa8bc", midnight: "#4d8fff", arctic: "#7ad7ff", ember: "#e8915a", forest: "#5fb87a", mono: "#c8c8c8" };
 function applyTheme(theme) {
   currentTheme = theme;
-  const light = theme === "arctic" || (theme === "auto" && matchMedia("(prefers-color-scheme: light)").matches);
+  const appearance = localStorage.getItem("voxiva-appearance");
+  const light = appearance ? appearance === "light" : theme === "arctic" || (theme === "auto" && matchMedia("(prefers-color-scheme: light)").matches);
   document.body.dataset.theme = light ? "light" : "dark";
   document.documentElement.style.setProperty("--accent", themeAccent[theme] ?? themeAccent.voxiva);
 }
@@ -600,9 +601,9 @@ $("sidebar-toggle").addEventListener("click", () => {
   localStorage.setItem("voxiva-sidebar", open ? "expanded" : "collapsed");
 });
 $("theme-button").addEventListener("click", async () => {
-  const theme = currentTheme === "arctic" ? "voxiva" : "arctic";
-  try { await window.voxiva.setPreferences({ theme }); applyTheme(theme); $("theme-select").value = theme; }
-  catch (error) { toast(error instanceof Error ? error.message : String(error)); }
+  const appearance = document.body.dataset.theme === "light" ? "dark" : "light";
+  localStorage.setItem("voxiva-appearance", appearance);
+  document.body.dataset.theme = appearance;
 });
 async function startNewChat() {
   await stopCurrentResponse();
@@ -687,7 +688,7 @@ $("settings-button").addEventListener("click", () => {
 $("settings-close").addEventListener("click", () => $("settings-dialog").close());
 $("settings-done").addEventListener("click", () => $("settings-dialog").close());
 $("theme-select").addEventListener("change", async (event) => {
-  try { await window.voxiva.setPreferences({ theme: event.currentTarget.value }); applyTheme(event.currentTarget.value); }
+  try { await window.voxiva.setPreferences({ theme: event.currentTarget.value }); localStorage.removeItem("voxiva-appearance"); applyTheme(event.currentTarget.value); }
   catch (error) { toast(error instanceof Error ? error.message : String(error)); await loadState(); }
 });
 $("locale-select").addEventListener("change", async (event) => {
