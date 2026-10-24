@@ -25,6 +25,7 @@ let currentTheme = "auto";
 let currentUpdate;
 let updateDownloaded = false;
 let availableModels = [];
+let availableProviders = [];
 let selectedModelRef = "";
 
 if (localStorage.getItem("voxiva-sidebar") === "expanded") document.body.classList.add("sidebar-open");
@@ -383,6 +384,7 @@ async function loadState() {
     if (!localeSelect.options.length) for (const locale of options.locales) localeSelect.add(new Option(locale.native || locale.label, locale.id));
     localeSelect.value = preferences.locale;
     availableModels = state.models;
+    availableProviders = state.providers ?? [];
     selectedModelRef = state.models.some((model) => model.ref === state.model) ? state.model : state.models[0]?.ref ?? "";
     if (selectedModelRef && selectedModelRef !== state.model) await window.voxiva.setModel(selectedModelRef);
     renderModelPicker();
@@ -407,6 +409,14 @@ async function loadState() {
 
 const modelProviderLabels = { voxiva: "Voxiva · Free", opencode: "OpenCode Zen", openai: "OpenAI", anthropic: "Anthropic", google: "Google AI", deepseek: "DeepSeek", groq: "Groq", openrouter: "OpenRouter" };
 function modelProvider(ref) { return ref.split("/")[0] || "Other"; }
+async function openProviderSettings(providerId) {
+  $("model-menu").hidePopover();
+  await loadState();
+  $("settings-dialog").showModal();
+  const card = $("provider-list").querySelector(`[data-provider-id="${providerId}"]`);
+  card?.scrollIntoView({ block: "nearest" });
+  card?.querySelector("input")?.focus();
+}
 function renderModelPicker() {
   const selected = availableModels.find((model) => model.ref === selectedModelRef);
   $("model-trigger-label").textContent = selected?.label ?? "Подключите модель";
@@ -414,6 +424,7 @@ function renderModelPicker() {
   $("model-caption").textContent = selected?.label ?? "Connect a model";
   const query = $("model-search").value.trim().toLocaleLowerCase();
   const filtered = availableModels.filter((model) => `${model.label} ${model.ref} ${modelProvider(model.ref)}`.toLocaleLowerCase().includes(query));
+  const filteredProviders = availableProviders.filter((provider) => `${provider.label} ${provider.id}`.toLocaleLowerCase().includes(query));
   const options = $("model-options");
   options.replaceChildren();
   const groups = new Map();
@@ -460,8 +471,30 @@ function renderModelPicker() {
   if (!filtered.length) {
     const empty = document.createElement("div");
     empty.className = "model-empty";
-    empty.textContent = availableModels.length ? "Модели не найдены" : "Подключите провайдера в настройках";
+    empty.textContent = "Модели не найдены";
     options.append(empty);
+  }
+  if (filteredProviders.length) {
+    const heading = document.createElement("div");
+    heading.className = "model-group-heading model-provider-heading";
+    heading.textContent = "Провайдеры";
+    options.append(heading);
+    for (const provider of filteredProviders) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "model-option model-provider-option";
+      button.setAttribute("role", "option");
+      button.setAttribute("aria-selected", "false");
+      const name = document.createElement("span");
+      name.className = "model-option-name";
+      name.textContent = provider.label;
+      const status = document.createElement("small");
+      status.className = "model-provider-status" + (provider.connected ? " connected" : "");
+      status.textContent = provider.connected ? "Подключён" : "Добавить ключ";
+      button.append(name, status);
+      button.addEventListener("click", () => openProviderSettings(provider.id).catch((error) => toast(error.message)));
+      options.append(button);
+    }
   }
 }
 
@@ -470,11 +503,11 @@ function positionModelMenu() {
   const trigger = $("model-trigger").getBoundingClientRect();
   const margin = 10;
   const gap = 6;
-  const width = Math.min(286, innerWidth - margin * 2);
+  const width = Math.min(340, innerWidth - margin * 2);
   menu.style.width = `${width}px`;
   menu.style.height = "auto";
   menu.style.maxHeight = "none";
-  const naturalHeight = Math.min(340, menu.getBoundingClientRect().height);
+  const naturalHeight = Math.min(420, menu.getBoundingClientRect().height);
   const below = Math.max(0, innerHeight - trigger.bottom - gap - margin);
   const above = Math.max(0, trigger.top - gap - margin);
   const openAbove = below < naturalHeight && above > below;
@@ -502,6 +535,7 @@ function renderProviders(providers) {
   for (const provider of providers) {
     const card = document.createElement("section");
     card.className = "provider-card";
+    card.dataset.providerId = provider.id;
     const heading = document.createElement("div");
     heading.className = "provider-heading";
     const identity = document.createElement("div");
