@@ -1,0 +1,22 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+
+test("renderer DOM lookups only target elements present in the desktop shell", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
+  const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
+  const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+  const missing = [...new Set([...renderer.matchAll(/\$\("([^"]+)"\)/g)].map((match) => match[1]).filter((id) => !ids.has(id)))];
+
+  assert.deepEqual(missing, []);
+});
+
+test("every application-menu item is wired to an action", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
+  const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
+  const actions = [...html.matchAll(/data-action="([^"]+)"/g)].map((match) => match[1]);
+
+  assert.ok(actions.length > 0);
+  for (const action of actions) assert.ok(renderer.includes(`"${action}"`), `menu action is not handled: ${action}`);
+});

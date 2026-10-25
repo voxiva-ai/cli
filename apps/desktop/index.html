@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body data-theme="light">
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar" inert>
       <div class="brand"><img src="./assets/voxiva-cli-mark.png" alt="" /><span>voxiva</span></div>
       <button class="nav-item active" id="nav-chat"><span class="nav-glyph">✳</span><span>New chat</span><kbd>Ctrl N</kbd></button>
       <button class="nav-item" id="nav-terminal"><span class="nav-glyph terminal-glyph">&gt;_</span><span>Terminal</span><kbd>Ctrl J</kbd></button>
@@ -22,9 +22,17 @@
 
     <main class="app-main">
       <header class="topbar">
-        <div class="top-leading"><button class="icon-button sidebar-toggle" id="sidebar-toggle" title="Show sidebar" aria-label="Show sidebar">☰</button><div class="breadcrumbs"><span class="crumb-muted" id="top-project">No project</span><span class="slash">/</span><span id="view-title">New chat</span></div></div>
-        <div class="top-actions"><button class="top-chip" id="plan-chip" title="Choose agent plan"><span id="plan-chip-label">Build</span><svg class="ui-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg><select id="plan-select" aria-label="Agent plan"></select></button><button class="icon-button" id="commands-button" title="Commands (Ctrl+K)" aria-label="Open commands">/</button><button class="icon-button" id="theme-button" title="Switch appearance">◐</button><button class="icon-button" id="top-terminal" title="Open terminal">&gt;_</button></div>
+        <div class="top-leading"><button class="icon-button sidebar-toggle" id="sidebar-toggle" title="Show sidebar" aria-label="Show sidebar">☰</button><button class="icon-button app-menu-trigger" id="app-menu-trigger" title="Application menu" aria-label="Application menu" aria-haspopup="menu" aria-expanded="false">▦</button><span class="sr-only" id="view-title">New chat</span><div class="session-tabs" id="session-tabs" role="tablist" aria-label="Open sessions"></div><button class="icon-button tab-new" id="tab-new" title="New session" aria-label="New session">+</button></div>
+        <div class="top-actions"><button class="icon-button update-trigger" id="update-trigger" title="Update available" aria-label="Update available" hidden>↓<i></i></button><button class="top-chip" id="plan-chip" title="Choose agent plan"><span id="plan-chip-label">Build</span><svg class="ui-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg><select id="plan-select" aria-label="Agent plan"></select></button><button class="icon-button" id="commands-button" title="Commands (Ctrl+K)" aria-label="Open commands">/</button><button class="icon-button" id="theme-button" title="Switch appearance">◐</button><button class="icon-button" id="top-terminal" title="Open terminal">&gt;_</button></div>
       </header>
+      <nav class="app-menu" id="app-menu" popover="auto" role="menu" aria-label="Application menu">
+        <div class="menu-brand">Voxiva</div>
+        <div class="menu-group"><span>Файл</span><button role="menuitem" data-action="new">Новая сессия <kbd>Ctrl N</kbd></button><button role="menuitem" data-action="workspaces">Открыть проект…</button></div>
+        <div class="menu-group"><span>Правка</span><button role="menuitem" data-action="undo">Отменить <kbd>Ctrl Z</kbd></button><button role="menuitem" data-action="redo">Повторить <kbd>Ctrl Y</kbd></button><button role="menuitem" data-action="copy">Копировать <kbd>Ctrl C</kbd></button><button role="menuitem" data-action="paste">Вставить <kbd>Ctrl V</kbd></button><button role="menuitem" data-action="select-all">Выбрать всё <kbd>Ctrl A</kbd></button></div>
+        <div class="menu-group"><span>Вид</span><button role="menuitem" data-action="sidebar">Боковая панель</button><button role="menuitem" data-action="theme">Сменить тему</button><button role="menuitem" data-action="commands">Команды <kbd>Ctrl K</kbd></button></div>
+        <div class="menu-group"><span>Окно</span><button role="menuitem" data-action="terminal">Терминал <kbd>Ctrl J</kbd></button></div>
+        <div class="menu-group"><span>Справка</span><button role="menuitem" data-action="update">Проверить обновления</button><button role="menuitem" data-action="doctor">Диагностика</button></div>
+      </nav>
 
       <section class="chat-view" id="chat-view">
         <div class="chat-scroll" id="chat-scroll">
@@ -41,7 +49,9 @@
               <div class="send-tools"><button class="send-button" id="send-button" type="submit" disabled title="Send message">↑</button><button class="send-button stop-button" id="stop-button" type="button" hidden title="Stop response">■</button></div>
             </div>
           </form>
-          <div class="workspace-context"><button type="button" class="project-chip" id="composer-project" title="Выбрать проект"><svg class="context-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.5 1.7H14v6.3H2z" /></svg><span class="context-label" id="context-label">Выберите проект</span><svg class="ui-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button><span class="context-divider">/</span><span class="local-chip"><svg class="context-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="8.5" rx="1.2"/><path d="M6 13.5h4M8 11v2.5"/></svg>Локально</span><span class="branch-chip" id="branch-chip" hidden><svg class="context-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 13V3m0 3h5a3 3 0 0 1 3 3v1m0 0-2-2m2 2 2-2"/></svg><span id="branch-name"></span></span></div>
+          <div class="workspace-context"><button type="button" class="project-chip" id="composer-project" title="Выбрать проект" aria-haspopup="listbox" aria-expanded="false"><svg class="context-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.5 1.7H14v6.3H2z" /></svg><span class="context-label" id="context-label">Выберите проект</span><svg class="ui-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button><span class="context-divider">/</span><button class="local-chip" id="environment-trigger" type="button" aria-haspopup="menu" aria-expanded="false"><svg class="context-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2.5" width="12" height="8.5" rx="1.2"/><path d="M6 13.5h4M8 11v2.5"/></svg><span id="environment-label">Локальный репозиторий</span><svg class="ui-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button><span class="branch-chip" id="branch-chip" hidden><svg class="context-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 13V3m0 3h5a3 3 0 0 1 3 3v1m0 0-2-2m2 2 2-2"/></svg><span id="branch-name"></span></span></div>
+          <div class="project-menu menu-popover" id="project-menu" popover="auto"><label class="menu-search"><span>⌕</span><input id="project-search" type="search" placeholder="Поиск проектов" aria-label="Поиск проектов" /></label><div class="menu-options" id="project-options" role="listbox" aria-label="Проекты"></div><button class="menu-footer" id="project-add" type="button">＋ Добавить проект</button></div>
+          <div class="environment-menu menu-popover" id="environment-menu" popover="auto"><div class="menu-caption">Запустить сессию в</div><button role="menuitemradio" aria-checked="true" id="environment-local">▣ <span>Локальный репозиторий</span><b>✓</b></button><button role="menuitemradio" aria-checked="false" id="environment-worktree">＋ <span>Новое рабочее пространство</span><b>✓</b></button><form class="worktree-form" id="worktree-form" hidden><input id="worktree-name" required maxlength="40" placeholder="Название ветки" aria-label="Название рабочего пространства" /><button class="button" type="submit">Создать</button></form></div>
           <div class="composer-note">Voxiva can make mistakes. Review proposed file changes before applying.</div>
         </div>
         <div class="home-footnote">Работа ведётся локально в выбранной папке проекта.</div>
@@ -53,14 +63,6 @@
       </section>
       <footer class="statusbar"><span id="status-text">Ready</span><span id="status-meta">Build · Voxiva</span></footer>
     </main>
-    <dialog class="settings-dialog workspace-dialog" id="workspace-dialog" aria-labelledby="workspace-title">
-      <header class="settings-header">
-        <div><span class="settings-kicker">VOXIVA</span><h2 id="workspace-title">Recent projects</h2></div>
-        <button class="icon-button" id="workspace-close" type="button" aria-label="Close projects" title="Close">×</button>
-      </header>
-      <div class="workspace-list" id="workspace-list" aria-live="polite"></div>
-      <footer class="settings-footer"><button class="button" id="workspace-add" type="button">Open folder…</button><button class="button" id="workspace-done" type="button">Done</button></footer>
-    </dialog>
     <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
       <header class="settings-header">
         <div><span class="settings-kicker">VOXIVA</span><h2 id="settings-title">Models & providers</h2></div>

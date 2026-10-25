@@ -14,6 +14,13 @@ function history(messages) {
     .map(({ role, content }) => ({ role, content }));
 }
 
+async function getLastSessionId({ cwd, workspaces, sessions }) {
+  const id = (await workspaces.getWorkspace(cwd))?.lastSessionId;
+  if (!id) return null;
+  const session = await sessions.getSession(id);
+  return session?.cwd && normalizedPath(session.cwd) === normalizedPath(cwd) ? id : null;
+}
+
 function createSessionHandlers({ sessions, getCurrentProject }) {
   return {
     async list() {
@@ -54,4 +61,4 @@ function createSessionHandlers({ sessions, getCurrentProject }) {
   };
 }
 
-module.exports = { createSessionHandlers };
+module.exports = { createSessionHandlers, getLastSessionId };

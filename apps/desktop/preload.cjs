@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld("voxiva", {
   chooseContextFile: () => ipcRenderer.invoke("project:context-file"),
   workspaces: () => ipcRenderer.invoke("workspace:list"),
   activateWorkspace: (cwd) => ipcRenderer.invoke("workspace:activate", cwd),
+  createWorktree: (cwd, name) => ipcRenderer.invoke("workspace:create-worktree", cwd, name),
+  mainWorktree: (cwd) => ipcRenderer.invoke("workspace:main-worktree", cwd),
   lastSession: (cwd) => ipcRenderer.invoke("workspace:last-session", cwd),
   sessions: () => ipcRenderer.invoke("session:list"),
   openSession: (id) => ipcRenderer.invoke("session:open", id),

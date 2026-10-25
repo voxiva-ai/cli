@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { createSessionHandlers } = require("../session-service.cjs");
+const { createSessionHandlers, getLastSessionId } = require("../session-service.cjs");
 
 function setup(records = []) {
   let currentProject = "C:/work/alpha";
@@ -73,4 +73,13 @@ test("session save keeps only the latest 40 messages and preserves its original 
   assert.equal(stored[0].title, "Original title");
   assert.equal(stored[0].messages.length, 40);
   assert.equal(stored[0].messages[0].content, "message-5");
+});
+
+test("last session lookup ignores stale IDs from a different project", async () => {
+  const workspaces = { getWorkspace: async () => ({ lastSessionId: "old-session" }) };
+  const sessions = { getSession: async () => ({ id: "old-session", cwd: "C:/work/other" }) };
+
+  assert.equal(await getLastSessionId({ cwd: "C:/work/alpha", workspaces, sessions }), null);
+  sessions.getSession = async () => ({ id: "old-session", cwd: "C:/work/alpha" });
+  assert.equal(await getLastSessionId({ cwd: "C:/work/alpha", workspaces, sessions }), "old-session");
 });

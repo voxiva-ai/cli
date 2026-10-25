@@ -6,9 +6,10 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { createOutputFilter } = require("./output-filter.cjs");
 const { createProviderHandlers } = require("./provider-service.cjs");
-const { createSessionHandlers } = require("./session-service.cjs");
+const { createSessionHandlers, getLastSessionId } = require("./session-service.cjs");
 const { createAppActions } = require("./app-actions.cjs");
 const { createUpdateService } = require("./update-service.cjs");
+const { createWorktree, getMainWorktree } = require("./worktree-service.cjs");
 
 let window;
 let terminal;
@@ -186,8 +187,8 @@ ipcMain.handle("workspace:list", async () => {
 
 ipcMain.handle("workspace:last-session", async (_event, cwd) => {
   if (typeof cwd !== "string") return null;
-  const { workspaces } = await core();
-  return (await workspaces.getWorkspace(cwd))?.lastSessionId ?? null;
+  const { sessions, workspaces } = await core();
+  return getLastSessionId({ cwd, workspaces, sessions });
 });
 
 ipcMain.handle("workspace:activate", async (_event, requestedPath) => {
@@ -202,6 +203,24 @@ ipcMain.handle("workspace:activate", async (_event, requestedPath) => {
   await workspaces.touchWorkspace(cwd);
   await config.patchConfig({ cwd });
   return cwd;
+});
+
+ipcMain.handle("workspace:create-worktree", async (_event, requestedCwd, name) => {
+  const current = loadSettings().lastProject;
+  if (typeof requestedCwd !== "string" || !current || !samePath(requestedCwd, current)) throw new Error("Select the current project before creating a worktree.");
+  const result = await createWorktree({ cwd: current, name });
+  const { config, workspaces } = await core();
+  await workspaces.touchWorkspace(result.cwd);
+  await config.patchConfig({ cwd: result.cwd });
+  clearProjectState(result.cwd);
+  saveProject(result.cwd);
+  return result;
+});
+
+ipcMain.handle("workspace:main-worktree", async (_event, requestedCwd) => {
+  const current = loadSettings().lastProject;
+  if (typeof requestedCwd !== "string" || !current || !samePath(requestedCwd, current)) throw new Error("Select the current project first.");
+  return getMainWorktree(current);
 });
 
 ipcMain.handle("project:branch", (_event, cwd) => {

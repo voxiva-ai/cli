@@ -40,6 +40,7 @@
       "main.cjs",
       "app-actions.cjs",
       "update-service.cjs",
+      "worktree-service.cjs",
       "provider-service.cjs",
       "session-service.cjs",
       "output-filter.cjs",

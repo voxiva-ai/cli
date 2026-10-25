@@ -1,4 +1,5 @@
 const $ = (id) => document.getElementById(id);
+const sameProjectPath = (left, right) => left?.replace(/[\\/]+/g, "/").replace(/\/$/, "").toLowerCase() === right?.replace(/[\\/]+/g, "/").replace(/\/$/, "").toLowerCase();
 const { Terminal } = window;
 const { FitAddon } = window.FitAddon;
 const terminal = new Terminal({
@@ -16,6 +17,7 @@ terminal.loadAddon(fit);
 let currentProject = null;
 let currentSessionId = null;
 let currentSessionTitle = "New session";
+let currentDraft = true;
 let running = false;
 let activeSendPromise;
 let terminalStarted = false;
@@ -27,8 +29,14 @@ let updateDownloaded = false;
 let availableModels = [];
 let availableProviders = [];
 let selectedModelRef = "";
+let openTabs = [{ id: null, title: "New session" }];
 
-if (localStorage.getItem("voxiva-sidebar") === "expanded") document.body.classList.add("sidebar-open");
+if (localStorage.getItem("voxiva-sidebar") !== "collapsed") {
+  document.body.classList.add("sidebar-open");
+  $("sidebar").inert = false;
+  $("sidebar-toggle").title = "Hide sidebar";
+  $("sidebar-toggle").setAttribute("aria-label", "Hide sidebar");
+}
 
 const themeAccent = { auto: "#62b8ff", voxiva: "#62b8ff", slate: "#9aa8bc", midnight: "#4d8fff", arctic: "#7ad7ff", ember: "#e8915a", forest: "#5fb87a", mono: "#c8c8c8" };
 function applyTheme(theme) {
@@ -56,12 +64,57 @@ function updateSendButton() {
   $("send-button").disabled = !currentProject || !$("prompt").value.trim() || running;
 }
 
+function renderTabs() {
+  const list = $("session-tabs");
+  list.replaceChildren();
+  for (const tab of openTabs) {
+    const active = tab.id === currentSessionId || (tab.id === null && currentDraft);
+    const item = document.createElement("div");
+    item.className = "session-tab" + (active ? " active" : "");
+    item.setAttribute("role", "presentation");
+    const select = document.createElement("button");
+    select.type = "button";
+    select.setAttribute("role", "tab");
+    select.setAttribute("aria-selected", String(active));
+    select.title = tab.title;
+    select.textContent = tab.title;
+    select.addEventListener("click", () => tab.id ? openSession(tab.id) : startNewChat());
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "tab-close";
+    close.title = `Close ${tab.title}`;
+    close.setAttribute("aria-label", close.title);
+    close.textContent = "×";
+    close.addEventListener("click", () => closeTab(tab));
+    item.append(select, close);
+    list.append(item);
+  }
+}
+
+async function closeTab(tab) {
+  const index = openTabs.indexOf(tab);
+  if (index < 0) return;
+  openTabs.splice(index, 1);
+  if (!openTabs.length) openTabs.push({ id: null, title: "New session" });
+  const active = tab.id === currentSessionId || (tab.id === null && currentDraft);
+  if (!active) { renderTabs(); return; }
+  const next = openTabs[Math.max(0, index - 1)];
+  if (next.id) await openSession(next.id);
+  else await startNewChat();
+}
+
+function rememberTab(id, title) {
+  let tab = openTabs.find((item) => item.id === id);
+  if (!tab) { tab = { id, title }; openTabs.push(tab); }
+  tab.title = title;
+  renderTabs();
+}
+
 function setProject(cwd) {
   currentProject = cwd;
   const name = cwd.replace(/[\\/]$/, "").split(/[\\/]/).at(-1) || cwd;
   $("workspace-name").textContent = name;
   $("workspace-path").textContent = cwd;
-  $("top-project").textContent = name;
   $("terminal-project").textContent = cwd;
   $("context-label").textContent = name;
   $("prompt").disabled = false;
@@ -73,6 +126,14 @@ function setProject(cwd) {
     $("branch-name").textContent = branch ?? "";
     $("branch-chip").hidden = !branch;
   }).catch(() => { $("branch-chip").hidden = true; });
+  window.voxiva.mainWorktree(cwd).then((main) => {
+    if (currentProject === cwd) {
+      const isWorktree = !sameProjectPath(main, cwd);
+      $("environment-label").textContent = isWorktree ? "Рабочее пространство" : "Локальный репозиторий";
+      $("environment-local").setAttribute("aria-checked", String(!isWorktree));
+      $("environment-worktree").setAttribute("aria-checked", String(isWorktree));
+    }
+  }).catch(() => { if (currentProject === cwd) $("environment-label").textContent = "Локальный репозиторий"; });
 }
 
 function clearMessages() {
@@ -110,6 +171,8 @@ async function openSession(id) {
     const session = await window.voxiva.openSession(id);
     currentSessionId = session.id;
     currentSessionTitle = session.title || "Session";
+    currentDraft = false;
+    rememberTab(session.id, currentSessionTitle);
     clearMessages();
     for (const message of session.messages) addMessage(message.role, message.content);
     $("welcome").hidden = session.messages.length > 0;
@@ -122,62 +185,97 @@ async function openSession(id) {
   }
 }
 
-async function loadWorkspaces() {
-  const list = $("workspace-list");
-  const workspaces = await window.voxiva.workspaces();
-  list.replaceChildren();
-  if (!workspaces.length) {
-    const empty = document.createElement("div");
-    empty.className = "empty-session";
-    empty.textContent = "Choose a folder to add your first project";
-    list.append(empty);
-    return;
-  }
-  for (const workspace of workspaces) {
-    const button = document.createElement("button");
-    button.className = "workspace-entry" + (workspace.path === currentProject ? " active" : "");
-    button.type = "button";
-    button.title = workspace.path;
-    const name = document.createElement("b");
-    name.textContent = workspace.title;
-    const folder = document.createElement("small");
-    folder.textContent = workspace.path;
-    button.append(name, folder);
-    button.addEventListener("click", async () => {
-      button.disabled = true;
-      try {
-        await stopCurrentResponse();
-        const lastSession = await window.voxiva.lastSession(workspace.path);
-        const cwd = await window.voxiva.activateWorkspace(workspace.path);
-        const changed = currentProject !== cwd;
-        if (changed) {
-          currentSessionId = await window.voxiva.newChat();
-          currentSessionTitle = "New session";
-          clearMessages();
-          terminalStarted = false;
-        }
-        setProject(cwd);
-        $("view-title").textContent = currentSessionTitle;
-        $("workspace-dialog").close();
-        await loadSessions();
-        if (lastSession) await openSession(lastSession);
-        else if (changed) { currentSessionTitle = "New session"; }
-      } catch (error) {
-        toast(error instanceof Error ? error.message : String(error));
-        button.disabled = false;
-      }
-    });
-    list.append(button);
-  }
-}
-
-async function openWorkspacePicker() {
+async function openWorkspacePicker(trigger = $("composer-project")) {
   try {
-    await loadWorkspaces();
-    $("workspace-dialog").showModal();
+    await renderProjectOptions();
+    showPopover("project-menu", trigger);
+    $("project-search").focus();
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
   }
+}
+
+function showPopover(id, trigger) {
+  const popover = $(id);
+  popover.showPopover();
+  const rect = trigger.getBoundingClientRect();
+  popover.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - popover.offsetWidth - 8))}px`;
+  const preferredTop = rect.bottom + popover.offsetHeight + 8 > innerHeight ? rect.top - popover.offsetHeight - 6 : rect.bottom + 6;
+  popover.style.top = `${Math.max(8, Math.min(preferredTop, innerHeight - popover.offsetHeight - 8))}px`;
+}
+
+async function renderProjectOptions() {
+  const options = $("project-options");
+  const query = $("project-search").value.trim().toLocaleLowerCase();
+  const workspaces = await window.voxiva.workspaces();
+  options.replaceChildren();
+  for (const workspace of workspaces.filter((item) => `${item.title} ${item.path}`.toLocaleLowerCase().includes(query))) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", String(workspace.path === currentProject));
+    button.innerHTML = `<span class="project-mark">▣</span><span class="project-copy"><b></b><small></small></span><span class="project-check">✓</span>`;
+    button.querySelector("b").textContent = workspace.title;
+    button.querySelector("small").textContent = workspace.path;
+    button.addEventListener("click", () => activateProject(workspace.path));
+    options.append(button);
+  }
+  if (!options.childElementCount) {
+    const empty = document.createElement("div");
+    empty.className = "menu-empty";
+    empty.textContent = query ? "Проекты не найдены" : "Недавних проектов пока нет";
+    options.append(empty);
+  }
+}
+
+async function activateProject(requestedPath) {
+  try {
+    $("project-menu").hidePopover();
+    await stopCurrentResponse();
+    const lastSession = requestedPath === currentProject ? null : await window.voxiva.lastSession(requestedPath);
+    const cwd = await window.voxiva.activateWorkspace(requestedPath);
+    if (currentProject !== cwd) {
+      currentSessionId = await window.voxiva.newChat();
+      currentSessionTitle = "New session";
+      currentDraft = true;
+      clearMessages();
+      terminalStarted = false;
+      openTabs = [{ id: null, title: currentSessionTitle }];
+    }
+    setProject(cwd);
+    renderTabs();
+    await loadSessions();
+    if (lastSession) await openSession(lastSession);
+    else if (!$("terminal-view").hidden) { terminalStarted = false; startTerminal(); }
+  } catch (error) { toast(error instanceof Error ? error.message : String(error)); }
+}
+
+async function createProjectWorktree(event) {
+  event.preventDefault();
+  const button = $("worktree-form").querySelector("button");
+  const navigation = ["app-menu-trigger", "composer-project", "workspace-button", "open-project", "terminal-open-project", "environment-trigger", "environment-worktree"].map((id) => $(id));
+  const previousDisabled = navigation.map((element) => element.disabled);
+  navigation.forEach((element) => { element.disabled = true; });
+  button.disabled = true;
+  try {
+    const result = await window.voxiva.createWorktree(currentProject, $("worktree-name").value);
+    $("environment-menu").hidePopover();
+    $("worktree-form").hidden = true;
+    $("worktree-name").value = "";
+    setProject(result.cwd);
+    currentSessionId = await window.voxiva.newChat();
+    currentSessionTitle = "New session";
+    currentDraft = true;
+    openTabs = [{ id: null, title: currentSessionTitle }];
+    renderTabs();
+    clearMessages();
+    terminalStarted = false;
+    if (!$("terminal-view").hidden) startTerminal();
+    await loadSessions();
+    $("environment-label").textContent = "Рабочее пространство";
+    toast(result.hasChanges ? "Рабочее пространство создано. Незакоммиченные изменения остались в исходной папке." : "Рабочее пространство создано.");
+  } catch (error) { toast(error instanceof Error ? error.message : String(error)); }
+  finally { button.disabled = false; navigation.forEach((element, index) => { element.disabled = previousDisabled[index]; }); }
 }
 
 async function chooseProject() {
@@ -190,6 +288,9 @@ async function chooseProject() {
     if (changed) {
       currentSessionId = await window.voxiva.newChat();
       currentSessionTitle = "New session";
+      currentDraft = true;
+      openTabs = [{ id: null, title: currentSessionTitle }];
+      renderTabs();
       clearMessages();
       terminalStarted = false;
     }
@@ -613,7 +714,7 @@ $("prompt").addEventListener("keydown", (event) => {
   if (event.key === "Escape" && running) window.voxiva.stopChat();
 });
 $("stop-button").addEventListener("click", () => window.voxiva.stopChat());
-for (const id of ["open-project", "composer-project", "terminal-open-project"]) $(id).addEventListener("click", chooseProject);
+for (const id of ["open-project", "terminal-open-project"]) $(id).addEventListener("click", chooseProject);
 $("attach-file").addEventListener("click", async () => {
   if (!currentProject) return chooseProject();
   try {
@@ -630,6 +731,7 @@ $("nav-chat").addEventListener("click", () => startNewChat().catch((error) => to
 $("terminal-new").addEventListener("click", () => { terminalStarted = false; startTerminal(); });
 $("sidebar-toggle").addEventListener("click", () => {
   const open = document.body.classList.toggle("sidebar-open");
+  $("sidebar").inert = !open;
   $("sidebar-toggle").title = open ? "Hide sidebar" : "Show sidebar";
   $("sidebar-toggle").setAttribute("aria-label", $("sidebar-toggle").title);
   localStorage.setItem("voxiva-sidebar", open ? "expanded" : "collapsed");
@@ -643,6 +745,10 @@ async function startNewChat() {
   await stopCurrentResponse();
   currentSessionId = await window.voxiva.newChat();
   currentSessionTitle = "New session";
+  currentDraft = true;
+  openTabs = openTabs.filter((tab) => tab.id !== null);
+  openTabs.push({ id: null, title: currentSessionTitle });
+  renderTabs();
   clearMessages();
   $("view-title").textContent = currentSessionTitle;
   await loadSessions();
@@ -678,10 +784,18 @@ async function openCommands() {
 async function checkDesktopUpdate({ silent = false } = {}) {
   const status = await window.voxiva.checkUpdate();
   if (!status.available) {
+    $("update-trigger").hidden = true;
+    currentUpdate = null;
     if (!silent) toast(!status.latest ? "Could not reach GitHub. Try again later." : !status.releaseReady ? "The latest release does not include a desktop installer yet." : "Voxiva is up to date.");
     return;
   }
   currentUpdate = status;
+  $("update-trigger").hidden = false;
+  $("update-trigger").title = `Voxiva ${status.latest} update available`;
+  $("update-trigger").setAttribute("aria-label", `Voxiva ${status.latest} update available`);
+  if (!silent) showUpdateDialog(status);
+}
+function showUpdateDialog(status) {
   updateDownloaded = false;
   $("update-title").textContent = `Voxiva ${status.latest} is ready`;
   $("update-description").textContent = status.supportedAction === "release-page"
@@ -714,8 +828,58 @@ async function runCommand(id) {
       return;
     }
     if (id === "update") return checkDesktopUpdate();
+    if (id === "sidebar") return $("sidebar-toggle").click();
+    if (id === "theme") return $("theme-button").click();
+    if (id === "commands") return openCommands();
+    if (["undo", "redo", "select-all"].includes(id)) {
+      $("prompt").focus();
+      if (id === "select-all") return $("prompt").select();
+      return document.execCommand(id);
+    }
+    if (id === "copy") return navigator.clipboard.writeText(document.getSelection()?.toString() || $("prompt").value);
+    if (id === "paste") return navigator.clipboard.readText().then((text) => {
+      if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) document.execCommand("insertText", false, text);
+      else { $("prompt").value += text; $("prompt").dispatchEvent(new Event("input", { bubbles: true })); }
+    });
   } catch (error) { toast(error instanceof Error ? error.message : String(error)); }
 }
+$("app-menu-trigger").addEventListener("click", () => {
+  if ($("app-menu").matches(":popover-open")) { $("app-menu").hidePopover(); return; }
+  showPopover("app-menu", $("app-menu-trigger"));
+});
+$("app-menu").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-action]");
+  if (!button) return;
+  $("app-menu").hidePopover();
+  if (button.dataset.action === "new") return startNewChat();
+  if (["workspaces", "terminal", "update", "doctor", "sidebar", "theme", "commands", "undo", "redo", "copy", "paste", "select-all"].includes(button.dataset.action)) runCommand(button.dataset.action).catch((error) => toast(error.message));
+});
+$("composer-project").addEventListener("click", async () => {
+  try { await renderProjectOptions(); showPopover("project-menu", $("composer-project")); $("project-search").focus(); }
+  catch (error) { toast(error instanceof Error ? error.message : String(error)); }
+});
+$("project-search").addEventListener("input", () => renderProjectOptions().catch((error) => toast(error.message)));
+$("project-add").addEventListener("click", () => { $("project-menu").hidePopover(); chooseProject(); });
+$("environment-trigger").addEventListener("click", () => showPopover("environment-menu", $("environment-trigger")));
+$("environment-local").addEventListener("click", async () => {
+  $("environment-menu").hidePopover();
+  try {
+    const main = await window.voxiva.mainWorktree(currentProject);
+    if (!sameProjectPath(main, currentProject)) await activateProject(main);
+    else $("environment-label").textContent = "Локальный репозиторий";
+  } catch (error) { toast(error instanceof Error ? error.message : String(error)); }
+});
+$("environment-worktree").addEventListener("click", () => {
+  if (!currentProject) { toast("Сначала выберите проект."); return; }
+  $("worktree-form").hidden = false;
+  $("worktree-name").focus();
+});
+$("worktree-form").addEventListener("submit", createProjectWorktree);
+$("tab-new").addEventListener("click", () => startNewChat().catch((error) => toast(error.message)));
+$("update-trigger").addEventListener("click", () => currentUpdate && showUpdateDialog(currentUpdate));
+$("app-menu").addEventListener("toggle", (event) => $("app-menu-trigger").setAttribute("aria-expanded", String(event.newState === "open")));
+$("project-menu").addEventListener("toggle", (event) => $("composer-project").setAttribute("aria-expanded", String(event.newState === "open")));
+$("environment-menu").addEventListener("toggle", (event) => $("environment-trigger").setAttribute("aria-expanded", String(event.newState === "open")));
 $("settings-button").addEventListener("click", () => {
   loadState().then(() => $("settings-dialog").showModal()).catch((error) => toast(error.message));
 });
@@ -771,10 +935,7 @@ window.voxiva.onUpdateProgress(({ percent, received, total }) => {
 document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); openCommands().catch((error) => toast(error.message)); }
 });
-$("workspace-button").addEventListener("click", openWorkspacePicker);
-$("workspace-close").addEventListener("click", () => $("workspace-dialog").close());
-$("workspace-done").addEventListener("click", () => $("workspace-dialog").close());
-$("workspace-add").addEventListener("click", () => { $("workspace-dialog").close(); chooseProject(); });
+$("workspace-button").addEventListener("click", () => openWorkspacePicker($("workspace-button")));
 $("new-session-button").addEventListener("click", () => startNewChat().catch((error) => toast(error.message)));
 $("plan-chip").addEventListener("click", () => $("plan-select").focus());
 $("plan-select").addEventListener("change", async (event) => {
@@ -829,6 +990,12 @@ window.voxiva.onReply(({ text, sessionId, title }) => {
   currentAssistant.content.classList.remove("thinking");
   currentSessionId = sessionId ?? currentSessionId;
   currentSessionTitle = title || currentSessionTitle;
+  if (currentSessionId) {
+    currentDraft = false;
+    const draft = openTabs.find((tab) => tab.id === null);
+    if (draft) { draft.id = currentSessionId; draft.title = currentSessionTitle; }
+    rememberTab(currentSessionId, currentSessionTitle);
+  }
   $("view-title").textContent = currentSessionTitle;
   loadSessions().catch((error) => toast(error.message));
 });
@@ -874,6 +1041,7 @@ document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && key === "j") { event.preventDefault(); $("nav-terminal").click(); }
 });
 
+renderTabs();
 await loadState();
 const initialProject = await window.voxiva.initialProject();
 if (initialProject) {
