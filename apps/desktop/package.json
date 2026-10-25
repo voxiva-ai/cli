@@ -8,7 +8,6 @@
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
-    "smoke:pty": "electron test/fixture",
     "smoke:packaged": "node test/packaged-smoke.cjs",
     "test": "node --test test/*.test.cjs",
     "test:stream": "node --test test/output-filter.test.cjs",
@@ -17,11 +16,7 @@
     "dist:dir": "npm run icons && electron-builder --dir"
   },
   "dependencies": {
-    "@voxiva/cli": "file:vendor/voxiva-cli.tgz",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0",
-    "node": "24.22.0",
-    "node-pty": "^1.1.0"
+    "@voxiva/cli": "file:vendor/voxiva-cli.tgz"
   },
   "devDependencies": {
     "electron": "^44.9.0",
@@ -39,7 +34,6 @@
     "files": [
       "main.cjs",
       "cli-runtime.cjs",
-      "terminal-shell.cjs",
       "stream-buffer.js",
       "app-actions.cjs",
       "update-service.cjs",

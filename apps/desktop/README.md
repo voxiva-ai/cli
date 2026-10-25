@@ -1,6 +1,6 @@
 # Voxiva CLI Desktop
 
-The desktop app opens a centered coding chat with model and plan selection, reviewable file changes, saved sessions, recent projects, shared theme and reply-language settings, and searchable quick actions (`Ctrl+K`). The embedded terminal provides a shell with the bundled `voxiva` command, so every CLI command and the interactive TUI remain available without a system Node.js installation. Chat and terminal share the CLI's provider, session, workspace, and preference stores. It bundles Node.js and runs on Windows, macOS, and Linux without requiring Swift.
+The desktop app opens a focused coding chat with model and plan selection, reviewable file changes, saved sessions, recent projects, shared theme and reply-language settings, and searchable quick actions (`Ctrl+K`). Chat uses the CLI's provider, session, workspace, and preference stores. It runs on Windows, macOS, and Linux without requiring Swift or a separate Node.js installation.
 
 ## Develop
 

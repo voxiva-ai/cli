@@ -1,6 +1,5 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require("electron");
 const { spawnSync } = require("node:child_process");
-const pty = require("node-pty");
 const fs = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -11,10 +10,8 @@ const { createAppActions } = require("./app-actions.cjs");
 const { createUpdateService } = require("./update-service.cjs");
 const { createWorktree, getMainWorktree } = require("./worktree-service.cjs");
 const { cliPaths } = require("./cli-runtime.cjs");
-const { createShellConfig, writeCliLauncher } = require("./terminal-shell.cjs");
 
 let window;
-let terminal;
 let activeRequest;
 let conversation = [];
 let activeSessionId;
@@ -52,7 +49,6 @@ function clearProjectState(nextCwd) {
   const current = loadSettings().lastProject;
   if (typeof current !== "string" || samePath(current, nextCwd)) return;
   activeRequest?.abort();
-  stopTerminal();
   conversation = [];
   activeSessionId = undefined;
   pendingEdits.clear();
@@ -115,16 +111,6 @@ function appActions() {
 
 const updates = () => (updateService ??= createUpdateService({ currentVersion: app.getVersion() }));
 
-function nodeRuntime() {
-  return path.join(app.isPackaged ? path.join(process.resourcesPath, "app.asar.unpacked") : app.getAppPath(), "node_modules", "node", "bin", process.platform === "win32" ? "node.exe" : "node");
-}
-
-function stopTerminal() {
-  if (!terminal) return;
-  terminal.kill();
-  terminal = undefined;
-}
-
 function createWindow() {
   window = new BrowserWindow({
     width: 1120,
@@ -146,7 +132,6 @@ function createWindow() {
   window.loadFile(path.join(__dirname, "index.html"));
   window.on("closed", () => {
     activeRequest?.abort();
-    stopTerminal();
     window = undefined;
   });
 }
@@ -468,48 +453,6 @@ ipcMain.handle("chat:apply", async (_event, id) => {
 });
 
 ipcMain.handle("chat:discard", (_event, id) => pendingEdits.delete(id));
-
-ipcMain.handle("terminal:start", (_event, requestedCwd) => {
-  if (typeof requestedCwd !== "string") throw new Error("Choose a project folder first.");
-  const cwd = fs.realpathSync(requestedCwd);
-  if (!fs.statSync(cwd).isDirectory()) throw new Error("The selected project path is not a folder.");
-  stopTerminal();
-  saveProject(cwd);
-  try {
-    const binDir = path.join(app.getPath("userData"), "cli-bin");
-    writeCliLauncher({ binDir, nodePath: nodeRuntime(), cliPath: cliEntry() });
-    const { command, args, env } = createShellConfig({ binDir });
-    const child = pty.spawn(command, args, {
-      name: "xterm-256color",
-      cwd,
-      cols: 100,
-      rows: 30,
-      env: { ...env, FORCE_COLOR: "1" },
-    });
-    terminal = child;
-    child.onData((data) => window?.webContents.send("terminal:data", data));
-    child.onExit(({ exitCode }) => {
-      if (terminal !== child) return;
-      terminal = undefined;
-      window?.webContents.send("terminal:exit", exitCode);
-    });
-    return { cwd };
-  } catch (error) {
-    terminal = undefined;
-    throw new Error(error instanceof Error ? error.message : String(error));
-  }
-});
-
-ipcMain.on("terminal:write", (_event, data) => {
-  if (typeof data === "string") terminal?.write(data);
-});
-
-ipcMain.on("terminal:resize", (_event, cols, rows) => {
-  if (!terminal) return;
-  const width = Math.max(2, Math.min(500, Math.floor(Number(cols) || 2)));
-  const height = Math.max(2, Math.min(300, Math.floor(Number(rows) || 2)));
-  terminal.resize(width, height);
-});
 
 app.whenReady().then(() => {
   if (process.platform === "win32") Menu.setApplicationMenu(null);

@@ -1,8 +1,6 @@
 const $ = (id) => document.getElementById(id);
 window.voxiva.platform().then((platform) => { document.body.dataset.platform = platform; });
 const sameProjectPath = (left, right) => left?.replace(/[\\/]+/g, "/").replace(/\/$/, "").toLowerCase() === right?.replace(/[\\/]+/g, "/").replace(/\/$/, "").toLowerCase();
-const { Terminal } = window;
-const { FitAddon } = window.FitAddon;
 const assistantStream = window.voxivaStreamBuffer.createStreamBuffer({
   schedule: requestAnimationFrame,
   cancel: cancelAnimationFrame,
@@ -16,25 +14,12 @@ const assistantStream = window.voxivaStreamBuffer.createStreamBuffer({
     $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
   },
 });
-const terminal = new Terminal({
-  allowProposedApi: false,
-  convertEol: false,
-  cursorBlink: true,
-  fontFamily: '"Cascadia Code", "SFMono-Regular", Consolas, monospace',
-  fontSize: 14,
-  lineHeight: 1.25,
-  scrollback: 5000,
-  theme: { background: "#090d13", foreground: "#e9eef8", cursor: "#79e5ff", selectionBackground: "#4d9dff42", black: "#0b1018", red: "#ff747f", green: "#48d597", yellow: "#f0c14b", blue: "#4d9dff", magenta: "#a78bfa", cyan: "#22d3ee", white: "#d9e2ee", brightBlack: "#68758a", brightRed: "#ff9198", brightGreen: "#6ce8b4", brightYellow: "#ffdb88", brightBlue: "#75baff", brightMagenta: "#d6b4ff", brightCyan: "#8beaf3", brightWhite: "#fff" },
-});
-const fit = new FitAddon();
-terminal.loadAddon(fit);
 let currentProject = null;
 let currentSessionId = null;
 let currentSessionTitle = "New session";
 let currentDraft = true;
 let running = false;
 let activeSendPromise;
-let terminalStarted = false;
 let toastTimer;
 let currentAssistant;
 let currentTheme = "auto";
@@ -70,9 +55,8 @@ function toast(message) {
   toastTimer = setTimeout(() => el.classList.remove("visible"), 3800);
 }
 
-function setStatus(label, active = false) {
+function setStatus(label) {
   $("status-text").textContent = label;
-  $("terminal-dot").classList.toggle("running", active);
 }
 
 function updateSendButton() {
@@ -130,7 +114,6 @@ function setProject(cwd) {
   const name = cwd.replace(/[\\/]$/, "").split(/[\\/]/).at(-1) || cwd;
   $("workspace-name").textContent = name;
   $("workspace-path").textContent = cwd;
-  $("terminal-project").textContent = cwd;
   $("context-label").textContent = name;
   $("prompt").disabled = false;
   updateSendButton();
@@ -254,21 +237,19 @@ async function activateProject(requestedPath) {
       currentSessionTitle = "New session";
       currentDraft = true;
       clearMessages();
-      terminalStarted = false;
       openTabs = [{ id: null, title: currentSessionTitle }];
     }
     setProject(cwd);
     renderTabs();
     await loadSessions();
     if (lastSession) await openSession(lastSession);
-    else if (!$("terminal-view").hidden) { terminalStarted = false; startTerminal(); }
   } catch (error) { toast(error instanceof Error ? error.message : String(error)); }
 }
 
 async function createProjectWorktree(event) {
   event.preventDefault();
   const button = $("worktree-form").querySelector("button");
-  const navigation = ["app-menu-trigger", "composer-project", "workspace-button", "open-project", "terminal-open-project", "environment-trigger", "environment-worktree"].map((id) => $(id));
+  const navigation = ["app-menu-trigger", "composer-project", "workspace-button", "open-project", "environment-trigger", "environment-worktree"].map((id) => $(id));
   const previousDisabled = navigation.map((element) => element.disabled);
   navigation.forEach((element) => { element.disabled = true; });
   button.disabled = true;
@@ -285,8 +266,6 @@ async function createProjectWorktree(event) {
     openTabs = [{ id: null, title: currentSessionTitle }];
     renderTabs();
     clearMessages();
-    terminalStarted = false;
-    if (!$("terminal-view").hidden) startTerminal();
     await loadSessions();
     $("environment-label").textContent = "Рабочее пространство";
     toast(result.hasChanges ? "Рабочее пространство создано. Незакоммиченные изменения остались в исходной папке." : "Рабочее пространство создано.");
@@ -308,52 +287,14 @@ async function chooseProject() {
       openTabs = [{ id: null, title: currentSessionTitle }];
       renderTabs();
       clearMessages();
-      terminalStarted = false;
     }
     setProject(cwd);
     $("view-title").textContent = currentSessionTitle;
     await loadSessions();
     if (lastSession) await openSession(lastSession);
-    if (!$("terminal-view").hidden) startTerminal();
     $("prompt").focus();
     setStatus("Project ready");
   } catch (error) {
-    toast(error instanceof Error ? error.message : String(error));
-  }
-}
-
-function switchView(view) {
-  const terminalView = view === "terminal";
-  $("chat-view").hidden = terminalView;
-  $("terminal-view").hidden = !terminalView;
-  $("nav-chat").classList.toggle("active", !terminalView);
-  $("nav-terminal").classList.toggle("active", terminalView);
-  $("view-title").textContent = terminalView ? "Terminal" : currentSessionTitle;
-  if (terminalView) {
-    if (!currentProject) { chooseProject(); return; }
-    startTerminal();
-    requestAnimationFrame(() => { fit.fit(); terminal.focus(); });
-  } else {
-    $("prompt").focus();
-  }
-}
-
-async function startTerminal() {
-  if (!currentProject) return;
-  if (terminalStarted) {
-    requestAnimationFrame(() => { fit.fit(); terminal.focus(); });
-    return;
-  }
-  terminal.reset();
-  terminal.writeln('Run "voxiva --help" to see commands, or "voxiva" to start chat.');
-  try {
-    await window.voxiva.start(currentProject);
-    terminalStarted = true;
-    setStatus("Terminal connected", true);
-    requestAnimationFrame(() => { fit.fit(); window.voxiva.resize(terminal.cols, terminal.rows); terminal.focus(); });
-  } catch (error) {
-    terminalStarted = false;
-    setStatus("Terminal stopped");
     toast(error instanceof Error ? error.message : String(error));
   }
 }
@@ -735,7 +676,7 @@ $("prompt").addEventListener("keydown", (event) => {
   if (event.key === "Escape" && running) window.voxiva.stopChat();
 });
 $("stop-button").addEventListener("click", () => window.voxiva.stopChat());
-for (const id of ["open-project", "terminal-open-project"]) $(id).addEventListener("click", chooseProject);
+$("open-project").addEventListener("click", chooseProject);
 $("attach-file").addEventListener("click", async () => {
   if (!currentProject) return chooseProject();
   try {
@@ -747,9 +688,7 @@ $("attach-file").addEventListener("click", async () => {
     prompt.focus();
   } catch (error) { toast(error instanceof Error ? error.message : String(error)); }
 });
-for (const id of ["nav-terminal", "top-terminal"]) $(id).addEventListener("click", () => switchView("terminal"));
 $("nav-chat").addEventListener("click", () => startNewChat().catch((error) => toast(error.message)));
-$("terminal-new").addEventListener("click", () => { terminalStarted = false; startTerminal(); });
 $("sidebar-toggle").addEventListener("click", () => {
   const open = !document.body.classList.contains("sidebar-open");
   setSidebar(open);
@@ -839,7 +778,6 @@ async function runCommand(id) {
     if (id === "plans") { $("plan-select").focus(); return; }
     if (id === "sessions") { setSidebar(true); $("session-list").scrollIntoView({ block: "nearest" }); return; }
     if (id === "workspaces") return openWorkspacePicker();
-    if (id === "terminal") return switchView("terminal");
     if (id === "doctor") {
       const result = await window.voxiva.doctor();
       $("doctor-output").textContent = [
@@ -876,7 +814,7 @@ $("app-menu").addEventListener("click", (event) => {
   if (!button) return;
   $("app-menu").hidePopover();
   if (button.dataset.action === "new") return startNewChat();
-  if (["workspaces", "terminal", "update", "doctor", "sidebar", "theme", "commands", "undo", "redo", "copy", "paste", "select-all"].includes(button.dataset.action)) runCommand(button.dataset.action).catch((error) => toast(error.message));
+  if (["workspaces", "update", "doctor", "sidebar", "theme", "commands", "undo", "redo", "copy", "paste", "select-all"].includes(button.dataset.action)) runCommand(button.dataset.action).catch((error) => toast(error.message));
 });
 $("composer-project").addEventListener("click", async () => {
   try { await renderProjectOptions(); showPopover("project-menu", $("composer-project")); $("project-search").focus(); }
@@ -1039,31 +977,9 @@ window.voxiva.onReset((message) => {
 window.voxiva.onEdits((proposal) => renderProposal(proposal));
 window.voxiva.onSessionChanged(() => loadSessions().catch((error) => toast(error.message)));
 window.voxiva.onWarning((message) => toast(message));
-terminal.open($("terminal"));
-terminal.onData((data) => window.voxiva.write(data));
-terminal.onResize(({ cols, rows }) => window.voxiva.resize(cols, rows));
-terminal.attachCustomKeyEventHandler((event) => {
-  if (event.type !== "keydown" || !event.ctrlKey || !event.shiftKey) return true;
-  if (event.key.toLowerCase() === "c" && terminal.hasSelection()) {
-    navigator.clipboard.writeText(terminal.getSelection()).catch(() => {});
-    return false;
-  }
-  if (event.key.toLowerCase() === "v") {
-    navigator.clipboard.readText().then((text) => terminal.paste(text)).catch(() => {});
-    return false;
-  }
-  return true;
-});
-window.voxiva.onData((data) => terminal.write(data));
-window.voxiva.onExit((code) => {
-  terminalStarted = false;
-  setStatus(code === 0 ? "Terminal ended" : `Terminal stopped · ${code}`);
-});
-new ResizeObserver(() => { if (!$("terminal-view").hidden) fit.fit(); }).observe($("terminal-view"));
 document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if ((event.ctrlKey || event.metaKey) && key === "n") { event.preventDefault(); startNewChat(); }
-  if ((event.ctrlKey || event.metaKey) && key === "j") { event.preventDefault(); $("nav-terminal").click(); }
 });
 
 renderTabs();

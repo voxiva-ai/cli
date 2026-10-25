@@ -19,6 +19,6 @@ test("doctor reports structured safe diagnostics", async () => {
 
 test("command palette exposes supported common app actions", () => {
   const app = createAppActions({ config: {}, themes: [], locales: [], getStatus: async () => ({}) });
-  assert.deepEqual(app.commands().map(({ id }) => id), ["new", "models", "plans", "connect", "sessions", "workspaces", "doctor", "terminal", "update"]);
+  assert.deepEqual(app.commands().map(({ id }) => id), ["new", "models", "plans", "connect", "sessions", "workspaces", "doctor", "update"]);
   assert.equal(app.commands().some((item) => typeof item.label !== "string" || !item.label), false);
 });

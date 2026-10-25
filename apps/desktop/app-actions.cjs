@@ -2,8 +2,7 @@ const COMMANDS = [
   ["new", "New session", "⌘/Ctrl+N"], ["models", "Models and providers", ""],
   ["plans", "Agent plan", ""], ["connect", "Connect a provider", ""],
   ["sessions", "Recent sessions", ""], ["workspaces", "Recent projects", ""],
-  ["doctor", "Run diagnostics", ""], ["terminal", "Open terminal", "⌘/Ctrl+J"],
-  ["update", "Check for updates", ""],
+  ["doctor", "Run diagnostics", ""], ["update", "Check for updates", ""],
 ];
 
 function createAppActions({ config, themes, locales, getStatus }) {
