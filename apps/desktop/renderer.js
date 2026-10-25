@@ -23,11 +23,16 @@ let activeSendPromise;
 let toastTimer;
 let currentAssistant;
 let currentTheme = "auto";
+let currentLocale = "en";
+let currentPlan = "build";
 let currentUpdate;
 let updateDownloaded = false;
 let availableModels = [];
 let availableProviders = [];
 let selectedModelRef = "";
+let availablePlans = [];
+let availableThemes = [];
+let availableLocales = [];
 let openTabs = [{ id: null, title: "New session" }];
 
 if (localStorage.getItem("voxiva-sidebar") !== "collapsed") {
@@ -193,13 +198,72 @@ async function openWorkspacePicker(trigger = $("composer-project")) {
   }
 }
 
-function showPopover(id, trigger) {
-  const popover = $(id);
-  popover.showPopover();
+function positionPopover(popover, trigger) {
   const rect = trigger.getBoundingClientRect();
   popover.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - popover.offsetWidth - 8))}px`;
   const preferredTop = rect.bottom + popover.offsetHeight + 8 > innerHeight ? rect.top - popover.offsetHeight - 6 : rect.bottom + 6;
   popover.style.top = `${Math.max(8, Math.min(preferredTop, innerHeight - popover.offsetHeight - 8))}px`;
+}
+
+function showPopover(id, trigger) {
+  const popover = $(id);
+  popover.showPopover();
+  positionPopover(popover, trigger);
+}
+
+function renderChoiceMenu(id, items, selectedId, choose) {
+  const menu = $(id);
+  menu.replaceChildren();
+  for (const item of items) {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "choice-option";
+    option.setAttribute("role", "option");
+    option.setAttribute("aria-selected", String(item.id === selectedId));
+    const copy = document.createElement("span");
+    copy.className = "choice-copy";
+    const label = document.createElement("b");
+    label.textContent = item.label;
+    copy.append(label);
+    if (item.description) {
+      const description = document.createElement("small");
+      description.textContent = item.description;
+      copy.append(description);
+    }
+    const check = document.createElement("span");
+    check.className = "choice-check";
+    check.setAttribute("aria-hidden", "true");
+    check.textContent = "✓";
+    option.append(copy, check);
+    option.addEventListener("click", () => Promise.resolve(choose(item)).then(() => menu.hidePopover()).catch((error) => toast(error.message)));
+    menu.append(option);
+  }
+}
+
+const choiceMenus = [["plan-chip", "plan-menu"], ["theme-choice", "theme-menu"], ["locale-choice", "locale-menu"]];
+function toggleChoiceMenu(triggerId, menuId) {
+  const trigger = $(triggerId);
+  const menu = $(menuId);
+  if (menu.matches(":popover-open")) { menu.hidePopover(); return; }
+  showPopover(menuId, trigger);
+  menu.querySelector('[aria-selected="true"]')?.focus();
+}
+
+for (const [triggerId, menuId] of choiceMenus) {
+  const trigger = $(triggerId);
+  const menu = $(menuId);
+  trigger.addEventListener("click", () => toggleChoiceMenu(triggerId, menuId));
+  menu.addEventListener("toggle", (event) => trigger.setAttribute("aria-expanded", String(event.newState === "open")));
+  menu.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); menu.hidePopover(); trigger.focus(); return; }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const options = [...menu.querySelectorAll('[role="option"]')];
+    if (!options.length) return;
+    event.preventDefault();
+    const current = options.indexOf(event.target);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : (current + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+    options[next].focus();
+  });
 }
 
 async function renderProjectOptions() {
@@ -440,34 +504,53 @@ async function loadState() {
   try {
     const [state, preferences, options] = await Promise.all([window.voxiva.state(), window.voxiva.preferences(), window.voxiva.options()]);
     applyTheme(preferences.theme);
-    const themeSelect = $("theme-select");
-    if (!themeSelect.options.length) for (const theme of options.themes) themeSelect.add(new Option(theme.label, theme.id));
-    themeSelect.value = preferences.theme;
-    const localeSelect = $("locale-select");
-    if (!localeSelect.options.length) for (const locale of options.locales) localeSelect.add(new Option(locale.native || locale.label, locale.id));
-    localeSelect.value = preferences.locale;
+    currentLocale = preferences.locale;
+    availableThemes = options.themes.map((theme) => theme.id === "auto" ? { ...theme, label: "Auto" } : theme);
+    availableLocales = options.locales.map((locale) => ({ id: locale.id, label: locale.native || locale.label }));
+    $("theme-label").textContent = options.themes.find((item) => item.id === currentTheme)?.label ?? currentTheme;
+    $("locale-label").textContent = availableLocales.find((item) => item.id === currentLocale)?.label ?? currentLocale;
+    renderChoiceMenu("theme-menu", availableThemes, currentTheme, selectTheme);
+    renderChoiceMenu("locale-menu", availableLocales, currentLocale, selectLocale);
     availableModels = state.models;
     availableProviders = state.providers ?? [];
     selectedModelRef = state.models.some((model) => model.ref === state.model) ? state.model : state.models[0]?.ref ?? "";
     if (selectedModelRef && selectedModelRef !== state.model) await window.voxiva.setModel(selectedModelRef);
     renderModelPicker();
     renderProviders(state.providers ?? []);
-    const plan = $("plan-select");
-    plan.replaceChildren();
-    for (const item of state.plans) {
-      const option = document.createElement("option");
-      option.value = item.id;
-      option.textContent = `${item.label} · ${item.description}`;
-      plan.append(option);
-    }
-    plan.value = state.plan;
-    $("plan-chip-label").textContent = state.plans.find((item) => item.id === state.plan)?.label ?? "Build";
+    availablePlans = state.plans;
+    currentPlan = state.plan;
+    renderChoiceMenu("plan-menu", availablePlans, currentPlan, selectPlan);
+    $("plan-chip-label").textContent = availablePlans.find((item) => item.id === currentPlan)?.label ?? "Build";
     $("status-meta").textContent = `${$("plan-chip-label").textContent} · ${availableModels.find((model) => model.ref === selectedModelRef)?.label ?? "Voxiva"}`;
   } catch (error) {
     $("model-caption").textContent = "Model settings unavailable";
     $("status-text").textContent = "Startup error";
     toast(error instanceof Error ? error.message : String(error));
   }
+}
+
+async function selectPlan(item) {
+  await window.voxiva.setPlan(item.id);
+  currentPlan = item.id;
+  $("plan-chip-label").textContent = item.label;
+  $("status-meta").textContent = `${item.label} · ${availableModels.find((model) => model.ref === selectedModelRef)?.label ?? "Voxiva"}`;
+  renderChoiceMenu("plan-menu", availablePlans, currentPlan, selectPlan);
+}
+
+async function selectTheme(item) {
+  await window.voxiva.setPreferences({ theme: item.id });
+  localStorage.removeItem("voxiva-appearance");
+  applyTheme(item.id);
+  $("theme-label").textContent = item.label;
+  renderChoiceMenu("theme-menu", availableThemes, item.id, selectTheme);
+}
+
+async function selectLocale(item) {
+  await window.voxiva.setPreferences({ locale: item.id });
+  currentLocale = item.id;
+  $("locale-label").textContent = item.label;
+  renderChoiceMenu("locale-menu", availableLocales, item.id, selectLocale);
+  toast("Reply language saved for the CLI and desktop app.");
 }
 
 const modelProviderLabels = { voxiva: "Voxiva · Free", opencode: "OpenCode Zen", openai: "OpenAI", anthropic: "Anthropic", google: "Google AI", deepseek: "DeepSeek", groq: "Groq", openrouter: "OpenRouter" };
@@ -772,10 +855,10 @@ async function runCommand(id) {
     if (["models", "connect", "settings", "theme"].includes(id)) {
       await loadState();
       $("settings-dialog").showModal();
-      if (id === "theme") $("theme-select").focus();
+      if (id === "theme") toggleChoiceMenu("theme-choice", "theme-menu");
       return;
     }
-    if (id === "plans") { $("plan-select").focus(); return; }
+    if (id === "plans") { toggleChoiceMenu("plan-chip", "plan-menu"); return; }
     if (id === "sessions") { setSidebar(true); $("session-list").scrollIntoView({ block: "nearest" }); return; }
     if (id === "workspaces") return openWorkspacePicker();
     if (id === "doctor") {
@@ -847,14 +930,6 @@ $("settings-button").addEventListener("click", () => {
 });
 $("settings-close").addEventListener("click", () => $("settings-dialog").close());
 $("settings-done").addEventListener("click", () => $("settings-dialog").close());
-$("theme-select").addEventListener("change", async (event) => {
-  try { await window.voxiva.setPreferences({ theme: event.currentTarget.value }); localStorage.removeItem("voxiva-appearance"); applyTheme(event.currentTarget.value); }
-  catch (error) { toast(error instanceof Error ? error.message : String(error)); await loadState(); }
-});
-$("locale-select").addEventListener("change", async (event) => {
-  try { await window.voxiva.setPreferences({ locale: event.currentTarget.value }); toast("Reply language saved for the CLI and desktop app."); }
-  catch (error) { toast(error instanceof Error ? error.message : String(error)); await loadState(); }
-});
 $("commands-button").addEventListener("click", () => openCommands().catch((error) => toast(error.message)));
 $("commands-close").addEventListener("click", () => $("command-dialog").close());
 $("commands-done").addEventListener("click", () => $("command-dialog").close());
@@ -899,14 +974,6 @@ document.addEventListener("keydown", (event) => {
 });
 $("workspace-button").addEventListener("click", () => openWorkspacePicker($("workspace-button")));
 $("new-session-button").addEventListener("click", () => startNewChat().catch((error) => toast(error.message)));
-$("plan-chip").addEventListener("click", () => $("plan-select").focus());
-$("plan-select").addEventListener("change", async (event) => {
-  try {
-    await window.voxiva.setPlan(event.currentTarget.value);
-    $("plan-chip-label").textContent = event.currentTarget.selectedOptions[0]?.textContent.split(" · ")[0] ?? "Build";
-    $("status-meta").textContent = `${$("plan-chip-label").textContent} · ${availableModels.find((model) => model.ref === selectedModelRef)?.label ?? "Voxiva"}`;
-  } catch (error) { toast(error instanceof Error ? error.message : String(error)); await loadState(); }
-});
 $("model-trigger").addEventListener("click", () => {
   const menu = $("model-menu");
   if (menu.matches(":popover-open")) { menu.hidePopover(); return; }
@@ -937,6 +1004,12 @@ $("model-manage").addEventListener("click", async () => {
   $("settings-dialog").showModal();
 });
 window.addEventListener("resize", () => { if ($("model-menu").matches(":popover-open")) positionModelMenu(); });
+window.addEventListener("resize", () => {
+  for (const [triggerId, menuId] of choiceMenus) {
+    const menu = $(menuId);
+    if (menu.matches(":popover-open")) positionPopover(menu, $(triggerId));
+  }
+});
 document.querySelectorAll(".suggestion").forEach((button) => button.addEventListener("click", async () => {
   if (!currentProject) {
     $("prompt").value = button.dataset.prompt ?? "";

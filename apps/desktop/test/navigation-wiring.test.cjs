@@ -71,16 +71,18 @@ test("the welcome, composer, and project controls share one centered home block"
   assert.match(home, /id="environment-trigger"/);
 });
 
-test("appearance is changed in accessible settings instead of a duplicate header toggle", () => {
+test("appearance and language use accessible in-app choice menus", () => {
   const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
   const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
   const topbar = html.slice(html.indexOf('<header class="topbar">'), html.indexOf('</header>'));
   assert.doesNotMatch(topbar, /theme-button/);
   assert.match(html, /data-action="settings"/);
-  assert.match(html, /id="theme-select"/);
+  assert.match(html, /id="theme-choice"/);
+  assert.match(html, /id="theme-menu"[^>]*popover="auto"/);
+  assert.match(html, /id="locale-menu"[^>]*popover="auto"/);
   assert.match(html, /id="settings-title">Settings/);
   assert.match(renderer, /"settings"/);
-  assert.ok(renderer.includes('if (id === "theme") $("theme-select").focus()'));
+  assert.ok(renderer.includes('if (id === "theme") toggleChoiceMenu("theme-choice", "theme-menu")'));
 });
 
 

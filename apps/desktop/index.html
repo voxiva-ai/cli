@@ -21,8 +21,9 @@
     <main class="app-main">
       <header class="topbar">
         <div class="top-leading"><button class="icon-button sidebar-toggle" id="sidebar-toggle" title="Show sidebar" aria-label="Show sidebar">☰</button><button class="icon-button app-menu-trigger" id="app-menu-trigger" title="Application menu" aria-label="Application menu" aria-haspopup="menu" aria-expanded="false">▦</button><span class="sr-only" id="view-title">New chat</span><div class="session-tabs" id="session-tabs" role="tablist" aria-label="Open sessions"></div><button class="icon-button tab-new" id="tab-new" title="New session" aria-label="New session">+</button></div>
-        <div class="top-actions"><button class="icon-button update-trigger" id="update-trigger" title="Update available" aria-label="Update available" hidden>↓<i></i></button><button class="top-chip" id="plan-chip" title="Choose agent plan"><span id="plan-chip-label">Build</span><svg class="ui-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg><select id="plan-select" aria-label="Agent plan"></select></button><button class="icon-button" id="commands-button" title="Commands (Ctrl+K)" aria-label="Open commands">/</button></div>
+        <div class="top-actions"><button class="icon-button update-trigger" id="update-trigger" title="Update available" aria-label="Update available" hidden>↓<i></i></button><button class="top-chip" id="plan-chip" type="button" title="Choose agent plan" aria-haspopup="listbox" aria-controls="plan-menu" aria-expanded="false"><span id="plan-chip-label">Build</span><svg class="ui-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button><button class="icon-button" id="commands-button" title="Commands (Ctrl+K)" aria-label="Open commands">/</button></div>
       </header>
+      <div class="choice-menu plan-menu" id="plan-menu" popover="auto" role="listbox" aria-label="Agent plan" data-trigger="plan-chip"></div>
       <nav class="app-menu" id="app-menu" popover="auto" role="menu" aria-label="Application menu">
         <div class="menu-brand">Voxiva</div>
         <div class="menu-group"><span>Файл</span><button role="menuitem" data-action="new">Новая сессия <kbd>Ctrl N</kbd></button><button role="menuitem" data-action="workspaces">Открыть проект…</button></div>
@@ -64,7 +65,9 @@
         <button class="icon-button" id="settings-close" type="button" aria-label="Close settings" title="Close">×</button>
       </header>
       <p class="settings-description">Choose your appearance and reply language, then manage model providers.</p>
-      <div class="preference-row"><label for="theme-select">Appearance</label><select id="theme-select" aria-label="Appearance"></select><label for="locale-select">Reply language</label><select id="locale-select" aria-label="Reply language"></select></div>
+      <div class="preference-row"><label for="theme-choice">Appearance</label><button class="preference-choice" id="theme-choice" type="button" aria-label="Appearance" aria-haspopup="listbox" aria-controls="theme-menu" aria-expanded="false"><span id="theme-label">Auto</span><svg class="ui-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button><label for="locale-choice">Reply language</label><button class="preference-choice" id="locale-choice" type="button" aria-label="Reply language" aria-haspopup="listbox" aria-controls="locale-menu" aria-expanded="false"><span id="locale-label">English</span><svg class="ui-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button></div>
+      <div class="choice-menu" id="theme-menu" popover="auto" role="listbox" aria-label="Appearance" data-trigger="theme-choice"></div>
+      <div class="choice-menu" id="locale-menu" popover="auto" role="listbox" aria-label="Reply language" data-trigger="locale-choice"></div>
       <div class="provider-list" id="provider-list" aria-live="polite"></div>
       <footer class="settings-footer"><span>Changes are shared with Voxiva CLI.</span><button class="button" id="settings-done" type="button">Done</button></footer>
     </dialog>

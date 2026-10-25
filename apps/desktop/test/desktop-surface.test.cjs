@@ -22,3 +22,11 @@ test("prompt focus uses a single visible composer outline", () => {
   assert.match(css, /\.composer:focus-within\s*\{[^}]*box-shadow/);
   assert.match(css, /\.composer textarea:focus-visible\s*\{\s*outline:\s*0/);
 });
+
+test("plan, theme, and language choices use Voxiva popovers instead of native menus", () => {
+  const html = read("index.html");
+  const css = read("styles.css");
+  assert.doesNotMatch(html, /<select[^>]+(?:plan-select|theme-select|locale-select)/);
+  for (const id of ["plan-menu", "theme-menu", "locale-menu"]) assert.match(html, new RegExp(`id="${id}"[^>]*popover="auto"`));
+  assert.match(css, /\.choice-menu:popover-open/);
+});
