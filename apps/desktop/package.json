@@ -39,6 +39,7 @@
     "files": [
       "main.cjs",
       "cli-runtime.cjs",
+      "terminal-shell.cjs",
       "stream-buffer.js",
       "app-actions.cjs",
       "update-service.cjs",

@@ -11,6 +11,7 @@ const { createAppActions } = require("./app-actions.cjs");
 const { createUpdateService } = require("./update-service.cjs");
 const { createWorktree, getMainWorktree } = require("./worktree-service.cjs");
 const { cliPaths } = require("./cli-runtime.cjs");
+const { createShellConfig, writeCliLauncher } = require("./terminal-shell.cjs");
 
 let window;
 let terminal;
@@ -475,12 +476,15 @@ ipcMain.handle("terminal:start", (_event, requestedCwd) => {
   stopTerminal();
   saveProject(cwd);
   try {
-    const child = pty.spawn(nodeRuntime(), [cliEntry(), "chat"], {
+    const binDir = path.join(app.getPath("userData"), "cli-bin");
+    writeCliLauncher({ binDir, nodePath: nodeRuntime(), cliPath: cliEntry() });
+    const { command, args, env } = createShellConfig({ binDir });
+    const child = pty.spawn(command, args, {
       name: "xterm-256color",
       cwd,
       cols: 100,
       rows: 30,
-      env: { ...process.env, FORCE_COLOR: "1" },
+      env: { ...env, FORCE_COLOR: "1" },
     });
     terminal = child;
     child.onData((data) => window?.webContents.send("terminal:data", data));

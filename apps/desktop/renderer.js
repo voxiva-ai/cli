@@ -345,6 +345,7 @@ async function startTerminal() {
     return;
   }
   terminal.reset();
+  terminal.writeln('Run "voxiva --help" to see commands, or "voxiva" to start chat.');
   try {
     await window.voxiva.start(currentProject);
     terminalStarted = true;
