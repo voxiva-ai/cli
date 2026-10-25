@@ -82,3 +82,28 @@ test("appearance is changed in accessible settings instead of a duplicate header
   assert.match(renderer, /"settings"/);
   assert.ok(renderer.includes('if (id === "theme") $("theme-select").focus()'));
 });
+
+
+test("Windows title controls blend into the app chrome and remain draggable", () => {
+  const main = fs.readFileSync(path.join(__dirname, "../main.cjs"), "utf8");
+  const preload = fs.readFileSync(path.join(__dirname, "../preload.cjs"), "utf8");
+  const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
+  const css = fs.readFileSync(path.join(__dirname, "../styles.css"), "utf8");
+  assert.ok(main.includes('titleBarStyle: process.platform === "win32" ? "hidden" : undefined'));
+  assert.ok(main.includes('titleBarOverlay: process.platform === "win32" ? { color: "#0b1018", symbolColor: "#8f9bb0", height: 42 } : undefined'));
+  assert.ok(preload.includes('platform: () => ipcRenderer.invoke("app:platform")'));
+  assert.ok(preload.includes('setWindowAppearance: (light) => ipcRenderer.invoke("window:appearance", light)'));
+  assert.ok(renderer.includes("body.dataset.platform = platform"));
+  assert.ok(css.includes('body[data-platform="win32"] .topbar { padding-right: 140px; }'));
+  assert.ok(css.includes("-webkit-app-region: drag"));
+  assert.ok(css.includes(".top-leading, .top-actions { -webkit-app-region: no-drag; }"));
+});
+
+test("new-session control stays beside tabs and app chrome uses Space dimensions", () => {
+  const css = fs.readFileSync(path.join(__dirname, "../styles.css"), "utf8");
+  assert.ok(css.includes(".topbar { height: 42px; flex: 0 0 42px;"));
+  assert.ok(css.includes(".session-tabs { min-width: 0; max-width: min(560px, 52vw); flex: 0 1 auto;"));
+  assert.ok(css.includes(".tab-new { flex: 0 0 28px; }"));
+  assert.ok(css.includes(".sidebar-toggle { margin-left: 0;"));
+  assert.ok(css.includes("--surface: #06080d;"));
+});

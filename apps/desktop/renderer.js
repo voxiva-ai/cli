@@ -1,4 +1,5 @@
 const $ = (id) => document.getElementById(id);
+window.voxiva.platform().then((platform) => { document.body.dataset.platform = platform; });
 const sameProjectPath = (left, right) => left?.replace(/[\\/]+/g, "/").replace(/\/$/, "").toLowerCase() === right?.replace(/[\\/]+/g, "/").replace(/\/$/, "").toLowerCase();
 const { Terminal } = window;
 const { FitAddon } = window.FitAddon;
@@ -10,7 +11,7 @@ const terminal = new Terminal({
   fontSize: 14,
   lineHeight: 1.25,
   scrollback: 5000,
-  theme: { background: "#101319", foreground: "#dce2ed", cursor: "#54b3f5", selectionBackground: "#31527688", black: "#11151c", red: "#ff747c", green: "#4bd7a0", yellow: "#f3c968", blue: "#4aa5ff", magenta: "#c59af7", cyan: "#60d8e6", white: "#d9e2ee", brightBlack: "#667386", brightRed: "#ff9198", brightGreen: "#6ce8b4", brightYellow: "#ffdb88", brightBlue: "#75baff", brightMagenta: "#d6b4ff", brightCyan: "#8beaf3", brightWhite: "#fff" },
+  theme: { background: "#090d13", foreground: "#e9eef8", cursor: "#79e5ff", selectionBackground: "#4d9dff42", black: "#0b1018", red: "#ff747f", green: "#48d597", yellow: "#f0c14b", blue: "#4d9dff", magenta: "#a78bfa", cyan: "#22d3ee", white: "#d9e2ee", brightBlack: "#68758a", brightRed: "#ff9198", brightGreen: "#6ce8b4", brightYellow: "#ffdb88", brightBlue: "#75baff", brightMagenta: "#d6b4ff", brightCyan: "#8beaf3", brightWhite: "#fff" },
 });
 const fit = new FitAddon();
 terminal.loadAddon(fit);
@@ -45,6 +46,7 @@ function applyTheme(theme) {
   const light = appearance ? appearance === "light" : theme === "arctic" || (theme === "auto" && matchMedia("(prefers-color-scheme: light)").matches);
   document.body.dataset.theme = light ? "light" : "dark";
   document.documentElement.style.setProperty("--accent", themeAccent[theme] ?? themeAccent.voxiva);
+  window.voxiva.setWindowAppearance(light).catch(() => {});
 }
 
 function toast(message) {

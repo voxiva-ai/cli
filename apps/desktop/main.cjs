@@ -129,9 +129,11 @@ function createWindow() {
     height: 760,
     minWidth: 760,
     minHeight: 540,
-    backgroundColor: "#090c11",
+    backgroundColor: "#06080d",
     title: "Voxiva CLI",
     icon: path.join(__dirname, "assets", "voxiva-cli-mark.png"),
+    titleBarStyle: process.platform === "win32" ? "hidden" : undefined,
+    titleBarOverlay: process.platform === "win32" ? { color: "#0b1018", symbolColor: "#8f9bb0", height: 42 } : undefined,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -249,6 +251,14 @@ ipcMain.handle("project:context-file", async () => {
   return relative.split(path.sep).join("/");
 });
 
+ipcMain.handle("app:platform", () => process.platform);
+ipcMain.handle("window:appearance", (_event, light) => {
+  if (process.platform === "win32" && window) window.setTitleBarOverlay({
+    color: light ? "#fafafa" : "#0b1018",
+    symbolColor: light ? "#6f7785" : "#8f9bb0",
+    height: 42,
+  });
+});
 ipcMain.handle("app:state", async () => {
   const { chat, config, plans } = await core();
   const saved = await config.loadConfig();

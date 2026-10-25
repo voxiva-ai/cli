@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld("voxiva", {
   openSession: (id) => ipcRenderer.invoke("session:open", id),
   branch: (cwd) => ipcRenderer.invoke("project:branch", cwd),
   state: () => ipcRenderer.invoke("app:state"),
+  platform: () => ipcRenderer.invoke("app:platform"),
+  setWindowAppearance: (light) => ipcRenderer.invoke("window:appearance", light),
   preferences: () => ipcRenderer.invoke("app:preferences"),
   setPreferences: (input) => ipcRenderer.invoke("app:set-preferences", input),
   doctor: () => ipcRenderer.invoke("app:doctor"),
