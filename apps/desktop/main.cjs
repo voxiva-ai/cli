@@ -10,6 +10,7 @@ const { createSessionHandlers, getLastSessionId } = require("./session-service.c
 const { createAppActions } = require("./app-actions.cjs");
 const { createUpdateService } = require("./update-service.cjs");
 const { createWorktree, getMainWorktree } = require("./worktree-service.cjs");
+const { cliPaths } = require("./cli-runtime.cjs");
 
 let window;
 let terminal;
@@ -57,7 +58,7 @@ function clearProjectState(nextCwd) {
 }
 
 function cliEntry() {
-  return path.join(app.isPackaged ? path.join(process.resourcesPath, "app.asar.unpacked") : app.getAppPath(), "node_modules", "@voxiva", "cli", "dist", "index.js");
+  return cliPaths({ isPackaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath }).entry;
 }
 
 function cliRoot() {

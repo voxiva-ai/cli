@@ -3,6 +3,19 @@ window.voxiva.platform().then((platform) => { document.body.dataset.platform = p
 const sameProjectPath = (left, right) => left?.replace(/[\\/]+/g, "/").replace(/\/$/, "").toLowerCase() === right?.replace(/[\\/]+/g, "/").replace(/\/$/, "").toLowerCase();
 const { Terminal } = window;
 const { FitAddon } = window.FitAddon;
+const assistantStream = window.voxivaStreamBuffer.createStreamBuffer({
+  schedule: requestAnimationFrame,
+  cancel: cancelAnimationFrame,
+  write(text) {
+    const content = currentAssistant?.content;
+    if (!content) return;
+    if (content.classList.contains("thinking")) content.replaceChildren();
+    content.classList.remove("thinking");
+    if (content.lastChild?.nodeType === Node.TEXT_NODE) content.lastChild.appendData(text);
+    else content.append(document.createTextNode(text));
+    $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+  },
+});
 const terminal = new Terminal({
   allowProposedApi: false,
   convertEol: false,
@@ -433,6 +446,7 @@ async function sendPrompt(value) {
   $("prompt").value = "";
   $("prompt").style.height = "auto";
   addMessage("user", prompt);
+  assistantStream.clear();
   currentAssistant = addMessage("assistant", "");
   currentAssistant.content.classList.add("thinking");
   currentAssistant.content.textContent = "Thinking…";
@@ -444,13 +458,15 @@ async function sendPrompt(value) {
   setStatus("Thinking", true);
   try {
     const result = await window.voxiva.sendChat(prompt);
-    if (result?.stopped && currentAssistant) currentAssistant.content.textContent = "Response stopped.";
+    if (result?.stopped && currentAssistant) { assistantStream.clear(); currentAssistant.content.textContent = "Response stopped."; }
   } catch (error) {
     if (currentAssistant) {
+      assistantStream.clear();
       currentAssistant.content.textContent = error instanceof Error ? error.message : String(error);
       currentAssistant.content.classList.add("error-text");
     }
   } finally {
+    assistantStream.clear();
     currentAssistant?.content.classList.remove("thinking");
     running = false;
     updateSendButton();
@@ -480,8 +496,7 @@ async function stopCurrentResponse() {
 
 async function loadState() {
   try {
-    const state = await window.voxiva.state();
-    const [preferences, options] = await Promise.all([window.voxiva.preferences(), window.voxiva.options()]);
+    const [state, preferences, options] = await Promise.all([window.voxiva.state(), window.voxiva.preferences(), window.voxiva.options()]);
     applyTheme(preferences.theme);
     const themeSelect = $("theme-select");
     if (!themeSelect.options.length) for (const theme of options.themes) themeSelect.add(new Option(theme.label, theme.id));
@@ -994,6 +1009,7 @@ document.querySelectorAll(".suggestion").forEach((button) => button.addEventList
 
 window.voxiva.onReply(({ text, sessionId, title }) => {
   if (!currentAssistant) return;
+  assistantStream.clear();
   currentAssistant.content.textContent = text;
   currentAssistant.content.classList.remove("thinking");
   currentSessionId = sessionId ?? currentSessionId;
@@ -1011,13 +1027,11 @@ window.voxiva.onReply(({ text, sessionId, title }) => {
 });
 window.voxiva.onChunk((chunk) => {
   if (!currentAssistant) return;
-  if (currentAssistant.content.classList.contains("thinking")) currentAssistant.content.textContent = "";
-  currentAssistant.content.classList.remove("thinking");
-  currentAssistant.content.textContent += chunk;
-  $("chat-scroll").scrollTop = $("chat-scroll").scrollHeight;
+  assistantStream.push(chunk);
 });
 window.voxiva.onReset((message) => {
   if (!currentAssistant) return;
+  assistantStream.clear();
   currentAssistant.content.textContent = message;
   currentAssistant.content.classList.add("thinking");
 });

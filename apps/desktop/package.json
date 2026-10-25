@@ -38,6 +38,8 @@
     },
     "files": [
       "main.cjs",
+      "cli-runtime.cjs",
+      "stream-buffer.js",
       "app-actions.cjs",
       "update-service.cjs",
       "worktree-service.cjs",

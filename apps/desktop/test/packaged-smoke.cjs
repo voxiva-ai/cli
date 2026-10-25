@@ -19,7 +19,7 @@ function resourceRoot() {
 const unpacked = path.join(resourceRoot(), "app.asar.unpacked", "node_modules");
 const archive = path.join(resourceRoot(), "app.asar");
 if (!fs.existsSync(archive)) throw new Error("Packaged Electron archive was not found.");
-for (const [file, marker] of [["app-actions.cjs", "Unsupported theme."], ["update-service.cjs", "RELEASE_API"], ["preload.cjs", "checkUpdate"]]) {
+for (const [file, marker] of [["app-actions.cjs", "Unsupported theme."], ["update-service.cjs", "RELEASE_API"], ["preload.cjs", "checkUpdate"], ["cli-runtime.cjs", "app.asar.unpacked"], ["stream-buffer.js", "createStreamBuffer"]]) {
   const source = asar.extractFile(archive, file).toString("utf8");
   if (!source.includes(marker)) throw new Error(`Packaged desktop resource is incomplete: ${file}`);
 }

@@ -37,7 +37,7 @@
     "try": "node dist/index.js chat",
     "install:local": "node scripts/run-install.mjs",
     "desktop:prepare": "npm run build && node scripts/pack-desktop-cli.mjs",
-    "desktop": "npm --prefix apps/desktop start",
+    "desktop": "npm run build && npm --prefix apps/desktop start",
     "desktop:install": "npm run desktop:prepare && npm ci --prefix apps/desktop",
     "desktop:dist": "npm run desktop:install && npm run dist --prefix apps/desktop",
     "prepare": "npm run build",

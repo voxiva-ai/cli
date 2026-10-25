@@ -107,3 +107,17 @@ test("new-session control stays beside tabs and app chrome uses Space dimensions
   assert.ok(css.includes(".sidebar-toggle { margin-left: 0;"));
   assert.ok(css.includes("--surface: #06080d;"));
 });
+
+test("chat stream defers DOM writes and scrolling to animation frames", () => {
+  const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
+  const handler = renderer.slice(renderer.indexOf("window.voxiva.onChunk"), renderer.indexOf("window.voxiva.onReset"));
+  assert.match(handler, /assistantStream\.push\(chunk\)/);
+  assert.doesNotMatch(handler, /textContent\s*\+=/);
+  assert.match(renderer, /schedule:\s*requestAnimationFrame/);
+  assert.match(renderer, /scrollTop\s*=\s*\$\("chat-scroll"\)\.scrollHeight/);
+});
+
+test("startup state requests are made concurrently", () => {
+  const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
+  assert.match(renderer, /Promise\.all\(\[window\.voxiva\.state\(\), window\.voxiva\.preferences\(\), window\.voxiva\.options\(\)\]\)/);
+});
