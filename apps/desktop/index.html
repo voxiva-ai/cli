@@ -23,25 +23,27 @@
     <main class="app-main">
       <header class="topbar">
         <div class="top-leading"><button class="icon-button sidebar-toggle" id="sidebar-toggle" title="Show sidebar" aria-label="Show sidebar">☰</button><button class="icon-button app-menu-trigger" id="app-menu-trigger" title="Application menu" aria-label="Application menu" aria-haspopup="menu" aria-expanded="false">▦</button><span class="sr-only" id="view-title">New chat</span><div class="session-tabs" id="session-tabs" role="tablist" aria-label="Open sessions"></div><button class="icon-button tab-new" id="tab-new" title="New session" aria-label="New session">+</button></div>
-        <div class="top-actions"><button class="icon-button update-trigger" id="update-trigger" title="Update available" aria-label="Update available" hidden>↓<i></i></button><button class="top-chip" id="plan-chip" title="Choose agent plan"><span id="plan-chip-label">Build</span><svg class="ui-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg><select id="plan-select" aria-label="Agent plan"></select></button><button class="icon-button" id="commands-button" title="Commands (Ctrl+K)" aria-label="Open commands">/</button><button class="icon-button" id="theme-button" title="Switch appearance">◐</button><button class="icon-button" id="top-terminal" title="Open terminal">&gt;_</button></div>
+        <div class="top-actions"><button class="icon-button update-trigger" id="update-trigger" title="Update available" aria-label="Update available" hidden>↓<i></i></button><button class="top-chip" id="plan-chip" title="Choose agent plan"><span id="plan-chip-label">Build</span><svg class="ui-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg><select id="plan-select" aria-label="Agent plan"></select></button><button class="icon-button" id="commands-button" title="Commands (Ctrl+K)" aria-label="Open commands">/</button><button class="icon-button" id="top-terminal" title="Open terminal">&gt;_</button></div>
       </header>
       <nav class="app-menu" id="app-menu" popover="auto" role="menu" aria-label="Application menu">
         <div class="menu-brand">Voxiva</div>
         <div class="menu-group"><span>Файл</span><button role="menuitem" data-action="new">Новая сессия <kbd>Ctrl N</kbd></button><button role="menuitem" data-action="workspaces">Открыть проект…</button></div>
         <div class="menu-group"><span>Правка</span><button role="menuitem" data-action="undo">Отменить <kbd>Ctrl Z</kbd></button><button role="menuitem" data-action="redo">Повторить <kbd>Ctrl Y</kbd></button><button role="menuitem" data-action="copy">Копировать <kbd>Ctrl C</kbd></button><button role="menuitem" data-action="paste">Вставить <kbd>Ctrl V</kbd></button><button role="menuitem" data-action="select-all">Выбрать всё <kbd>Ctrl A</kbd></button></div>
-        <div class="menu-group"><span>Вид</span><button role="menuitem" data-action="sidebar">Боковая панель</button><button role="menuitem" data-action="theme">Сменить тему</button><button role="menuitem" data-action="commands">Команды <kbd>Ctrl K</kbd></button></div>
+        <div class="menu-group"><span>Вид</span><button role="menuitem" data-action="sidebar">Боковая панель</button><button role="menuitem" data-action="settings">Настройки</button><button role="menuitem" data-action="commands">Команды <kbd>Ctrl K</kbd></button></div>
         <div class="menu-group"><span>Окно</span><button role="menuitem" data-action="terminal">Терминал <kbd>Ctrl J</kbd></button></div>
         <div class="menu-group"><span>Справка</span><button role="menuitem" data-action="update">Проверить обновления</button><button role="menuitem" data-action="doctor">Диагностика</button></div>
       </nav>
 
       <section class="chat-view" id="chat-view">
         <div class="chat-scroll" id="chat-scroll">
-          <div class="welcome" id="welcome">
-            <div class="hero-brand"><img src="./assets/voxiva-cli-mark.png" alt="" /><span>voxiva</span></div>
-          </div>
           <div class="messages" id="messages" aria-live="polite"></div>
         </div>
         <div class="composer-area">
+          <div class="welcome" id="welcome">
+            <div class="hero-brand"><img src="./assets/voxiva-cli-mark.png" alt="" /><span>voxiva</span></div>
+            <h1>What are we building?</h1>
+            <p>Explore your project, review code, or describe a change.</p>
+          </div>
           <form class="composer" id="composer-form">
             <textarea id="prompt" rows="1" placeholder="Спросите о проекте или откройте действия кнопкой /…" aria-label="Message Voxiva"></textarea>
             <div class="composer-bottom">
@@ -65,10 +67,10 @@
     </main>
     <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
       <header class="settings-header">
-        <div><span class="settings-kicker">VOXIVA</span><h2 id="settings-title">Models & providers</h2></div>
+        <div><span class="settings-kicker">VOXIVA</span><h2 id="settings-title">Settings</h2></div>
         <button class="icon-button" id="settings-close" type="button" aria-label="Close settings" title="Close">×</button>
       </header>
-      <p class="settings-description">Connect a provider to use its models. API keys stay on this device.</p>
+      <p class="settings-description">Choose your appearance and reply language, then manage model providers.</p>
       <div class="preference-row"><label for="theme-select">Appearance</label><select id="theme-select" aria-label="Appearance"></select><label for="locale-select">Reply language</label><select id="locale-select" aria-label="Reply language"></select></div>
       <div class="provider-list" id="provider-list" aria-live="polite"></div>
       <footer class="settings-footer"><span>Changes are shared with Voxiva CLI.</span><button class="button" id="settings-done" type="button">Done</button></footer>

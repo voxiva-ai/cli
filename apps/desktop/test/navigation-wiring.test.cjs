@@ -7,6 +7,7 @@ test("renderer DOM lookups only target elements present in the desktop shell", (
   const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
   const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
   const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+  assert.equal([...html.matchAll(/\bid="welcome"/g)].length, 1);
   const missing = [...new Set([...renderer.matchAll(/\$\("([^"]+)"\)/g)].map((match) => match[1]).filter((id) => !ids.has(id)))];
 
   assert.deepEqual(missing, []);
@@ -54,4 +55,30 @@ test("the sessions action opens an accessible sidebar", () => {
 test("update badge visibility requires an installer for this platform", () => {
   const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
   assert.match(renderer, /const hasBadge = status\.available && Boolean\(status\.asset\)/);
+});
+test("desktop window uses the Voxiva brand mark as its native icon", () => {
+  const main = fs.readFileSync(path.join(__dirname, "../main.cjs"), "utf8");
+  assert.match(main, /icon:\s*path\.join\(__dirname, "assets", "voxiva-cli-mark\.png"\)/);
+});
+
+test("the welcome, composer, and project controls share one centered home block", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
+  const start = html.indexOf('<div class="composer-area">');
+  const home = html.slice(start, html.indexOf('<div class="home-footnote"', start));
+  assert.ok(home.indexOf('id="welcome"') < home.indexOf('id="composer-form"'));
+  assert.match(home, /What are we building\?/);
+  assert.match(home, /id="composer-project"/);
+  assert.match(home, /id="environment-trigger"/);
+});
+
+test("appearance is changed in accessible settings instead of a duplicate header toggle", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
+  const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
+  const topbar = html.slice(html.indexOf('<header class="topbar">'), html.indexOf('</header>'));
+  assert.doesNotMatch(topbar, /theme-button/);
+  assert.match(html, /data-action="settings"/);
+  assert.match(html, /id="theme-select"/);
+  assert.match(html, /id="settings-title">Settings/);
+  assert.match(renderer, /"settings"/);
+  assert.ok(renderer.includes('if (id === "theme") $("theme-select").focus()'));
 });

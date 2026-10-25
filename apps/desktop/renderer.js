@@ -743,11 +743,6 @@ function setSidebar(open) {
   $("sidebar-toggle").setAttribute("aria-label", $("sidebar-toggle").title);
   localStorage.setItem("voxiva-sidebar", open ? "expanded" : "collapsed");
 }
-$("theme-button").addEventListener("click", async () => {
-  const appearance = document.body.dataset.theme === "light" ? "dark" : "light";
-  localStorage.setItem("voxiva-appearance", appearance);
-  document.body.dataset.theme = appearance;
-});
 async function startNewChat() {
   await stopCurrentResponse();
   currentSessionId = await window.voxiva.newChat();
@@ -817,7 +812,12 @@ function showUpdateDialog(status) {
 async function runCommand(id) {
   try {
     if (id === "new") return startNewChat();
-    if (id === "models" || id === "connect") { await loadState(); $("settings-dialog").showModal(); return; }
+    if (["models", "connect", "settings", "theme"].includes(id)) {
+      await loadState();
+      $("settings-dialog").showModal();
+      if (id === "theme") $("theme-select").focus();
+      return;
+    }
     if (id === "plans") { $("plan-select").focus(); return; }
     if (id === "sessions") { setSidebar(true); $("session-list").scrollIntoView({ block: "nearest" }); return; }
     if (id === "workspaces") return openWorkspacePicker();
@@ -836,7 +836,6 @@ async function runCommand(id) {
     }
     if (id === "update") return checkDesktopUpdate();
     if (id === "sidebar") return $("sidebar-toggle").click();
-    if (id === "theme") return $("theme-button").click();
     if (id === "commands") return openCommands();
     if (["undo", "redo", "select-all"].includes(id)) {
       $("prompt").focus();

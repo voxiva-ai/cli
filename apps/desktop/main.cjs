@@ -131,6 +131,7 @@ function createWindow() {
     minHeight: 540,
     backgroundColor: "#090c11",
     title: "Voxiva CLI",
+    icon: path.join(__dirname, "assets", "voxiva-cli-mark.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
