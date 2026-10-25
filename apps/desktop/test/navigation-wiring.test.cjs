@@ -20,3 +20,38 @@ test("every application-menu item is wired to an action", () => {
   assert.ok(actions.length > 0);
   for (const action of actions) assert.ok(renderer.includes(`"${action}"`), `menu action is not handled: ${action}`);
 });
+
+test("workspace switching drains an active chat before replacing its DOM", () => {
+  const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
+  const start = renderer.indexOf("async function createProjectWorktree");
+  const end = renderer.indexOf("async function chooseProject", start);
+  const handler = renderer.slice(start, end);
+
+  const stop = handler.indexOf("await stopCurrentResponse()");
+  const create = handler.indexOf("window.voxiva.createWorktree");
+  assert.ok(stop >= 0 && stop < create);
+});
+
+test("a reply only converts the current draft tab", () => {
+  const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
+  const start = renderer.indexOf("window.voxiva.onReply");
+  const end = renderer.indexOf("window.voxiva.onChunk", start);
+  const handler = renderer.slice(start, end);
+
+  assert.match(handler, /if \(currentDraft\) \{[\s\S]*?const draft = openTabs\.find\(\(tab\) => tab\.id === null\)/);
+});
+
+test("the sessions action opens an accessible sidebar", () => {
+  const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
+  const start = renderer.indexOf("async function runCommand");
+  const end = renderer.indexOf("$(\"settings-button\")", start);
+  const handler = renderer.slice(start, end);
+
+  assert.match(handler, /id === "sessions"\) \{ setSidebar\(true\)/);
+  assert.match(renderer, /function setSidebar\(open\)[\s\S]*?\$\("sidebar"\)\.inert = !open/);
+});
+
+test("update badge visibility requires an installer for this platform", () => {
+  const renderer = fs.readFileSync(path.join(__dirname, "../renderer.js"), "utf8");
+  assert.match(renderer, /const hasBadge = status\.available && Boolean\(status\.asset\)/);
+});

@@ -258,6 +258,7 @@ async function createProjectWorktree(event) {
   navigation.forEach((element) => { element.disabled = true; });
   button.disabled = true;
   try {
+    await stopCurrentResponse();
     const result = await window.voxiva.createWorktree(currentProject, $("worktree-name").value);
     $("environment-menu").hidePopover();
     $("worktree-form").hidden = true;
@@ -441,12 +442,14 @@ async function sendPrompt(value) {
   setStatus("Thinking", true);
   try {
     const result = await window.voxiva.sendChat(prompt);
-    if (result?.stopped) currentAssistant.content.textContent = "Response stopped.";
+    if (result?.stopped && currentAssistant) currentAssistant.content.textContent = "Response stopped.";
   } catch (error) {
-    currentAssistant.content.textContent = error instanceof Error ? error.message : String(error);
-    currentAssistant.content.classList.add("error-text");
+    if (currentAssistant) {
+      currentAssistant.content.textContent = error instanceof Error ? error.message : String(error);
+      currentAssistant.content.classList.add("error-text");
+    }
   } finally {
-    currentAssistant.content.classList.remove("thinking");
+    currentAssistant?.content.classList.remove("thinking");
     running = false;
     updateSendButton();
     $("send-button").hidden = false;
@@ -730,12 +733,16 @@ for (const id of ["nav-terminal", "top-terminal"]) $(id).addEventListener("click
 $("nav-chat").addEventListener("click", () => startNewChat().catch((error) => toast(error.message)));
 $("terminal-new").addEventListener("click", () => { terminalStarted = false; startTerminal(); });
 $("sidebar-toggle").addEventListener("click", () => {
-  const open = document.body.classList.toggle("sidebar-open");
+  const open = !document.body.classList.contains("sidebar-open");
+  setSidebar(open);
+});
+function setSidebar(open) {
+  document.body.classList.toggle("sidebar-open", open);
   $("sidebar").inert = !open;
   $("sidebar-toggle").title = open ? "Hide sidebar" : "Show sidebar";
   $("sidebar-toggle").setAttribute("aria-label", $("sidebar-toggle").title);
   localStorage.setItem("voxiva-sidebar", open ? "expanded" : "collapsed");
-});
+}
 $("theme-button").addEventListener("click", async () => {
   const appearance = document.body.dataset.theme === "light" ? "dark" : "light";
   localStorage.setItem("voxiva-appearance", appearance);
@@ -783,14 +790,14 @@ async function openCommands() {
 }
 async function checkDesktopUpdate({ silent = false } = {}) {
   const status = await window.voxiva.checkUpdate();
+  const hasBadge = status.available && Boolean(status.asset);
+  $("update-trigger").hidden = !hasBadge;
   if (!status.available) {
-    $("update-trigger").hidden = true;
     currentUpdate = null;
     if (!silent) toast(!status.latest ? "Could not reach GitHub. Try again later." : !status.releaseReady ? "The latest release does not include a desktop installer yet." : "Voxiva is up to date.");
     return;
   }
   currentUpdate = status;
-  $("update-trigger").hidden = false;
   $("update-trigger").title = `Voxiva ${status.latest} update available`;
   $("update-trigger").setAttribute("aria-label", `Voxiva ${status.latest} update available`);
   if (!silent) showUpdateDialog(status);
@@ -812,7 +819,7 @@ async function runCommand(id) {
     if (id === "new") return startNewChat();
     if (id === "models" || id === "connect") { await loadState(); $("settings-dialog").showModal(); return; }
     if (id === "plans") { $("plan-select").focus(); return; }
-    if (id === "sessions") { document.body.classList.add("sidebar-open"); $("session-list").scrollIntoView({ block: "nearest" }); return; }
+    if (id === "sessions") { setSidebar(true); $("session-list").scrollIntoView({ block: "nearest" }); return; }
     if (id === "workspaces") return openWorkspacePicker();
     if (id === "terminal") return switchView("terminal");
     if (id === "doctor") {
@@ -991,9 +998,11 @@ window.voxiva.onReply(({ text, sessionId, title }) => {
   currentSessionId = sessionId ?? currentSessionId;
   currentSessionTitle = title || currentSessionTitle;
   if (currentSessionId) {
-    currentDraft = false;
-    const draft = openTabs.find((tab) => tab.id === null);
-    if (draft) { draft.id = currentSessionId; draft.title = currentSessionTitle; }
+    if (currentDraft) {
+      currentDraft = false;
+      const draft = openTabs.find((tab) => tab.id === null);
+      if (draft) { draft.id = currentSessionId; draft.title = currentSessionTitle; }
+    }
     rememberTab(currentSessionId, currentSessionTitle);
   }
   $("view-title").textContent = currentSessionTitle;
